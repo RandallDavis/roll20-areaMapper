@@ -13,3 +13,11 @@ Core design ideas:
 - Areas / objects can be selected via a controller token that is placed above them. From there, areas / objects that match the spatial criteria are chosen between to identify the area / object that is being selected.
 - Keep data out of objects so that copy / paste doesn't confuse anything.
 - Any automatically drawn object (walls, floors, doors, etc.) can be cycled between available images / styling, and dynamically assigned Urls can be provided (maybe with an option to add these as a regular part of cycling options as opposed to a one-off).
+
+Possibilites:
+- Areas will certainly need a Z-order so that superimposing can be handled logically. Normally, you'd expect floors to be at the base layer, then walls, then doors, then objects, basically as a merging / layering between all of the areas. Another optional approach could be to situationally have different areas be on different "floors", and ditch the merging logic and impose a semi-transparent graying effect on floors that are below the active floor.
+
+Implementation:
+- All of the polygon logic should be handled as a clustered graph algorithm. For fun, don't do research on others' approaches to this, but do it from scratch.
+
+
