@@ -84,8 +84,126 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     /* polygon logic - begin */
     
+    
+    
+    graph = function() {
+        
+        var points = [],
+            segments = [],
+        
+        point = function(x, y) {
+            this.x = x;
+            this.y = y;
+        },
+        
+        //a and b are points:
+        segment = function(a, b) {
+            this.a = a;
+            this.b = b;
+                
+            this.length = function() {
+                var xDist = b.x - a.x;
+                var yDist = b.y - a.y;
+                return Math.sqrt((xDist * xDist) + (yDist * yDist));
+            };
+        },
+        
+        //find item in container; if position is defined, it represents the index in a nested array:
+        getItemIndex = function(container, item, position) {
+            var index;
+            
+            for(var i = 0; i < container.length; i++) {
+                if(item === (((container.length > 0) && ('undefined' !== typeof(position))) ? container[i][position] : container[i])) {
+                    index = i;
+                    break;
+                }
+            }
+            
+            return index;
+        },
+        
+        addPoint = function(point) {
+            var index = getItemIndex(points, point, 0);
+            
+            if(!index) {
+                //add point and return its index:
+                return points.push([point, []]) - 1;
+            }
+            
+            return index;
+        },
+        
+        addSegment = function(segment) {
+            var iS = getItemIndex(segments, segment);
+            
+            if(!iS) {
+                iS = segments.push(segment) - 1;
+            }
+            
+            //assume that points already exist:
+            var iPa = getItemIndex(points, segment.a, 0);
+            var iPb = getItemIndex(points, segment.b, 0);
+            
+            points[iPa][1].push(iS);
+            points[iPb][1].push(iS);
+        },
+        
+        removeSegment = function(segment) {
+            //TODO
+        },
+        
+        addPath = function(path) {
+            path = JSON.parse(path);
+            
+            if(path && path.length > 1) {
+                
+                var pStart, //start point
+                    pPrior, //prior point
+                    iPrior; //index of prior point
+                
+                path.forEach(function(pCurrent) {
+                    var pCurrent = new point(pCurrent[1], pCurrent[2]); //current point
+                    var iCurrent = addPoint(pCurrent); //index of current point
+                    
+                    if(pPrior) {
+                        addSegment(new segment(pPrior, pCurrent));
+                    } else {
+                        pStart = pCurrent;
+                    }
+                    
+                    pPrior = pCurrent;
+                    iPrior = iCurrent;
+                });
+                
+                //close the polygon if it isn't closed already:
+                if(pPrior !== pStart) {
+                    addSegment(new segment(pPrior, pStart));
+                }
+            }
+        };
+        
+        return {
+            points: points,
+            segments: segments,
+            addPath: addPath
+        };
+    };
+    
     var handlePathAdd = function(path) {
-        log(path);
+        var a = path.get('_path');
+        log(a);
+        
+        
+        var g = new graph();
+        g.addPath(a);
+        log(g);
+        //log(g.points);
+        
+        /*var x = new Array();
+        x['a'] = 1;
+        x[0] = 2;
+        x.push(3);
+        log(x);*/
     },
     
     /* polygon logic - end */
