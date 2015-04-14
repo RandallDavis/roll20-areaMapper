@@ -164,6 +164,29 @@ var APIAreaMapper = APIAreaMapper || (function() {
             segments.splice(iS, 1)
         },
         
+        //this is a modified version of https://gist.github.com/Joncom/e8e8d18ebe7fe55c3894
+        segmentsIntersect = function(s1, s2) {
+            //TODO: it "might" be more efficient to test segments for common points, in order for this to be viable, there would have to be segment-level references to point indexes to speed up the lookups. These might be a win anyway, but I think that overall it's not improving anything much.
+            //exclude shared endpoints:
+            if(s1.a === s2.a || s1.a === s2.b || s1.b === s2.a || s1.b === s2.b) {
+                return false;
+            }
+            
+            var s1_x = s1.b.x - s1.a.x;
+            var s1_y = s1.b.y - s1.a.y;
+            var s2_x = s2.b.x - s2.a.x;
+            var s2_y = s2.b.y - s2.a.y;
+            
+            var s = (-s1_y * (s1.a.x - s2.a.x) + s1_x * (s1.a.y - s2.a.y)) / (-s2_x * s1_y + s1_x * s2_y);
+            var t = (s2_x * (s1.a.y - s2.a.y) - s2_y * (s1.a.x - s2.a.x)) / (-s2_x * s1_y + s1_x * s2_y);
+            
+            if(s >= 0 && s <= 1 && t >= 0 && t <= 1) {
+                return true;
+            }
+         
+            return false;
+        },
+        
         addPath = function(path) {
             path = JSON.parse(path);
             
@@ -196,7 +219,16 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         //break all intersecting segments into smaller pieces:
         breakSegments = function() {
-            
+            for(var i = 0; i < segments.length - 1; i++) {
+                for(var i2 = i + 1; i2 < segments.length; i2++) {
+                    log(
+                        i
+                        + ', ' + i2
+                        + ': '
+                        +segmentsIntersect(segments[i], segments[i2])
+                    );
+                }
+            }
         };
         
         return {
