@@ -84,19 +84,17 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     /* polygon logic - begin */
     
-    
-    
     graph = function() {
         
-        var points = [],
-            segments = [],
+        var points = [], //array of [point, [segment index]]
+            segments = [], //array of segment
         
         point = function(x, y) {
             this.x = x;
             this.y = y;
         },
         
-        //a and b are points:
+        //segment between points a and b:
         segment = function(a, b) {
             this.a = a;
             this.b = b;
@@ -149,7 +147,21 @@ var APIAreaMapper = APIAreaMapper || (function() {
         },
         
         removeSegment = function(segment) {
-            //TODO
+            var iS = getItemIndex(segments, segment);
+            
+            //remove segment from points:
+            points.forEach(function(p) {
+                pointSegments = p[1];
+                for(var i = 0; i < pointSegments.length; i++) {
+                    if(pointSegments[i] === iS) {
+                        pointSegments.splice(i, 1);
+                        break;
+                    }
+                }
+            });
+            
+            //remove segment from segments:
+            segments.splice(iS, 1)
         },
         
         addPath = function(path) {
@@ -180,30 +192,32 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     addSegment(new segment(pPrior, pStart));
                 }
             }
+        },
+        
+        //break all intersecting segments into smaller pieces:
+        breakSegments = function() {
+            
         };
         
         return {
             points: points,
             segments: segments,
-            addPath: addPath
+            addPath: addPath,
+            breakSegments: breakSegments
         };
     };
     
     var handlePathAdd = function(path) {
         var a = path.get('_path');
-        log(a);
+        //log(a);
         
         
         var g = new graph();
         g.addPath(a);
         log(g);
-        //log(g.points);
         
-        /*var x = new Array();
-        x['a'] = 1;
-        x[0] = 2;
-        x.push(3);
-        log(x);*/
+        g.breakSegments();
+        log(g);
     },
     
     /* polygon logic - end */
