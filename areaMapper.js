@@ -165,11 +165,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         removeSegment(seg);
                         
                         //create new broken segments:
-                        newSegments.push(new segment(newSegments[i].a, intersectionPoint));
-                        newSegments.push(new segment(intersectionPoint, newSegments[i].b));
+                        newSegments.unshift(new segment(newSegments[i].a, intersectionPoint));
+                        newSegments.unshift(new segment(intersectionPoint, newSegments[i + 1].b));
                         
                         //remove the new segment that was just broken:
-                        newSegments.splice(i, 1);
+                        newSegments.splice(i + 2, 1);
                         
                         //adjust the loop to bypass the broken newSegments that were already tested against seg:
                         i++;
@@ -217,7 +217,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         //this is a modified version of https://gist.github.com/Joncom/e8e8d18ebe7fe55c3894
         segmentsIntersect = function(s1, s2) {
-            //TODO: it "might" be more efficient to test segments for common points, in order for this to be viable, there would have to be segment-level references to point indexes to speed up the lookups. These might be a win anyway, but I think that overall it's not improving anything much.
             //exclude segments with shared endpoints:
             if(s1.a === s2.a || s1.a === s2.b || s1.b === s2.a || s1.b === s2.b) {
                 return null;
@@ -321,11 +320,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     handlePathAdd = function(path) {
         var a = path.get('_path');
+        log(a);
         var g = new graph();
         g.addPath(a);
         log(g);
         g.drawSegments();
-        log(g.segments.length);
     },
     
     /* polygon logic - end */
@@ -334,11 +333,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     registerEventHandlers = function() {
         on('add:path', handlePathAdd);
-        //on('chat:message', function(msg) {log(msg);});
         
         var g = new graph();
-        //g.addPath("[[\"M\",55,0],[\"L\",0,61],[\"L\",60,52],[\"L\",12,9]]");
-        g.addPath("[[\"M\",100,0],[\"L\",0,100],[\"L\",0,0],[\"L\",100,100]]");
+        g.addPath("[[\"M\",163,62],[\"L\",76,243],[\"L\",238,162],[\"L\",56,71],[\"L\",189,285],[\"L\",151,4],[\"L\",29,0],[\"L\",0,119],[\"L\",127,258],[\"L\",198,231]]");
         log(g);
         g.drawSegments();
     };
