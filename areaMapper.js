@@ -84,7 +84,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     /* polygon logic - begin */
     
-    graph = function() {
+    var graph = function() {
         
         var points = [], //array of [point, [segment index]]
             segments = [], //array of segment
@@ -122,8 +122,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         addPoint = function(point) {
             var index = getItemIndex(points, point, 0);
-            
-            if(!index) {
+        
+            if('undefined' === typeof(index)) {
                 //add point and return its index:
                 return points.push([point, []]) - 1;
             }
@@ -131,25 +131,77 @@ var APIAreaMapper = APIAreaMapper || (function() {
             return index;
         },
         
-        addSegment = function(segment) {
-            var iS = getItemIndex(segments, segment);
+        //it's illogical to return a segment's index, becuse it might have been broken into pieces:
+        //it's also inconvient to do early detection of the segment being new, because of segment breaking:
+        addSegment = function(s) {
+            var newSegments = [];
+            var brokenSegments = [];
+            var intersectingSegments = [];
             
-            if(!iS) {
-                iS = segments.push(segment) - 1;
-            }
+            newSegments.push(s);
             
-            //assume that points already exist:
-            var iPa = getItemIndex(points, segment.a, 0);
-            var iPb = getItemIndex(points, segment.b, 0);
+            //find segments that the new segment intersects:
+            segments.forEach(function(seg) {
+                if(segmentsIntersect(s, seg)) {
+                    intersectingSegments.push(seg);
+                }
+            });
             
-            points[iPa][1].push(iS);
-            points[iPb][1].push(iS);
+            //break segment against all intersecting segments and remove intersecting segments:
+            intersectingSegments.forEach(function(seg) {
+               
+                //loop through new segments to look for intersections:
+                for(var i = 0; i < newSegments.length; i++) {
+                   
+                    //because we're breaking new segments, we have to retest for intersection:
+                    //TODO: can segmentIntersection() provide this test?
+                    if(segmentsIntersect(newSegments[i], seg)) {
+                        var intersectionPoint = segmentIntersection(newSegments[i], seg);
+                        
+                        //create broken segments out of old segment that was intersected:
+                        brokenSegments.push(new segment(seg.a, intersectionPoint));
+                        brokenSegments.push(new segment(intersectionPoint, seg.b));
+                        
+                        //remove the segment that was intersected from the graph:
+                        removeSegment(seg);
+                        
+                        //create new broken segments:
+                        newSegments.push(new segment(newSegments[i].a, intersectionPoint));
+                        newSegments.push(new segment(intersectionPoint, newSegments[i].b));
+                        
+                        //remove the new segment that was just broken:
+                        newSegments.splice(i, 1);
+                        
+                        //adjust the loop to bypass the broken newSegments that were already tested against seg:
+                        i++;
+                    }
+                }
+            });
+            
+            //add old broken segments:
+            brokenSegments.forEach(function(seg) {
+                var iS = segments.push(seg) - 1;
+                var iPa = addPoint(seg.a);
+                var iPb = addPoint(seg.b);
+                points[iPa][1].push(iS);
+                points[iPb][1].push(iS);
+            });
+            
+            //add new segments:
+            newSegments.forEach(function(seg) {
+                var iS = segments.push(seg) - 1;
+                var iPa = addPoint(seg.a);
+                var iPb = addPoint(seg.b);
+                points[iPa][1].push(iS);
+                points[iPb][1].push(iS);
+            });
         },
         
         removeSegment = function(segment) {
             var iS = getItemIndex(segments, segment);
             
             //remove segment from points:
+            //TODO: if points reference 0 segments, remove them
             points.forEach(function(p) {
                 pointSegments = p[1];
                 for(var i = 0; i < pointSegments.length; i++) {
@@ -161,16 +213,18 @@ var APIAreaMapper = APIAreaMapper || (function() {
             });
             
             //remove segment from segments:
-            segments.splice(iS, 1)
+            segments.splice(iS, 1);
         },
         
         //this is a modified version of https://gist.github.com/Joncom/e8e8d18ebe7fe55c3894
         segmentsIntersect = function(s1, s2) {
             //TODO: it "might" be more efficient to test segments for common points, in order for this to be viable, there would have to be segment-level references to point indexes to speed up the lookups. These might be a win anyway, but I think that overall it's not improving anything much.
-            //exclude shared endpoints:
+            //exclude segments with shared endpoints:
             if(s1.a === s2.a || s1.a === s2.b || s1.b === s2.a || s1.b === s2.b) {
                 return false;
             }
+            
+            //TODO: after building segment intersection point detection, see if it's more efficient to just do it here
             
             var s1_x = s1.b.x - s1.a.x;
             var s1_y = s1.b.y - s1.a.y;
@@ -187,6 +241,21 @@ var APIAreaMapper = APIAreaMapper || (function() {
             return false;
         },
         
+        segmentIntersection = function(s1, s2) {
+            //assume that segments intersect
+            
+            //TODO: vertical / horizontal slope
+            
+            var s1Offset = s1.b.y - s1.a.y;
+            var s2Offset = s2.b.y - s2.a.y;
+            var s1Slope = s1Offset / (s1.b.x - s1.a.x);
+            var s2Slope = s2Offset / (s2.b.x - s2.a.x);
+            var x = (s2Offset - s1Offset) / (s1Slope - s2Slope);
+            var y = (s1Slope * x) + s1Offset + s1.a.x;
+          
+            return new point(x, y);
+        },
+        
         addPath = function(path) {
             path = JSON.parse(path);
             
@@ -197,7 +266,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     iPrior; //index of prior point
                 
                 path.forEach(function(pCurrent) {
+                    
+                    //overwrite pCurrent with parsed out data:
                     var pCurrent = new point(pCurrent[1], pCurrent[2]); //current point
+                    
                     var iCurrent = addPoint(pCurrent); //index of current point
                     
                     if(pPrior) {
@@ -215,40 +287,22 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     addSegment(new segment(pPrior, pStart));
                 }
             }
-        },
-        
-        //break all intersecting segments into smaller pieces:
-        breakSegments = function() {
-            for(var i = 0; i < segments.length - 1; i++) {
-                for(var i2 = i + 1; i2 < segments.length; i2++) {
-                    log(
-                        i
-                        + ', ' + i2
-                        + ': '
-                        +segmentsIntersect(segments[i], segments[i2])
-                    );
-                }
-            }
         };
         
         return {
             points: points,
             segments: segments,
-            addPath: addPath,
-            breakSegments: breakSegments
+            addPath: addPath
         };
-    };
+    },
     
-    var handlePathAdd = function(path) {
+    handlePathAdd = function(path) {
+        log('path added');
+        
         var a = path.get('_path');
-        //log(a);
-        
-        
+     
         var g = new graph();
         g.addPath(a);
-        log(g);
-        
-        g.breakSegments();
         log(g);
     },
     
@@ -258,6 +312,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     registerEventHandlers = function() {
         on('add:path', handlePathAdd);
+        //on('chat:message', function(msg) {log(msg);});
+        
+        var g = new graph();
+        g.addPath("[[\"M\",55,0],[\"L\",0,61],[\"L\",60,52],[\"L\",12,9]]");
+        log(g);
     };
     
     //expose public functions:
