@@ -200,16 +200,22 @@ var APIAreaMapper = APIAreaMapper || (function() {
             var iS = getItemIndex(segments, segment);
             
             //remove segment from points:
-            //TODO: if points reference 0 segments, remove them
-            points.forEach(function(p) {
-                pointSegments = p[1];
+            for(var pI = points.length - 1; pI >= 0; pI--) {
+                pointSegments = points[pI][1];
                 for(var i = 0; i < pointSegments.length; i++) {
                     if(pointSegments[i] === iS) {
+                        
+                        //remove the segment reference:
                         pointSegments.splice(i, 1);
+                        
+                        //remove points that have no segments:
+                        if(pointSegments.length == 0) {
+                            points.splice(pI, 1);
+                        }
                         break;
                     }
                 }
-            });
+            }
             
             //remove segment from segments:
             segments.splice(iS, 1);
