@@ -154,9 +154,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 for(var i = 0; i < newSegments.length; i++) {
                    
                     //because we're breaking new segments, we have to retest for intersection:
-                    //TODO: can segmentIntersection() provide this test?
-                    if(segmentsIntersect(newSegments[i], seg)) {
-                        var intersectionPoint = segmentIntersection(newSegments[i], seg);
+                    var intersectionPoint = segmentsIntersect(newSegments[i], seg);
+                    if(intersectionPoint) {
                         
                         //create broken segments out of old segment that was intersected:
                         brokenSegments.push(new segment(seg.a, intersectionPoint));
@@ -221,10 +220,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
             //TODO: it "might" be more efficient to test segments for common points, in order for this to be viable, there would have to be segment-level references to point indexes to speed up the lookups. These might be a win anyway, but I think that overall it's not improving anything much.
             //exclude segments with shared endpoints:
             if(s1.a === s2.a || s1.a === s2.b || s1.b === s2.a || s1.b === s2.b) {
-                return false;
+                return null;
             }
-            
-            //TODO: after building segment intersection point detection, see if it's more efficient to just do it here
             
             var s1_x = s1.b.x - s1.a.x;
             var s1_y = s1.b.y - s1.a.y;
@@ -235,25 +232,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
             var t = (s2_x * (s1.a.y - s2.a.y) - s2_y * (s1.a.x - s2.a.x)) / (-s2_x * s1_y + s1_x * s2_y);
             
             if(s >= 0 && s <= 1 && t >= 0 && t <= 1) {
-                return true;
+                return new point(s1.a.x + (t * s1_x), s1.a.y + (t * s1_y));
             }
          
-            return false;
-        },
-        
-        segmentIntersection = function(s1, s2) {
-            //assume that segments intersect
-            
-            //TODO: vertical / horizontal slope
-            
-            var s1Offset = s1.b.y - s1.a.y;
-            var s2Offset = s2.b.y - s2.a.y;
-            var s1Slope = s1Offset / (s1.b.x - s1.a.x);
-            var s2Slope = s2Offset / (s2.b.x - s2.a.x);
-            var x = (s2Offset - s1Offset) / (s1Slope - s2Slope);
-            var y = (s1Slope * x) + s1Offset + s1.a.x;
-          
-            return new point(x, y);
+            return null;
         },
         
         addPath = function(path) {
@@ -287,23 +269,63 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     addSegment(new segment(pPrior, pStart));
                 }
             }
+        },
+        
+        //draws individual segments (for debugging):
+        drawSegments = function() {
+            segments.forEach(function(s) {
+                var isPositiveSlope = (((s.b.y - s.a.y) === 0) || (((s.b.x - s.a.x) / (s.b.y - s.a.y)) >= 0));
+                var top = Math.min(s.a.y, s.b.y);
+                var left = Math.min(s.a.x, s.b.x);
+                var path;
+                
+                //put it somewhere we can see it:
+                top += 200;
+                left += 200;
+                
+                //create a path for a segment from A to B relative to (left,top):
+                if(isPositiveSlope) {
+                    if(s.a.x > s.b.x) {
+                        path = '[[\"M\",' + Math.abs(s.a.x - s.b.x) + ',' + Math.abs(s.a.y - s.b.y) + '],[\"L\",0,0]]';
+                    } else {
+                        path = '[[\"M\",0,0],[\"L\",' + Math.abs(s.b.x - s.a.x) + ',' + Math.abs(s.b.y - s.a.y) + ']]';
+                    }
+                } else {
+                    if(s.a.x > s.b.x) {
+                        path = '[[\"M\",' + Math.abs(s.a.x - s.b.x) + ',0],[\"L\",0,' + Math.abs(s.b.y - s.a.y) + ']]';
+                    } else {
+                        path = '[[\"M\",0,' + Math.abs(s.a.y - s.b.y) + '],[\"L\",' + Math.abs(s.b.x - s.a.x) + ',0]]';
+                    }
+                }
+                
+                //create a segment path:
+                createObj('path', {
+                    layer: 'objects',
+                    pageid: Campaign().get('playerpageid'),
+                    top: top,
+                    left: left,
+                    stroke: '#000000',
+                    stroke_width: 3,
+                    _path: path
+                });
+            });
         };
         
         return {
             points: points,
             segments: segments,
-            addPath: addPath
+            addPath: addPath,
+            drawSegments: drawSegments
         };
     },
     
     handlePathAdd = function(path) {
-        log('path added');
-        
         var a = path.get('_path');
-     
         var g = new graph();
         g.addPath(a);
         log(g);
+        g.drawSegments();
+        log(g.segments.length);
     },
     
     /* polygon logic - end */
@@ -315,8 +337,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
         //on('chat:message', function(msg) {log(msg);});
         
         var g = new graph();
-        g.addPath("[[\"M\",55,0],[\"L\",0,61],[\"L\",60,52],[\"L\",12,9]]");
+        //g.addPath("[[\"M\",55,0],[\"L\",0,61],[\"L\",60,52],[\"L\",12,9]]");
+        g.addPath("[[\"M\",100,0],[\"L\",0,100],[\"L\",0,0],[\"L\",100,100]]");
         log(g);
+        g.drawSegments();
     };
     
     //expose public functions:
