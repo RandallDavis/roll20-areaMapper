@@ -104,6 +104,26 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 var yDist = b.y - a.y;
                 return Math.sqrt((xDist * xDist) + (yDist * yDist));
             };
+            
+            //return an angle with respect to a specfic endpoint:
+            this.angle = function(p) {
+                var angle = (Math.atan2(b.y - a.y, b.x - a.x) + (2 * Math.PI)) % (2 * Math.PI);
+                
+                log('angle() logs:');
+                log(this);
+                log(p);
+                log(angle);
+                
+                if('undefined' === p || a.x === p.x && a.y === p.y) {
+                    log('using a');
+                    //return angle with respect to a:
+                    return angle;
+                }
+                
+                log('using b');
+                //return angle with respect to b:
+                return (angle + (Math.PI)) % (2 * Math.PI);
+            };
         },
         
         //find item in container; if position is defined, it represents the index in a nested array:
@@ -124,6 +144,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             var index = getItemIndex(points, point, 0);
         
             if('undefined' === typeof(index)) {
+               
                 //add point and return its index:
                 return points.push([point, []]) - 1;
             }
@@ -201,19 +222,26 @@ var APIAreaMapper = APIAreaMapper || (function() {
             
             //remove segment from points:
             for(var pI = points.length - 1; pI >= 0; pI--) {
-                pointSegments = points[pI][1];
-                for(var i = 0; i < pointSegments.length; i++) {
-                    if(pointSegments[i] === iS) {
+                for(var i = 0; i < points[pI][1].length; i++) {
+                    if(points[pI][1][i] === iS) {
                         
                         //remove the segment reference:
-                        pointSegments.splice(i, 1);
+                        points[pI][1].splice(i, 1);
                         
-                        //remove points that have no segments:
-                        if(pointSegments.length == 0) {
-                            points.splice(pI, 1);
-                        }
-                        break;
+                        //fix i since an item was deleted:
+                        i--;
+                    } else if(points[pI][1][i] > iS) {
+                        
+                        //decrement segment index references, since a segment is being removed:
+                        points[pI][1][i]--;
                     }
+                }
+            }
+            
+            //remove points that have no segments:
+            for(var pI = points.length - 1; pI >= 0; pI--) {
+                if(points[pI][1].length == 0) {
+                    points.splice(pI, 1);
                 }
             }
             
@@ -276,51 +304,165 @@ var APIAreaMapper = APIAreaMapper || (function() {
             }
         },
         
+        //draws a segment (for debugging):
+        drawSegment = function(s, color) {
+            var isPositiveSlope = (((s.b.y - s.a.y) === 0) || (((s.b.x - s.a.x) / (s.b.y - s.a.y)) >= 0));
+            var top = Math.min(s.a.y, s.b.y);
+            var left = Math.min(s.a.x, s.b.x);
+            var path;
+            
+            //put it somewhere we can see it:
+            top += 200;
+            left += 200;
+            
+            //create a path for a segment from A to B relative to (left,top):
+            if(isPositiveSlope) {
+                if(s.a.x > s.b.x) {
+                    path = '[[\"M\",' + Math.abs(s.a.x - s.b.x) + ',' + Math.abs(s.a.y - s.b.y) + '],[\"L\",0,0]]';
+                } else {
+                    path = '[[\"M\",0,0],[\"L\",' + Math.abs(s.b.x - s.a.x) + ',' + Math.abs(s.b.y - s.a.y) + ']]';
+                }
+            } else {
+                if(s.a.x > s.b.x) {
+                    path = '[[\"M\",' + Math.abs(s.a.x - s.b.x) + ',0],[\"L\",0,' + Math.abs(s.b.y - s.a.y) + ']]';
+                } else {
+                    path = '[[\"M\",0,' + Math.abs(s.a.y - s.b.y) + '],[\"L\",' + Math.abs(s.b.x - s.a.x) + ',0]]';
+                }
+            }
+            
+            //create a segment path:
+            createObj('path', {
+                layer: 'objects',
+                pageid: Campaign().get('playerpageid'),
+                top: top,
+                left: left,
+                stroke: color,
+                stroke_width: 3,
+                _path: path
+            });
+        },
+        
         //draws individual segments (for debugging):
         drawSegments = function() {
             segments.forEach(function(s) {
-                var isPositiveSlope = (((s.b.y - s.a.y) === 0) || (((s.b.x - s.a.x) / (s.b.y - s.a.y)) >= 0));
-                var top = Math.min(s.a.y, s.b.y);
-                var left = Math.min(s.a.x, s.b.x);
-                var path;
+                drawSegment(s, '#0000ff');
+            });
+        },
+        
+        getBlob = function() {
+            //find the smallest x points, and of those, take the greatest y:
+            var iTopLeftPoint = 0;
+            for(var i = 0; i < points.length; i++) {
+                if((points[i][0].x < points[iTopLeftPoint][0].x)
+                        || (points[i][0].x == points[iTopLeftPoint][0].x && points[i][0].y > points[iTopLeftPoint][0].y)) {
+                    iTopLeftPoint = i;
+                }
+            };
+            
+            var iP = iTopLeftPoint; //index of current point
+            var a = Math.PI / 2; //angle of prior segment; for first pass, initialize to facing up
+            
+            //constrain this to a loop for now to prevent infinite loop bugs in development; later this should be while new point != iTopLeftPoint:
+            for(var tempI = 0; tempI < 16; tempI++) {
+                log('---------------------');
+                log('iteration: ' + tempI);
+                log('iP: ' + iP);
+                log(points[iP]);
+            
+                //find the longest segment originating from the current point that is the most counter-clockwise from the prior segment's angle:
+                var s = 0;
+                var chosenSegment = segments[points[iP][1][s]];
+                var sAngle = chosenSegment.angle(points[iP][0]);
+                var sLength = chosenSegment.length();
                 
-                //put it somewhere we can see it:
-                top += 200;
-                left += 200;
+                log('chosenSegment:');
+                log(chosenSegment);
                 
-                //create a path for a segment from A to B relative to (left,top):
-                if(isPositiveSlope) {
-                    if(s.a.x > s.b.x) {
-                        path = '[[\"M\",' + Math.abs(s.a.x - s.b.x) + ',' + Math.abs(s.a.y - s.b.y) + '],[\"L\",0,0]]';
-                    } else {
-                        path = '[[\"M\",0,0],[\"L\",' + Math.abs(s.b.x - s.a.x) + ',' + Math.abs(s.b.y - s.a.y) + ']]';
-                    }
-                } else {
-                    if(s.a.x > s.b.x) {
-                        path = '[[\"M\",' + Math.abs(s.a.x - s.b.x) + ',0],[\"L\",0,' + Math.abs(s.b.y - s.a.y) + ']]';
-                    } else {
-                        path = '[[\"M\",0,' + Math.abs(s.a.y - s.b.y) + '],[\"L\",' + Math.abs(s.b.x - s.a.x) + ',0]]';
+                log('angles: ' + a + ', ' + sAngle);
+                
+                var sRelativeAngle = ((sAngle - a) + (2 * Math.PI)) % (2 * Math.PI);;
+                
+                log('relative angle of 0:');
+                log(segments[points[iP][1][s]]);
+                log(sRelativeAngle);
+                
+                
+                
+                //loop through the segments of this point:
+                for(var iS = 1; iS < points[iP][1].length; iS++) {
+                    var seg = segments[points[iP][1][iS]];
+                    var segAngle = seg.angle(points[iP][0]);
+                    
+                    var relativeAngle = ((segAngle - a) + (2 * Math.PI)) % (2 * Math.PI);
+                    
+                    log('angles: ' + a + ', ' + segAngle);
+                    
+                    log('relative angle of ' + iS + ':');
+                    log(seg);
+                    log(relativeAngle);
+                    
+                    /*if((segAngle > sAngle)
+                            || (segAngle >= sAngle && seg.length() > sLength)) {*/
+                    if((relativeAngle > sRelativeAngle)
+                            || (relativeAngle >= sRelativeAngle && seg.length() > sLength)) {
+                        s = iS;
+                        chosenSegment = segments[points[iP][1][s]];
+                        sAngle = chosenSegment.angle(points[iP][0]);
+                        sLength = chosenSegment.length();
+                        sRelativeAngle = relativeAngle;
                     }
                 }
                 
-                //create a segment path:
-                createObj('path', {
-                    layer: 'objects',
-                    pageid: Campaign().get('playerpageid'),
-                    top: top,
-                    left: left,
-                    stroke: '#000000',
-                    stroke_width: 3,
-                    _path: path
-                });
-            });
+                log('s: ' + s);
+                log(points[iP][1][s]);
+                
+                
+                
+                
+                //TODO: mark segment and point as being part of the blob
+                
+                log('chosen segment:');
+                log(chosenSegment);
+                drawSegment(chosenSegment, '#ff0000');
+                
+                //the next point should be the endpoint of the segment that wasn't the prior point:
+                if(chosenSegment.a === points[iP][0]) {
+                    iP = getItemIndex(points, chosenSegment.b, 0);
+                } else {
+                    iP = getItemIndex(points, chosenSegment.a, 0);
+                }
+                
+                //the angle of the current segment will be used as a limit for finding the next segment:
+                a = (sAngle + Math.PI) % (2 * Math.PI);
+                
+            }
+            
+            
+            /*log('angle testing:');
+            var z = new segment(new point(0,0), new point(1,0));
+            log(z.angle(new point(0,0)));
+            z = new segment(new point(0,0), new point(1,1));
+            log(z.angle(new point(0,0)));
+            z = new segment(new point(0,0), new point(0,1));
+            log(z.angle(new point(0,0)));
+            z = new segment(new point(0,0), new point(-1,1));
+            log(z.angle(new point(0,0)));
+            z = new segment(new point(0,0), new point(-1,0));
+            log(z.angle(new point(0,0)));
+            z = new segment(new point(0,0), new point(-1,-1));
+            log(z.angle(new point(0,0)));
+            z = new segment(new point(0,0), new point(0,-1));
+            log(z.angle(new point(0,0)));
+            z = new segment(new point(0,0), new point(1,-1));
+            log(z.angle(new point(0,0)));*/
         };
         
         return {
             points: points,
             segments: segments,
             addPath: addPath,
-            drawSegments: drawSegments
+            drawSegments: drawSegments,
+            getBlob: getBlob
         };
     },
     
@@ -331,6 +473,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         g.addPath(a);
         log(g);
         g.drawSegments();
+        g.getBlob();
     },
     
     /* polygon logic - end */
@@ -342,8 +485,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         var g = new graph();
         g.addPath("[[\"M\",163,62],[\"L\",76,243],[\"L\",238,162],[\"L\",56,71],[\"L\",189,285],[\"L\",151,4],[\"L\",29,0],[\"L\",0,119],[\"L\",127,258],[\"L\",198,231]]");
+        //g.addPath("[[\"M\",84,79],[\"L\",22,216],[\"L\",189,144],[\"L\",0,78],[\"L\",130,279],[\"L\",187,0],[\"L\",83,289]]");
         log(g);
         g.drawSegments();
+        g.getBlob();
     };
     
     //expose public functions:
