@@ -94,6 +94,19 @@ var APIAreaMapper = APIAreaMapper || (function() {
             this.y = y;
         },
         
+        //angle object to simplify comparisons with epsilons:
+        angle = function(radians) {
+            this.radians = Math.round(radians * 10000) / 10000;
+            
+            this.equals = function(comparedRadians) {
+                return radians == Math.round(comparedRadians);
+            };
+            
+            this.greaterThan = function(comparedRadians) {
+                return radians > Math.round(comparedRadians);
+            };
+        },
+        
         //segment between points a and b:
         segment = function(a, b) {
             this.a = a;
@@ -107,22 +120,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
             
             //return an angle with respect to a specfic endpoint:
             this.angle = function(p) {
-                var angle = (Math.atan2(b.y - a.y, b.x - a.x) + (2 * Math.PI)) % (2 * Math.PI);
+                var radians = (Math.atan2(b.y - a.y, b.x - a.x) + (2 * Math.PI)) % (2 * Math.PI);
                 
-                log('angle() logs:');
-                log(this);
-                log(p);
-                log(angle);
-                
-                if('undefined' === p || a.x === p.x && a.y === p.y) {
-                    log('using a');
-                    //return angle with respect to a:
-                    return angle;
+                if(b.x === p.x && b.y === p.y) {
+                    //use angle with respect to b:
+                    radians = (radians + (Math.PI)) % (2 * Math.PI);;
                 }
                 
-                log('using b');
-                //return angle with respect to b:
-                return (angle + (Math.PI)) % (2 * Math.PI);
+                return new angle(radians);
             };
         },
         
@@ -349,7 +354,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             });
         },
         
-        getBlob = function() {
+        getCleanPolygon = function() {
             //find the smallest x points, and of those, take the greatest y:
             var iTopLeftPoint = 0;
             for(var i = 0; i < points.length; i++) {
@@ -360,51 +365,45 @@ var APIAreaMapper = APIAreaMapper || (function() {
             };
             
             var iP = iTopLeftPoint; //index of current point
-            var a = Math.PI / 2; //angle of prior segment; for first pass, initialize to facing up
+            var a = new angle(Math.PI / 2); //angle of prior segment; for first pass, initialize to facing up
             
-            //constrain this to a loop for now to prevent infinite loop bugs in development; later this should be while new point != iTopLeftPoint:
-            for(var tempI = 0; tempI < 16; tempI++) {
-                log('---------------------');
-                log('iteration: ' + tempI);
-                log('iP: ' + iP);
-                log(points[iP]);
+            var loopLimit = 500; //limit the loop iterations in case there's a bug or the equality clause ends up needing an epsilon
+            var firstIteration = true;
             
+            //loop until the outside of the polygon has been traced:
+            while((loopLimit-- > 0) && !(!firstIteration && iP === iTopLeftPoint)) {
+                
+                firstIteration = false;
+                
+                log('loopLimit ' + loopLimit + ':');
+                
                 //find the longest segment originating from the current point that is the most counter-clockwise from the prior segment's angle:
                 var s = 0;
                 var chosenSegment = segments[points[iP][1][s]];
                 var sAngle = chosenSegment.angle(points[iP][0]);
                 var sLength = chosenSegment.length();
+                var sRelativeAngle = new angle(((sAngle.radians - a.radians) + (2 * Math.PI)) % (2 * Math.PI));
                 
-                log('chosenSegment:');
+                log('a: ' + a.radians);
                 log(chosenSegment);
-                
-                log('angles: ' + a + ', ' + sAngle);
-                
-                var sRelativeAngle = ((sAngle - a) + (2 * Math.PI)) % (2 * Math.PI);;
-                
-                log('relative angle of 0:');
-                log(segments[points[iP][1][s]]);
-                log(sRelativeAngle);
-                
-                
+                log('s: ' + s);
+                log('sAngle: ' + sAngle.radians);
+                log('sRelativeAngle: ' + sRelativeAngle.radians);
                 
                 //loop through the segments of this point:
                 for(var iS = 1; iS < points[iP][1].length; iS++) {
                     var seg = segments[points[iP][1][iS]];
                     var segAngle = seg.angle(points[iP][0]);
+                    var relativeAngle = new angle(((segAngle.radians - a.radians) + (2 * Math.PI)) % (2 * Math.PI));
                     
-                    var relativeAngle = ((segAngle - a) + (2 * Math.PI)) % (2 * Math.PI);
-                    
-                    log('angles: ' + a + ', ' + segAngle);
-                    
-                    log('relative angle of ' + iS + ':');
+                    log('iS: ' + iS);
                     log(seg);
-                    log(relativeAngle);
+                    log('segAngle: ' + segAngle.radians);
+                    log('relativeAngle: ' + relativeAngle.radians);
                     
-                    /*if((segAngle > sAngle)
-                            || (segAngle >= sAngle && seg.length() > sLength)) {*/
-                    if((relativeAngle > sRelativeAngle)
-                            || (relativeAngle >= sRelativeAngle && seg.length() > sLength)) {
+                    
+                    if((relativeAngle.greaterThan(sRelativeAngle.radians))
+                            || (relativeAngle.equals(sRelativeAngle.radians) && seg.length() > sLength)) {
                         s = iS;
                         chosenSegment = segments[points[iP][1][s]];
                         sAngle = chosenSegment.angle(points[iP][0]);
@@ -413,16 +412,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     }
                 }
                 
-                log('s: ' + s);
-                log(points[iP][1][s]);
-                
-                
-                
-                
                 //TODO: mark segment and point as being part of the blob
                 
-                log('chosen segment:');
-                log(chosenSegment);
+                //TODO: remove this debugging:
                 drawSegment(chosenSegment, '#ff0000');
                 
                 //the next point should be the endpoint of the segment that wasn't the prior point:
@@ -433,28 +425,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 }
                 
                 //the angle of the current segment will be used as a limit for finding the next segment:
-                a = (sAngle + Math.PI) % (2 * Math.PI);
+                a = new angle((sAngle.radians + Math.PI) % (2 * Math.PI));
                 
+                
+                log('chose:');
+                log(chosenSegment);
             }
-            
-            
-            /*log('angle testing:');
-            var z = new segment(new point(0,0), new point(1,0));
-            log(z.angle(new point(0,0)));
-            z = new segment(new point(0,0), new point(1,1));
-            log(z.angle(new point(0,0)));
-            z = new segment(new point(0,0), new point(0,1));
-            log(z.angle(new point(0,0)));
-            z = new segment(new point(0,0), new point(-1,1));
-            log(z.angle(new point(0,0)));
-            z = new segment(new point(0,0), new point(-1,0));
-            log(z.angle(new point(0,0)));
-            z = new segment(new point(0,0), new point(-1,-1));
-            log(z.angle(new point(0,0)));
-            z = new segment(new point(0,0), new point(0,-1));
-            log(z.angle(new point(0,0)));
-            z = new segment(new point(0,0), new point(1,-1));
-            log(z.angle(new point(0,0)));*/
         };
         
         return {
@@ -462,7 +438,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             segments: segments,
             addPath: addPath,
             drawSegments: drawSegments,
-            getBlob: getBlob
+            getCleanPolygon: getCleanPolygon
         };
     },
     
@@ -473,7 +449,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         g.addPath(a);
         log(g);
         g.drawSegments();
-        g.getBlob();
+        g.getCleanPolygon();
     },
     
     /* polygon logic - end */
@@ -484,11 +460,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
         on('add:path', handlePathAdd);
         
         var g = new graph();
-        g.addPath("[[\"M\",163,62],[\"L\",76,243],[\"L\",238,162],[\"L\",56,71],[\"L\",189,285],[\"L\",151,4],[\"L\",29,0],[\"L\",0,119],[\"L\",127,258],[\"L\",198,231]]");
+        //g.addPath("[[\"M\",163,62],[\"L\",76,243],[\"L\",238,162],[\"L\",56,71],[\"L\",189,285],[\"L\",151,4],[\"L\",29,0],[\"L\",0,119],[\"L\",127,258],[\"L\",198,231]]");
         //g.addPath("[[\"M\",84,79],[\"L\",22,216],[\"L\",189,144],[\"L\",0,78],[\"L\",130,279],[\"L\",187,0],[\"L\",83,289]]");
+        g.addPath("[[\"M\",147,10],[\"L\",112,124],[\"L\",188,114],[\"L\",436,160],[\"L\",320,345],[\"L\",367,30],[\"L\",158,288],[\"L\",107,0],[\"L\",250,14],[\"L\",0,118],[\"L\",451,231],[\"L\",455,38]]");
         log(g);
         g.drawSegments();
-        g.getBlob();
+        g.getCleanPolygon();
     };
     
     //expose public functions:
