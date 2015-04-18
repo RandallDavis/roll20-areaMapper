@@ -99,11 +99,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
             this.radians = Math.round(radians * 10000) / 10000;
             
             this.equals = function(comparedRadians) {
-                return radians == Math.round(comparedRadians);
+                return radians == Math.round(comparedRadians * 10000) / 10000;
             };
             
             this.greaterThan = function(comparedRadians) {
-                return radians > Math.round(comparedRadians);
+                return radians > Math.round(comparedRadians * 10000) / 10000;
             };
         },
         
@@ -243,12 +243,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 }
             }
             
-            //remove points that have no segments:
+            /*//remove points that have no segments:
             for(var pI = points.length - 1; pI >= 0; pI--) {
                 if(points[pI][1].length == 0) {
                     points.splice(pI, 1);
                 }
-            }
+            }*/
             
             //remove segment from segments:
             segments.splice(iS, 1);
@@ -375,32 +375,18 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 
                 firstIteration = false;
                 
-                log('loopLimit ' + loopLimit + ':');
-                
                 //find the longest segment originating from the current point that is the most counter-clockwise from the prior segment's angle:
                 var s = 0;
                 var chosenSegment = segments[points[iP][1][s]];
                 var sAngle = chosenSegment.angle(points[iP][0]);
                 var sLength = chosenSegment.length();
                 var sRelativeAngle = new angle(((sAngle.radians - a.radians) + (2 * Math.PI)) % (2 * Math.PI));
-                
-                log('a: ' + a.radians);
-                log(chosenSegment);
-                log('s: ' + s);
-                log('sAngle: ' + sAngle.radians);
-                log('sRelativeAngle: ' + sRelativeAngle.radians);
-                
+            
                 //loop through the segments of this point:
                 for(var iS = 1; iS < points[iP][1].length; iS++) {
                     var seg = segments[points[iP][1][iS]];
                     var segAngle = seg.angle(points[iP][0]);
                     var relativeAngle = new angle(((segAngle.radians - a.radians) + (2 * Math.PI)) % (2 * Math.PI));
-                    
-                    log('iS: ' + iS);
-                    log(seg);
-                    log('segAngle: ' + segAngle.radians);
-                    log('relativeAngle: ' + relativeAngle.radians);
-                    
                     
                     if((relativeAngle.greaterThan(sRelativeAngle.radians))
                             || (relativeAngle.equals(sRelativeAngle.radians) && seg.length() > sLength)) {
@@ -426,10 +412,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 
                 //the angle of the current segment will be used as a limit for finding the next segment:
                 a = new angle((sAngle.radians + Math.PI) % (2 * Math.PI));
-                
-                
-                log('chose:');
-                log(chosenSegment);
             }
         };
         
@@ -450,6 +432,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         log(g);
         g.drawSegments();
         g.getCleanPolygon();
+        log(a);
     },
     
     /* polygon logic - end */
@@ -462,7 +445,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var g = new graph();
         //g.addPath("[[\"M\",163,62],[\"L\",76,243],[\"L\",238,162],[\"L\",56,71],[\"L\",189,285],[\"L\",151,4],[\"L\",29,0],[\"L\",0,119],[\"L\",127,258],[\"L\",198,231]]");
         //g.addPath("[[\"M\",84,79],[\"L\",22,216],[\"L\",189,144],[\"L\",0,78],[\"L\",130,279],[\"L\",187,0],[\"L\",83,289]]");
-        g.addPath("[[\"M\",147,10],[\"L\",112,124],[\"L\",188,114],[\"L\",436,160],[\"L\",320,345],[\"L\",367,30],[\"L\",158,288],[\"L\",107,0],[\"L\",250,14],[\"L\",0,118],[\"L\",451,231],[\"L\",455,38]]");
+        //g.addPath("[[\"M\",147,10],[\"L\",112,124],[\"L\",188,114],[\"L\",436,160],[\"L\",320,345],[\"L\",367,30],[\"L\",158,288],[\"L\",107,0],[\"L\",250,14],[\"L\",0,118],[\"L\",451,231],[\"L\",455,38]]");
+        g.addPath("[[\"M\",82,48],[\"L\",19,118],[\"L\",77,106],[\"L\",0,0],[\"L\",52,135]]");
         log(g);
         g.drawSegments();
         g.getCleanPolygon();
