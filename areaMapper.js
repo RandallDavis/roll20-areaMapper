@@ -96,14 +96,18 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         //angle object to simplify comparisons with epsilons:
         angle = function(radians) {
-            this.radians = Math.round(radians * 10000) / 10000;
+            this.radians = radians;
             
             this.equals = function(comparedRadians) {
-                return radians == Math.round(comparedRadians * 10000) / 10000;
+                return Math.round(radians * 10000) == Math.round(comparedRadians * 10000);
             };
             
             this.greaterThan = function(comparedRadians) {
-                return radians > Math.round(comparedRadians * 10000) / 10000;
+                return Math.round(radians * 10000) > Math.round(comparedRadians * 10000);
+            };
+            
+            this.subtract = function(subtractedRadians) {
+                return new angle(((radians - subtractedRadians) + (2 * Math.PI) + 0.000001) % (2 * Math.PI));
             };
         },
         
@@ -364,10 +368,13 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 }
             };
             
+            //the output of this function will be a path that is ready to be drawn:
+            var cleanPolygon = '[[\"M\",' + points[iTopLeftPoint][0].x + ',' + points[iTopLeftPoint][0].y + ']';
+            
             var iP = iTopLeftPoint; //index of current point
             var a = new angle(Math.PI / 2); //angle of prior segment; for first pass, initialize to facing up
             
-            var loopLimit = 500; //limit the loop iterations in case there's a bug or the equality clause ends up needing an epsilon
+            var loopLimit = 5000; //limit the loop iterations in case there's a bug or the equality clause ends up needing an epsilon
             var firstIteration = true;
             
             //loop until the outside of the polygon has been traced:
@@ -380,13 +387,13 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 var chosenSegment = segments[points[iP][1][s]];
                 var sAngle = chosenSegment.angle(points[iP][0]);
                 var sLength = chosenSegment.length();
-                var sRelativeAngle = new angle(((sAngle.radians - a.radians) + (2 * Math.PI)) % (2 * Math.PI));
+                var sRelativeAngle = sAngle.subtract(a.radians);
             
                 //loop through the segments of this point:
                 for(var iS = 1; iS < points[iP][1].length; iS++) {
                     var seg = segments[points[iP][1][iS]];
                     var segAngle = seg.angle(points[iP][0]);
-                    var relativeAngle = new angle(((segAngle.radians - a.radians) + (2 * Math.PI)) % (2 * Math.PI));
+                    var relativeAngle = segAngle.subtract(a.radians);
                     
                     if((relativeAngle.greaterThan(sRelativeAngle.radians))
                             || (relativeAngle.equals(sRelativeAngle.radians) && seg.length() > sLength)) {
@@ -398,11 +405,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     }
                 }
                 
-                //TODO: mark segment and point as being part of the blob
-                
-                //TODO: remove this debugging:
-                drawSegment(chosenSegment, '#ff0000');
-                
                 //the next point should be the endpoint of the segment that wasn't the prior point:
                 if(chosenSegment.a === points[iP][0]) {
                     iP = getItemIndex(points, chosenSegment.b, 0);
@@ -412,7 +414,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 
                 //the angle of the current segment will be used as a limit for finding the next segment:
                 a = new angle((sAngle.radians + Math.PI) % (2 * Math.PI));
+                
+                //add the new point to the clean polygon:
+                cleanPolygon += ',[\"L\",' + points[iP][0].x + ',' + points[iP][0].y + ']';
             }
+            
+            cleanPolygon = cleanPolygon + ']';
+            
+            return cleanPolygon;
         };
         
         return {
@@ -425,14 +434,33 @@ var APIAreaMapper = APIAreaMapper || (function() {
     },
     
     handlePathAdd = function(path) {
-        var a = path.get('_path');
-        log(a);
-        var g = new graph();
-        g.addPath(a);
-        log(g);
-        g.drawSegments();
-        g.getCleanPolygon();
-        log(a);
+        if(!state.APIAreaMapper.apiDrawing) {
+            var a = path.get('_path');
+            log(a);
+            var g = new graph();
+            g.addPath(a);
+            log(g);
+            //g.drawSegments();
+            var cp = g.getCleanPolygon();
+            log('clean polygon:');
+            log(cp);
+            
+            state.APIAreaMapper.apiDrawing = true;
+            
+            createObj('path', {
+                    layer: 'objects',
+                    pageid: Campaign().get('playerpageid'),
+                    top: 50,
+                    left: 50,
+                    stroke: '#ff0000',
+                    stroke_width: 3,
+                    _path: cp
+                });
+                
+            state.APIAreaMapper.apiDrawing = false;
+            
+            log(a);
+        }
     },
     
     /* polygon logic - end */
@@ -443,13 +471,32 @@ var APIAreaMapper = APIAreaMapper || (function() {
         on('add:path', handlePathAdd);
         
         var g = new graph();
-        //g.addPath("[[\"M\",163,62],[\"L\",76,243],[\"L\",238,162],[\"L\",56,71],[\"L\",189,285],[\"L\",151,4],[\"L\",29,0],[\"L\",0,119],[\"L\",127,258],[\"L\",198,231]]");
+        /*//g.addPath("[[\"M\",163,62],[\"L\",76,243],[\"L\",238,162],[\"L\",56,71],[\"L\",189,285],[\"L\",151,4],[\"L\",29,0],[\"L\",0,119],[\"L\",127,258],[\"L\",198,231]]");
         //g.addPath("[[\"M\",84,79],[\"L\",22,216],[\"L\",189,144],[\"L\",0,78],[\"L\",130,279],[\"L\",187,0],[\"L\",83,289]]");
         //g.addPath("[[\"M\",147,10],[\"L\",112,124],[\"L\",188,114],[\"L\",436,160],[\"L\",320,345],[\"L\",367,30],[\"L\",158,288],[\"L\",107,0],[\"L\",250,14],[\"L\",0,118],[\"L\",451,231],[\"L\",455,38]]");
-        g.addPath("[[\"M\",82,48],[\"L\",19,118],[\"L\",77,106],[\"L\",0,0],[\"L\",52,135]]");
+        //g.addPath("[[\"M\",82,48],[\"L\",19,118],[\"L\",77,106],[\"L\",0,0],[\"L\",52,135]]");
+        g.addPath("[[\"M\",222,106],[\"L\",148,188],[\"L\",365,143],[\"L\",239,0],[\"L\",142,30],[\"L\",150,163],[\"L\",268,209],[\"L\",353,55],[\"L\",0,81],[\"L\",361,166]]");
         log(g);
         g.drawSegments();
-        g.getCleanPolygon();
+        var cp = g.getCleanPolygon();
+        log('clean polygon:');
+        log(cp);
+        log("[[\"M\",222,106],[\"L\",148,188],[\"L\",365,143],[\"L\",239,0],[\"L\",142,30],[\"L\",150,163],[\"L\",268,209],[\"L\",353,55],[\"L\",0,81],[\"L\",361,166]]");
+        
+        
+        state.APIAreaMapper.apiDrawing = true;
+        
+        /*createObj('path', {
+                layer: 'objects',
+                pageid: Campaign().get('playerpageid'),
+                top: 200,
+                left: 200,
+                stroke: '#00ff00',
+                stroke_width: 3,
+                _path: cp
+            });*/
+            
+        state.APIAreaMapper.apiDrawing = false;
     };
     
     //expose public functions:
