@@ -84,8 +84,383 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     /* polygon logic - begin */
     
-    var handlePathAdd = function(path) {
-        log(path);
+    var graph = function() {
+        
+        var points = [], //array of [point, [segment index]]
+            segments = [], //array of segment
+        
+        point = function(x, y) {
+            this.x = x;
+            this.y = y;
+        },
+        
+        //angle object to simplify comparisons with epsilons:
+        angle = function(radians) {
+            this.radians = radians;
+            
+            this.equals = function(comparedRadians) {
+                return Math.round(radians * 10000) == Math.round(comparedRadians * 10000);
+            };
+            
+            this.greaterThan = function(comparedRadians) {
+                return Math.round(radians * 10000) > Math.round(comparedRadians * 10000);
+            };
+            
+            this.subtract = function(subtractedRadians) {
+                return new angle(((radians - subtractedRadians) + (2 * Math.PI) + 0.000001) % (2 * Math.PI));
+            };
+        },
+        
+        //segment between points a and b:
+        segment = function(a, b) {
+            this.a = a;
+            this.b = b;
+                
+            this.length = function() {
+                var xDist = b.x - a.x;
+                var yDist = b.y - a.y;
+                return Math.sqrt((xDist * xDist) + (yDist * yDist));
+            };
+            
+            //return an angle with respect to a specfic endpoint:
+            this.angle = function(p) {
+                var radians = (Math.atan2(b.y - a.y, b.x - a.x) + (2 * Math.PI)) % (2 * Math.PI);
+                
+                if(b.x === p.x && b.y === p.y) {
+                    //use angle with respect to b:
+                    radians = (radians + (Math.PI)) % (2 * Math.PI);;
+                }
+                
+                return new angle(radians);
+            };
+        },
+        
+        //find item in container; if position is defined, it represents the index in a nested array:
+        getItemIndex = function(container, item, position) {
+            var index;
+            
+            for(var i = 0; i < container.length; i++) {
+                if(item === (((container.length > 0) && ('undefined' !== typeof(position))) ? container[i][position] : container[i])) {
+                    index = i;
+                    break;
+                }
+            }
+            
+            return index;
+        },
+        
+        addPoint = function(point) {
+            var index = getItemIndex(points, point, 0);
+        
+            if('undefined' === typeof(index)) {
+               
+                //add point and return its index:
+                return points.push([point, []]) - 1;
+            }
+            
+            return index;
+        },
+        
+        //it's illogical to return a segment's index, becuse it might have been broken into pieces:
+        //it's also inconvient to do early detection of the segment being new, because of segment breaking:
+        addSegment = function(s) {
+            var newSegments = [];
+            var brokenSegments = [];
+            var intersectingSegments = [];
+            
+            newSegments.push(s);
+            
+            //find segments that the new segment intersects:
+            segments.forEach(function(seg) {
+                if(segmentsIntersect(s, seg)) {
+                    intersectingSegments.push(seg);
+                }
+            });
+            
+            //break segment against all intersecting segments and remove intersecting segments:
+            intersectingSegments.forEach(function(seg) {
+               
+                //loop through new segments to look for intersections:
+                for(var i = 0; i < newSegments.length; i++) {
+                   
+                    //because we're breaking new segments, we have to retest for intersection:
+                    var intersectionPoint = segmentsIntersect(newSegments[i], seg);
+                    if(intersectionPoint) {
+                        
+                        //create broken segments out of old segment that was intersected:
+                        brokenSegments.push(new segment(seg.a, intersectionPoint));
+                        brokenSegments.push(new segment(intersectionPoint, seg.b));
+                        
+                        //remove the segment that was intersected from the graph:
+                        removeSegment(seg);
+                        
+                        //create new broken segments:
+                        newSegments.unshift(new segment(newSegments[i].a, intersectionPoint));
+                        newSegments.unshift(new segment(intersectionPoint, newSegments[i + 1].b));
+                        
+                        //remove the new segment that was just broken:
+                        newSegments.splice(i + 2, 1);
+                        
+                        //adjust the loop to bypass the broken newSegments that were already tested against seg:
+                        i++;
+                    }
+                }
+            });
+            
+            //add old broken segments:
+            brokenSegments.forEach(function(seg) {
+                var iS = segments.push(seg) - 1;
+                var iPa = addPoint(seg.a);
+                var iPb = addPoint(seg.b);
+                points[iPa][1].push(iS);
+                points[iPb][1].push(iS);
+            });
+            
+            //add new segments:
+            newSegments.forEach(function(seg) {
+                var iS = segments.push(seg) - 1;
+                var iPa = addPoint(seg.a);
+                var iPb = addPoint(seg.b);
+                points[iPa][1].push(iS);
+                points[iPb][1].push(iS);
+            });
+        },
+        
+        removeSegment = function(segment) {
+            var iS = getItemIndex(segments, segment);
+            
+            //remove segment from points:
+            for(var pI = points.length - 1; pI >= 0; pI--) {
+                for(var i = 0; i < points[pI][1].length; i++) {
+                    if(points[pI][1][i] === iS) {
+                        
+                        //remove the segment reference:
+                        points[pI][1].splice(i, 1);
+                        
+                        //fix i since an item was deleted:
+                        i--;
+                    } else if(points[pI][1][i] > iS) {
+                        
+                        //decrement segment index references, since a segment is being removed:
+                        points[pI][1][i]--;
+                    }
+                }
+            }
+            
+            /*//remove points that have no segments:
+            for(var pI = points.length - 1; pI >= 0; pI--) {
+                if(points[pI][1].length == 0) {
+                    points.splice(pI, 1);
+                }
+            }*/
+            
+            //remove segment from segments:
+            segments.splice(iS, 1);
+        },
+        
+        //this is a modified version of https://gist.github.com/Joncom/e8e8d18ebe7fe55c3894
+        segmentsIntersect = function(s1, s2) {
+            //exclude segments with shared endpoints:
+            if(s1.a === s2.a || s1.a === s2.b || s1.b === s2.a || s1.b === s2.b) {
+                return null;
+            }
+            
+            var s1_x = s1.b.x - s1.a.x;
+            var s1_y = s1.b.y - s1.a.y;
+            var s2_x = s2.b.x - s2.a.x;
+            var s2_y = s2.b.y - s2.a.y;
+            
+            var s = (-s1_y * (s1.a.x - s2.a.x) + s1_x * (s1.a.y - s2.a.y)) / (-s2_x * s1_y + s1_x * s2_y);
+            var t = (s2_x * (s1.a.y - s2.a.y) - s2_y * (s1.a.x - s2.a.x)) / (-s2_x * s1_y + s1_x * s2_y);
+            
+            if(s >= 0 && s <= 1 && t >= 0 && t <= 1) {
+                return new point(s1.a.x + (t * s1_x), s1.a.y + (t * s1_y));
+            }
+         
+            return null;
+        },
+        
+        addPath = function(path) {
+            path = JSON.parse(path);
+            
+            if(path && path.length > 1) {
+                
+                var pStart, //start point
+                    pPrior, //prior point
+                    iPrior; //index of prior point
+                
+                path.forEach(function(pCurrent) {
+                    
+                    //overwrite pCurrent with parsed out data:
+                    var pCurrent = new point(pCurrent[1], pCurrent[2]); //current point
+                    
+                    var iCurrent = addPoint(pCurrent); //index of current point
+                    
+                    if(pPrior) {
+                        addSegment(new segment(pPrior, pCurrent));
+                    } else {
+                        pStart = pCurrent;
+                    }
+                    
+                    pPrior = pCurrent;
+                    iPrior = iCurrent;
+                });
+                
+                //close the polygon if it isn't closed already:
+                if(pPrior !== pStart) {
+                    addSegment(new segment(pPrior, pStart));
+                }
+            }
+        },
+        
+        //draws a segment (for debugging):
+        drawSegment = function(s, color) {
+            var isPositiveSlope = (((s.b.y - s.a.y) === 0) || (((s.b.x - s.a.x) / (s.b.y - s.a.y)) >= 0));
+            var top = Math.min(s.a.y, s.b.y);
+            var left = Math.min(s.a.x, s.b.x);
+            var path;
+            
+            //put it somewhere we can see it:
+            top += 200;
+            left += 200;
+            
+            //create a path for a segment from A to B relative to (left,top):
+            if(isPositiveSlope) {
+                if(s.a.x > s.b.x) {
+                    path = '[[\"M\",' + Math.abs(s.a.x - s.b.x) + ',' + Math.abs(s.a.y - s.b.y) + '],[\"L\",0,0]]';
+                } else {
+                    path = '[[\"M\",0,0],[\"L\",' + Math.abs(s.b.x - s.a.x) + ',' + Math.abs(s.b.y - s.a.y) + ']]';
+                }
+            } else {
+                if(s.a.x > s.b.x) {
+                    path = '[[\"M\",' + Math.abs(s.a.x - s.b.x) + ',0],[\"L\",0,' + Math.abs(s.b.y - s.a.y) + ']]';
+                } else {
+                    path = '[[\"M\",0,' + Math.abs(s.a.y - s.b.y) + '],[\"L\",' + Math.abs(s.b.x - s.a.x) + ',0]]';
+                }
+            }
+            
+            //create a segment path:
+            createObj('path', {
+                layer: 'objects',
+                pageid: Campaign().get('playerpageid'),
+                top: top,
+                left: left,
+                stroke: color,
+                stroke_width: 3,
+                _path: path
+            });
+        },
+        
+        //draws individual segments (for debugging):
+        drawSegments = function() {
+            segments.forEach(function(s) {
+                drawSegment(s, '#0000ff');
+            });
+        },
+        
+        getCleanPolygon = function() {
+            //find the smallest x points, and of those, take the greatest y:
+            var iTopLeftPoint = 0;
+            for(var i = 0; i < points.length; i++) {
+                if((points[i][0].x < points[iTopLeftPoint][0].x)
+                        || (points[i][0].x == points[iTopLeftPoint][0].x && points[i][0].y > points[iTopLeftPoint][0].y)) {
+                    iTopLeftPoint = i;
+                }
+            };
+            
+            //the output of this function will be a path that is ready to be drawn:
+            var cleanPolygon = '[[\"M\",' + points[iTopLeftPoint][0].x + ',' + points[iTopLeftPoint][0].y + ']';
+            
+            var iP = iTopLeftPoint; //index of current point
+            var a = new angle(Math.PI / 2); //angle of prior segment; for first pass, initialize to facing up
+            
+            var loopLimit = 5000; //limit the loop iterations in case there's a bug or the equality clause ends up needing an epsilon
+            var firstIteration = true;
+            
+            //loop until the outside of the polygon has been traced:
+            while((loopLimit-- > 0) && !(!firstIteration && iP === iTopLeftPoint)) {
+                
+                firstIteration = false;
+                
+                //find the longest segment originating from the current point that is the most counter-clockwise from the prior segment's angle:
+                var s = 0;
+                var chosenSegment = segments[points[iP][1][s]];
+                var sAngle = chosenSegment.angle(points[iP][0]);
+                var sLength = chosenSegment.length();
+                var sRelativeAngle = sAngle.subtract(a.radians);
+            
+                //loop through the segments of this point:
+                for(var iS = 1; iS < points[iP][1].length; iS++) {
+                    var seg = segments[points[iP][1][iS]];
+                    var segAngle = seg.angle(points[iP][0]);
+                    var relativeAngle = segAngle.subtract(a.radians);
+                    
+                    if((relativeAngle.greaterThan(sRelativeAngle.radians))
+                            || (relativeAngle.equals(sRelativeAngle.radians) && seg.length() > sLength)) {
+                        s = iS;
+                        chosenSegment = segments[points[iP][1][s]];
+                        sAngle = chosenSegment.angle(points[iP][0]);
+                        sLength = chosenSegment.length();
+                        sRelativeAngle = relativeAngle;
+                    }
+                }
+                
+                //the next point should be the endpoint of the segment that wasn't the prior point:
+                if(chosenSegment.a === points[iP][0]) {
+                    iP = getItemIndex(points, chosenSegment.b, 0);
+                } else {
+                    iP = getItemIndex(points, chosenSegment.a, 0);
+                }
+                
+                //the angle of the current segment will be used as a limit for finding the next segment:
+                a = new angle((sAngle.radians + Math.PI) % (2 * Math.PI));
+                
+                //add the new point to the clean polygon:
+                cleanPolygon += ',[\"L\",' + points[iP][0].x + ',' + points[iP][0].y + ']';
+            }
+            
+            cleanPolygon = cleanPolygon + ']';
+            
+            return cleanPolygon;
+        };
+        
+        return {
+            points: points,
+            segments: segments,
+            addPath: addPath,
+            drawSegments: drawSegments,
+            getCleanPolygon: getCleanPolygon
+        };
+    },
+    
+    handlePathAdd = function(path) {
+        if(!state.APIAreaMapper.apiDrawing) {
+            var a = path.get('_path');
+            log(a);
+            var g = new graph();
+            g.addPath(a);
+            log(g);
+            //g.drawSegments();
+            var cp = g.getCleanPolygon();
+            log('clean polygon:');
+            log(cp);
+            
+            state.APIAreaMapper.apiDrawing = true;
+            
+            createObj('path', {
+                    layer: 'objects',
+                    pageid: Campaign().get('playerpageid'),
+                    top: 50,
+                    left: 50,
+                    stroke: '#ff0000',
+                    stroke_width: 3,
+                    _path: cp
+                });
+                
+            state.APIAreaMapper.apiDrawing = false;
+            
+            log(a);
+        }
     },
     
     /* polygon logic - end */
@@ -94,6 +469,34 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     registerEventHandlers = function() {
         on('add:path', handlePathAdd);
+        
+        var g = new graph();
+        /*//g.addPath("[[\"M\",163,62],[\"L\",76,243],[\"L\",238,162],[\"L\",56,71],[\"L\",189,285],[\"L\",151,4],[\"L\",29,0],[\"L\",0,119],[\"L\",127,258],[\"L\",198,231]]");
+        //g.addPath("[[\"M\",84,79],[\"L\",22,216],[\"L\",189,144],[\"L\",0,78],[\"L\",130,279],[\"L\",187,0],[\"L\",83,289]]");
+        //g.addPath("[[\"M\",147,10],[\"L\",112,124],[\"L\",188,114],[\"L\",436,160],[\"L\",320,345],[\"L\",367,30],[\"L\",158,288],[\"L\",107,0],[\"L\",250,14],[\"L\",0,118],[\"L\",451,231],[\"L\",455,38]]");
+        //g.addPath("[[\"M\",82,48],[\"L\",19,118],[\"L\",77,106],[\"L\",0,0],[\"L\",52,135]]");
+        g.addPath("[[\"M\",222,106],[\"L\",148,188],[\"L\",365,143],[\"L\",239,0],[\"L\",142,30],[\"L\",150,163],[\"L\",268,209],[\"L\",353,55],[\"L\",0,81],[\"L\",361,166]]");
+        log(g);
+        g.drawSegments();
+        var cp = g.getCleanPolygon();
+        log('clean polygon:');
+        log(cp);
+        log("[[\"M\",222,106],[\"L\",148,188],[\"L\",365,143],[\"L\",239,0],[\"L\",142,30],[\"L\",150,163],[\"L\",268,209],[\"L\",353,55],[\"L\",0,81],[\"L\",361,166]]");
+        
+        
+        state.APIAreaMapper.apiDrawing = true;
+        
+        /*createObj('path', {
+                layer: 'objects',
+                pageid: Campaign().get('playerpageid'),
+                top: 200,
+                left: 200,
+                stroke: '#00ff00',
+                stroke_width: 3,
+                _path: cp
+            });*/
+            
+        state.APIAreaMapper.apiDrawing = false;
     };
     
     //expose public functions:
