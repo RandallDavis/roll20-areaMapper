@@ -105,6 +105,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
         point = function(x, y) {
             this.x = x;
             this.y = y;
+            
+            this.equals = function(comparedPoint) {
+                return (x === comparedPoint.x && y === comparedPoint.y);
+            };
         },
         
         //angle object to simplify comparisons with epsilons:
@@ -148,6 +152,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             };
         },
         
+        //TODO: make get segment index and ditch this method
         //find item in container; if position is defined, it represents the index in a nested array:
         getItemIndex = function(container, item, position) {
             var index;
@@ -162,11 +167,20 @@ var APIAreaMapper = APIAreaMapper || (function() {
             return index;
         },
         
-        addPoint = function(point) {
-            var index = getItemIndex(points, point, 0);
+        getPointIndex = function(point) {
+            for(var i = 0; i < points.length; i++) {
+                if(point.equals(points[i][0])) {
+                    return i;
+                }
+            }
+            
+            return;
+        },
         
+        addPoint = function(point) {
+            var index = getPointIndex(point);
+            
             if('undefined' === typeof(index)) {
-               
                 //add point and return its index:
                 return points.push([point, []]) - 1;
             }
@@ -177,6 +191,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
         //it's illogical to return a segment's index, becuse it might have been broken into pieces:
         //it's also inconvient to do early detection of the segment being new, because of segment breaking:
         addSegment = function(s) {
+            
+            //don't add the segment if it's of 0 length:
+            if(s.a.equals(s.b)) {
+                return;
+            }
+            
             var newSegments = [];
             var brokenSegments = [];
             var intersectingSegments = [];
@@ -222,20 +242,24 @@ var APIAreaMapper = APIAreaMapper || (function() {
             
             //add old broken segments:
             brokenSegments.forEach(function(seg) {
-                var iS = segments.push(seg) - 1;
-                var iPa = addPoint(seg.a);
-                var iPb = addPoint(seg.b);
-                points[iPa][1].push(iS);
-                points[iPb][1].push(iS);
+                if(!seg.a.equals(seg.b)) {
+                    var iS = segments.push(seg) - 1;
+                    var iPa = addPoint(seg.a);
+                    var iPb = addPoint(seg.b);
+                    points[iPa][1].push(iS);
+                    points[iPb][1].push(iS);
+                }
             });
             
             //add new segments:
             newSegments.forEach(function(seg) {
-                var iS = segments.push(seg) - 1;
-                var iPa = addPoint(seg.a);
-                var iPb = addPoint(seg.b);
-                points[iPa][1].push(iS);
-                points[iPb][1].push(iS);
+                if(!seg.a.equals(seg.b)) {
+                    var iS = segments.push(seg) - 1;
+                    var iPa = addPoint(seg.a);
+                    var iPb = addPoint(seg.b);
+                    points[iPa][1].push(iS);
+                    points[iPb][1].push(iS);
+                }
             });
         },
         
@@ -267,7 +291,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         //this is a modified version of https://gist.github.com/Joncom/e8e8d18ebe7fe55c3894
         segmentsIntersect = function(s1, s2) {
             //exclude segments with shared endpoints:
-            if(s1.a === s2.a || s1.a === s2.b || s1.b === s2.a || s1.b === s2.b) {
+            if(s1.a.equals(s2.a) || s1.a.equals(s2.b) || s1.b.equals(s2.a) || s1.b.equals(s2.b)) {
                 return null;
             }
             
@@ -294,7 +318,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 var pStart, //start point
                     pPrior, //prior point
                     iPrior; //index of prior point
-                
+                    
                 path.forEach(function(pCurrentRaw) {
                     var pCurrent = new point(pCurrentRaw[1], pCurrentRaw[2]); //current point
                     var iCurrent = addPoint(pCurrent); //index of current point
@@ -310,7 +334,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 });
                 
                 //close the polygon if it isn't closed already:
-                if(pPrior !== pStart) {
+                if(!pPrior.equals(pStart)) {
                     addSegment(new segment(pPrior, pStart));
                 }
             }
@@ -410,10 +434,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 }
                 
                 //the next point should be the endpoint of the segment that wasn't the prior point:
-                if(chosenSegment.a === points[iP][0]) {
-                    iP = getItemIndex(points, chosenSegment.b, 0);
+                if(chosenSegment.a.equals(points[iP][0])) {
+                    iP = getPointIndex(chosenSegment.b);
                 } else {
-                    iP = getItemIndex(points, chosenSegment.a, 0);
+                    iP = getPointIndex(chosenSegment.a);
                 }
                 
                 //the angle of the current segment will be used as a limit for finding the next segment:
@@ -595,8 +619,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     case 'areaCreate':
                         var g = new graph();
                         g.addPath(path.get('_path'));
+                        
+                        log(path.get('_path'));
+                        log(g);
+                        
                         var cp = g.getCleanPolygon();
                         state.APIAreaMapper.tempArea = cp;
+                        
+                        log(state.APIAreaMapper.tempArea);
                         
                         state.APIAreaMapper.tempIgnoreAddPath = true;
                         createObj('path', {
@@ -613,6 +643,35 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         state.APIAreaMapper.recordAreaMode = 'areaAppend';
                         break;
                     case 'areaAppend':
+                        
+                        //TODO: this should take top/left, scale, & rotation into account so that the new polygon will be interpreted as a user would expect
+                        
+                        log(state.APIAreaMapper.tempArea);
+                        log(path.get('_path'));
+                        
+                        var g = new graph();
+                        g.addPath(state.APIAreaMapper.tempArea);
+                        log(g);
+                        g.addPath(path.get('_path'));
+                        
+                        log(g);
+                        
+                        var cp = g.getCleanPolygon();
+                        state.APIAreaMapper.tempArea = cp;
+                        
+                        log(state.APIAreaMapper.tempArea);
+                        
+                        state.APIAreaMapper.tempIgnoreAddPath = true;
+                        createObj('path', {
+                            layer: 'objects',
+                            pageid: Campaign().get('playerpageid'),
+                            top: 50,
+                            left: 50,
+                            stroke: '#ff0000',
+                            stroke_width: 3,
+                            _path: cp
+                        });
+                        state.APIAreaMapper.tempIgnoreAddPath = false;
                         break;
                     case 'areaRemove':
                         break;
