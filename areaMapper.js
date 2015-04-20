@@ -1,9 +1,14 @@
 var APIAreaMapper = APIAreaMapper || (function() {
    
-   /* core - begin */
+    /* core - begin */
     
     var version = 0.1,
         schemaVersion = 0.1,
+        buttonBackgroundColor = '#E92862',
+        buttonHighlightColor = '#00FF00',
+        mainBackgroundColor = '#3D8FE1',
+        headerBackgroundColor = '#386EA5',
+        notificationBackgroundColor = '#64EED7',
         
     checkInstall = function() {
         
@@ -14,7 +19,15 @@ var APIAreaMapper = APIAreaMapper || (function() {
             state.APIAreaMapper = {
                 version: schemaVersion
             };
-        }
+        } 
+        
+        resetTemporaryState();
+    },
+    
+    resetTemporaryState = function() {
+        state.APIAreaMapper.tempIgnoreAddPath = false;
+        state.APIAreaMapper.recordAreaMode = false;
+        delete state.APIAreaMapper.tempArea;
     },
     
     inheritPrototype = function(childObject, parentObject) {
@@ -128,7 +141,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 
                 if(b.x === p.x && b.y === p.y) {
                     //use angle with respect to b:
-                    radians = (radians + (Math.PI)) % (2 * Math.PI);;
+                    radians = (radians + (Math.PI)) % (2 * Math.PI);
                 }
                 
                 return new angle(radians);
@@ -247,13 +260,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 }
             }
             
-            /*//remove points that have no segments:
-            for(var pI = points.length - 1; pI >= 0; pI--) {
-                if(points[pI][1].length == 0) {
-                    points.splice(pI, 1);
-                }
-            }*/
-            
             //remove segment from segments:
             segments.splice(iS, 1);
         },
@@ -289,11 +295,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     pPrior, //prior point
                     iPrior; //index of prior point
                 
-                path.forEach(function(pCurrent) {
-                    
-                    //overwrite pCurrent with parsed out data:
-                    var pCurrent = new point(pCurrent[1], pCurrent[2]); //current point
-                    
+                path.forEach(function(pCurrentRaw) {
+                    var pCurrent = new point(pCurrentRaw[1], pCurrentRaw[2]); //current point
                     var iCurrent = addPoint(pCurrent); //index of current point
                     
                     if(pPrior) {
@@ -339,7 +342,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 }
             }
             
-            //create a segment path:
+            state.APIAreaMapper.tempIgnoreAddPath = true;
             createObj('path', {
                 layer: 'objects',
                 pageid: Campaign().get('playerpageid'),
@@ -349,6 +352,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 stroke_width: 3,
                 _path: path
             });
+            state.APIAreaMapper.tempIgnoreAddPath = false;
         },
         
         //draws individual segments (for debugging):
@@ -433,70 +437,199 @@ var APIAreaMapper = APIAreaMapper || (function() {
         };
     },
     
-    handlePathAdd = function(path) {
-        if(!state.APIAreaMapper.apiDrawing) {
-            var a = path.get('_path');
-            log(a);
-            var g = new graph();
-            g.addPath(a);
-            log(g);
-            //g.drawSegments();
-            var cp = g.getCleanPolygon();
-            log('clean polygon:');
-            log(cp);
-            
-            state.APIAreaMapper.apiDrawing = true;
-            
-            createObj('path', {
-                    layer: 'objects',
-                    pageid: Campaign().get('playerpageid'),
-                    top: 50,
-                    left: 50,
-                    stroke: '#ff0000',
-                    stroke_width: 3,
-                    _path: cp
+    /* polygon logic - end */
+    
+    /* user interface - begin */
+    
+    displayInterface = function(who, text) {
+        //if(state.APIRoomManagement.uiPreference === 0) {
+            sendChat('Area API', '/w ' + who.split(' ')[0] + ' ' + text); 
+        /*} else {
+            var handout = findObjs({                              
+                _type: 'handout',
+                name: 'API-RoomManagement'
+            }, {caseInsensitive: true});
+        
+            if(handout && handout.length > 0) {
+                handout = handout[0];
+            } else {
+                handout = createObj('handout', {
+                    name: 'API-RoomManagement',
+                    avatar: 'https://s3.amazonaws.com/files.d20.io/images/7360175/t-Y2NgxamazYSIkbaXQjJg/thumb.jpg?1422294416'
                 });
-                
-            state.APIAreaMapper.apiDrawing = false;
+            }
             
-            log(a);
+            handout.set('notes', text);
+        }*/
+    },
+    
+    formatInterface = function(who, header, body, nextSteps) {
+        var rightPadding = '0px';
+        
+        /*if(state.APIAreaMapper.uiPreference === 1) {
+            rightPadding = '14px';
+        }*/
+            
+        var text =
+            '<span style="border: 1px solid black;width: 100%;display:inline-block;background-color:'+mainBackgroundColor+';padding-right:'+rightPadding+';">'
+                +'<span style="border: 1px solid black;display:inline-block;width: 100%;font-weight: bold;border-bottom: 1px solid black;background-color:'+headerBackgroundColor+';font-size: 115%;padding-right:'+rightPadding+';">'
+                    +'<span style="padding-left:3px;display:inline-block;width: 100%;margin-top:3px;margin-bottom:3px;">'
+                        +header
+                    +'</span>'
+                +'</span>'
+                +'<span style="border: 1px solid black;display:inline-block;width: 100%;background-color:'+mainBackgroundColor+';padding-right:'+rightPadding+';">'
+                    +body
+                    
+        if(nextSteps) {
+            text = text
+                +'<span style="padding-left:10px;display:inline-block;width: 100%;margin-top:3px;margin-bottom:3px;padding-right:'+rightPadding+';">'
+                    +'<span style="border-top: 1px solid '+headerBackgroundColor+';display:inline-block;width: 100%;margin-top:10px;border-bottom: 1px solid '+headerBackgroundColor+';">'
+                        +'<div style="margin-top:10px;"></div>'
+                        +nextSteps
+                    +'</span>'
+                +'</span>';
+        }
+        
+        text = text
+                +'</span>'
+            +'</span>';
+        
+        displayInterface(who, text);
+    },
+    
+    sendNotification = function(to, message) {
+        formatInterface(to.split(' ')[0],
+            'Area API - Notification',
+            '<span style="text-align:center;padding-left:3px;display:inline-block;width: 100%;margin-top:3px;margin-bottom:3px;">'
+                +'<span style="padding-left:13px;padding-top:13px;padding-right:13px;display:inline-block;background-color:'+notificationBackgroundColor+';margin-top:13px;margin-left:13px;margin-right:13px;margin-bottom:3px;">'
+                    +'<p>'+message+'</p>'
+                +'</span>'
+            +'</span>'/*,
+            
+            commandLinks('standard',[['run script',''],['help','help']])*/
+        );
+    },
+    
+    sendStandardInterface = function(to, header, body, nextSteps) {
+        formatInterface(to, header,
+            '<div style="padding-left:10px;margin-bottom:3px;">'
+                +body
+            +'</div>',
+            nextSteps);
+    },
+    
+    //constructs a clickable command:
+    commandLink = function(text, command, highlight) {
+        //hightlight defaults to false
+        
+        //if(state.APIRoomManagement.uiPreference === 0) {
+            if(highlight) {
+                //TODO: pad around this:
+                return '<span style="border: 1px solid white;display:inline-block;background-color: ' + buttonHighlightColor + ';padding: 3px 3px;"> <a href="!api-area ' + command + '">' + text + '</a> </span> ';
+            } else {
+                return '[' + text + '](!api-area ' + command + ') ';
+            }
+        //} else {
+        //    return '<span style="border: 1px solid white;display:inline-block;background-color: ' + buttonBackgroundColor + ';padding: 5px 5px;"> <a href="!api-area ' + command + '">' + text + '</a> </span> ';
+        //}
+    },
+    
+    //constructs clickable commands:
+    commandLinks = function(header, commands) {
+        var html = '<p><b>' + header + '</b><br/>';
+        
+        for(var i = 0;i<commands.length;i++) {
+            html += commandLink(commands[i][0], commands[i][1], commands[i].length > 2 ? commands[i][2] : false);
+        }
+        
+        return html + '</p>';
+    },
+    
+    interfaceAreaDrawingOptions = function(to) {
+        sendStandardInterface(to, 'Area Mapper',
+            commandLinks('Area Drawing', [
+                ['create new area', 'areaCreate', (state.APIAreaMapper.recordAreaMode == 'areaCreate')],
+                ['add to area', 'areaAppend', (state.APIAreaMapper.recordAreaMode == 'areaAppend')],
+                ['remove from area', 'areaRemove', (state.APIAreaMapper.recordAreaMode == 'areaRemove')]
+            ])
+        );
+    },
+    
+    toggleOrSetAreaRecordMode = function(mode) {
+        if(state.APIAreaMapper.recordAreaMode == mode) {
+            state.APIAreaMapper.recordAreaMode = false;
+        } else {
+            state.APIAreaMapper.recordAreaMode = mode;
         }
     },
     
-    /* polygon logic - end */
+    /* user interface - end */
+    
+    /* event handlers - begin */
+    
+    handleUserInput = function(msg) {
+        if(msg.type == 'api' && msg.content.match(/^!api-area/) && playerIsGM(msg.playerid)) {
+            var chatCommand = msg.content.split(' ');
+            if(chatCommand.length == 1) {
+                //transfer control to intuitive UI layer:
+                //intuit(msg.selected, msg.who);
+                interfaceAreaDrawingOptions(msg.who);
+            } else {
+                switch(chatCommand[1]) {
+                    case 'areaCreate':
+                    case 'areaAppend':
+                    case 'areaRemove':
+                        toggleOrSetAreaRecordMode(chatCommand[1]);
+                        break;
+                    default:
+                        break;
+                }
+            }
+        }
+    },
+    
+    handlePathAdd = function(path) {
+        if(!state.APIAreaMapper.tempIgnoreAddPath) {
+            if(state.APIAreaMapper.recordAreaMode) {
+                switch(state.APIAreaMapper.recordAreaMode) {
+                    case 'areaCreate':
+                        var g = new graph();
+                        g.addPath(path.get('_path'));
+                        var cp = g.getCleanPolygon();
+                        state.APIAreaMapper.tempArea = cp;
+                        
+                        state.APIAreaMapper.tempIgnoreAddPath = true;
+                        createObj('path', {
+                            layer: 'objects',
+                            pageid: Campaign().get('playerpageid'),
+                            top: 50,
+                            left: 50,
+                            stroke: '#ff0000',
+                            stroke_width: 3,
+                            _path: cp
+                        });
+                        state.APIAreaMapper.tempIgnoreAddPath = false;
+                        
+                        state.APIAreaMapper.recordAreaMode = 'areaAppend';
+                        break;
+                    case 'areaAppend':
+                        break;
+                    case 'areaRemove':
+                        break;
+                    default:
+                        break;
+                }
+            }
+        }
+    },
+    
+    /* event handlers - end */
     
     /* nuts and bolts - begin */
     
     registerEventHandlers = function() {
+        on('chat:message', handleUserInput);
         on('add:path', handlePathAdd);
-        
-        var g = new graph();
-        /*//g.addPath("[[\"M\",163,62],[\"L\",76,243],[\"L\",238,162],[\"L\",56,71],[\"L\",189,285],[\"L\",151,4],[\"L\",29,0],[\"L\",0,119],[\"L\",127,258],[\"L\",198,231]]");
-        //g.addPath("[[\"M\",84,79],[\"L\",22,216],[\"L\",189,144],[\"L\",0,78],[\"L\",130,279],[\"L\",187,0],[\"L\",83,289]]");
-        //g.addPath("[[\"M\",147,10],[\"L\",112,124],[\"L\",188,114],[\"L\",436,160],[\"L\",320,345],[\"L\",367,30],[\"L\",158,288],[\"L\",107,0],[\"L\",250,14],[\"L\",0,118],[\"L\",451,231],[\"L\",455,38]]");
-        //g.addPath("[[\"M\",82,48],[\"L\",19,118],[\"L\",77,106],[\"L\",0,0],[\"L\",52,135]]");
-        g.addPath("[[\"M\",222,106],[\"L\",148,188],[\"L\",365,143],[\"L\",239,0],[\"L\",142,30],[\"L\",150,163],[\"L\",268,209],[\"L\",353,55],[\"L\",0,81],[\"L\",361,166]]");
-        log(g);
-        g.drawSegments();
-        var cp = g.getCleanPolygon();
-        log('clean polygon:');
-        log(cp);
-        log("[[\"M\",222,106],[\"L\",148,188],[\"L\",365,143],[\"L\",239,0],[\"L\",142,30],[\"L\",150,163],[\"L\",268,209],[\"L\",353,55],[\"L\",0,81],[\"L\",361,166]]");
-        
-        
-        state.APIAreaMapper.apiDrawing = true;
-        
-        /*createObj('path', {
-                layer: 'objects',
-                pageid: Campaign().get('playerpageid'),
-                top: 200,
-                left: 200,
-                stroke: '#00ff00',
-                stroke_width: 3,
-                _path: cp
-            });*/
-            
-        state.APIAreaMapper.apiDrawing = false;
     };
     
     //expose public functions:
