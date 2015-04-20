@@ -394,7 +394,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         || (points[i][0].x == points[iTopLeftPoint][0].x && points[i][0].y > points[iTopLeftPoint][0].y)) {
                     iTopLeftPoint = i;
                 }
-            };
+            }
             
             //the output of this function will be a path that is ready to be drawn:
             var cleanPolygon = '[[\"M\",' + points[iTopLeftPoint][0].x + ',' + points[iTopLeftPoint][0].y + ']';
@@ -502,7 +502,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     +'</span>'
                 +'</span>'
                 +'<span style="border: 1px solid black;display:inline-block;width: 100%;background-color:'+mainBackgroundColor+';padding-right:'+rightPadding+';">'
-                    +body
+                    +body;
                     
         if(nextSteps) {
             text = text
