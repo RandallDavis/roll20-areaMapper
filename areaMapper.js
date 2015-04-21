@@ -95,8 +95,66 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     /* core - end */
     
+    /* area - begin */
+    
+    var area = function() {
+        typedObject.call(this);
+        this._type.push('area');
+    };
+    
+    area.prototype.setProperty = function(property, value) {
+        switch(property) {
+            //type state:
+            case 'floorPlan': //TODO: implement as path-ready polygon
+                this['_' + property] = value;
+                break;
+            //instance state:
+            case 'floorPolygon': //TODO: implement as path object, allow only one per page
+                this['_' + property].push(['path', value]);
+                break;
+            default:
+                typedObject.prototype.setProperty.call(this, property, value);
+                break;
+        }
+    };
+    
+    area.prototype.initializeCollectionProperty = function(property) {
+        switch(property) {
+            case 'floorPolygon':
+                this['_' + property] = new Array();
+                break;
+            default:
+                typedObject.prototype.initializeCollectionProperty.call(this, property);
+                break;
+        }
+    };
+    
+    area.prototype.create = function(floorPlan) {
+        this.setProperty('floorPlan', floorPlan);
+    };
+    
+    area.prototype.draw = function(pageid) {
+        //TODO: remove existing floorPolygon
+        //TODO: create new floorPolygon on map layer
+    };
+    
+    area.prototype.load = function() {
+        //TODO
+    };
+    
+    area.prototype.save = function() {
+        //TODO
+    };
+    
+    area.prototype.alterInstance = function(pageid, relativeRotation, relativeScaleX, relativeScaleY, relativePositionX, relativePositionY) {
+        //TODO: alter an area instance and everything contained within it
+    };
+    
+    /* area - end */
+    
     /* polygon logic - begin */
     
+    //TODO: move functionality to prototype and set up for polymorphism:
     var graph = function() {
         
         var points = [], //array of [point, [segment index]]
