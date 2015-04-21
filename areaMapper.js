@@ -102,14 +102,17 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this._type.push('area');
     };
     
+    inheritPrototype(area, typedObject);
+    
     area.prototype.setProperty = function(property, value) {
         switch(property) {
             //type state:
-            case 'floorPlan': //TODO: implement as path-ready polygon
+            case 'floorPlan': //path-ready list of coordinates representing a clean polygon
                 this['_' + property] = value;
                 break;
             //instance state:
-            case 'floorPolygon': //TODO: implement as path object, allow only one per page
+            //TODO: instead of saving individual-component state for each instance, make an instance object:
+            case 'floorPolygon': //path object, zero or one per page
                 this['_' + property].push(['path', value]);
                 break;
             default:
@@ -129,21 +132,52 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }
     };
     
-    area.prototype.create = function(floorPlan) {
+    area.prototype.create = function(floorPlan, pageid, top, left) {
         this.setProperty('floorPlan', floorPlan);
+        
+        this.save();
+        
+        this.draw(pageid, top, left);
     };
     
-    area.prototype.draw = function(pageid) {
-        //TODO: remove existing floorPolygon
-        //TODO: create new floorPolygon on map layer
+    area.prototype.draw = function(pageid, top, left) {
+        //remove existing floorPolygon:
+        var floorPolygons = this.getProperty('floorPolygon');
+        var oldFloorPolygon;
+        for(var i = 0; i < floorPolygons; i++) {
+            if(floorPolygons[i].get('_pageid') === pageid) {
+                oldFloorPolygon = floorPolygons.splice(i);
+                break;
+            }
+        }
+        
+        if(oldFloorPolygon) {
+            oldFloorPolygon.remove();
+        }
+        
+        log('--> ' + top + ', ' + left);
+        
+        
+        //create new floorPolygon on map layer:
+        var floorPolygon = drawPathObject(pageid, 'map', '#0000ff', this.getProperty('floorPlan'), top, left);
+        
+        log('--> ' + floorPolygon.get('top') + ', ' + floorPolygon.get('left'));
+        
+        
+        this.setProperty('floorPolygon', floorPolygon);
+        this.save();
     };
     
     area.prototype.load = function() {
         //TODO
+        
+        this.initializeCollectionProperty('floorPolygon');
     };
     
     area.prototype.save = function() {
         //TODO
+        
+        this.load();
     };
     
     area.prototype.alterInstance = function(pageid, relativeRotation, relativeScaleX, relativeScaleY, relativePositionX, relativePositionY) {
@@ -521,6 +555,28 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     /* polygon logic - end */
     
+    /* roll20 object management - begin */
+    
+    drawPathObject = function(pageid, layer, stroke, path, top, left) {
+        state.APIAreaMapper.tempIgnoreAddPath = true;
+        
+        var obj = createObj('path', {
+            layer: layer,
+            pageid: pageid,
+            top: top,
+            left: left,
+            stroke: stroke,
+            stroke_width: 1,
+            _path: path
+        });
+        
+        state.APIAreaMapper.tempIgnoreAddPath = false;
+        
+        return obj;
+    },
+    
+    /* roll20 object management - end */
+    
     /* user interface - begin */
     
     displayInterface = function(who, text) {
@@ -677,28 +733,13 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     case 'areaCreate':
                         var g = new graph();
                         g.addPath(path.get('_path'));
+                        var a = new area();
+                        a.create(g.getCleanPolygon(), path.get('_pageid'), path.get('top'), path.get('left'));
+                        path.remove();
                         
-                        log(path.get('_path'));
-                        log(g);
+                        //top / left should be top / left minus the height / width
                         
-                        var cp = g.getCleanPolygon();
-                        state.APIAreaMapper.tempArea = cp;
-                        
-                        log(state.APIAreaMapper.tempArea);
-                        
-                        state.APIAreaMapper.tempIgnoreAddPath = true;
-                        createObj('path', {
-                            layer: 'objects',
-                            pageid: Campaign().get('playerpageid'),
-                            top: 50,
-                            left: 50,
-                            stroke: '#ff0000',
-                            stroke_width: 3,
-                            _path: cp
-                        });
-                        state.APIAreaMapper.tempIgnoreAddPath = false;
-                        
-                        state.APIAreaMapper.recordAreaMode = 'areaAppend';
+                        //state.APIAreaMapper.recordAreaMode = 'areaAppend';
                         break;
                     case 'areaAppend':
                         
