@@ -481,12 +481,19 @@ var APIAreaMapper = APIAreaMapper || (function() {
         getCleanPolygon = function() {
             //find the smallest x points, and of those, take the greatest y:
             var iTopLeftPoint = 0;
+            var originalWidth = 0;
+            var originalHeight = 0;
             for(var i = 0; i < points.length; i++) {
                 if((points[i][0].x < points[iTopLeftPoint][0].x)
                         || (points[i][0].x == points[iTopLeftPoint][0].x && points[i][0].y > points[iTopLeftPoint][0].y)) {
                     iTopLeftPoint = i;
                 }
+                
+                originalWidth = Math.max(originalWidth, points[i][0].x);
+                originalHeight = Math.max(originalHeight, points[i][0].y);
             }
+            
+            log('....' + originalWidth + ', ' + originalHeight);
             
             //the output of this function will be a path that is ready to be drawn:
             var cleanPolygon = '[[\"M\",' + points[iTopLeftPoint][0].x + ',' + points[iTopLeftPoint][0].y + ']';
@@ -541,7 +548,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
             
             cleanPolygon = cleanPolygon + ']';
             
-            return cleanPolygon;
+            var returnObject = [];
+            returnObject['path'] = cleanPolygon;
+            returnObject['originalWidth'] = originalWidth;
+            returnObject['originalHeight'] = originalHeight;
+            
+            return returnObject;
         };
         
         return {
@@ -734,10 +746,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         var g = new graph();
                         g.addPath(path.get('_path'));
                         var a = new area();
-                        a.create(g.getCleanPolygon(), path.get('_pageid'), path.get('top'), path.get('left'));
+                        var cp = g.getCleanPolygon();
+                        a.create(cp.path, path.get('_pageid'), path.get('top') - (cp.originalHeight / 2), path.get('left') - (cp.originalWidth / 2));
                         path.remove();
-                        
-                        //top / left should be top / left minus the height / width
                         
                         //state.APIAreaMapper.recordAreaMode = 'areaAppend';
                         break;
