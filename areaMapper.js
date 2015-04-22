@@ -14,10 +14,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         log('-=> Area Mapper v'+version+' <=-');
         
+        //TODO: state resets shouldn't destroy areas, and needs the ability to convert them to newer versions to prevent backward compatibile code elsewhere:
         if(!_.has(state,'APIAreaMapper') || state.APIAreaMapper.version !== schemaVersion) {
             log('APIAreaMapper: Resetting state.');
             state.APIAreaMapper = {
-                version: schemaVersion
+                version: schemaVersion,
+                areas: []
             };
         } 
         
@@ -37,7 +39,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     },
     
     typedObject = function() {
-        this._type = new Array();
+        this._type = [];
     };
     
     typedObject.prototype = {
@@ -107,6 +109,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     area.prototype.setProperty = function(property, value) {
         switch(property) {
             //type state:
+            case 'id':
             case 'floorPlan': //path-ready list of coordinates representing a clean polygon
                 this['_' + property] = value;
                 break;
@@ -124,7 +127,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     area.prototype.initializeCollectionProperty = function(property) {
         switch(property) {
             case 'floorPolygon':
-                this['_' + property] = new Array();
+                this['_' + property] = [];
                 break;
             default:
                 typedObject.prototype.initializeCollectionProperty.call(this, property);
@@ -133,55 +136,134 @@ var APIAreaMapper = APIAreaMapper || (function() {
     };
     
     area.prototype.create = function(floorPlan, pageid, top, left) {
+        this.setProperty('id', Math.random());
         this.setProperty('floorPlan', floorPlan);
-        
+        this.initializeCollectionProperty('floorPolygon');
         this.save();
-        
         this.draw(pageid, top, left);
+    };
+    
+    area.prototype.getInstanceIndex = function(pageid) {
+        var floorPolygons = this.getProperty('floorPolygon');
+        for(var i = 0; i < floorPolygons; i++) {
+            if(floorPolygons[i].get('_pageid') === pageid) {
+                return i;
+            }
+        }
+        
+        return;
     };
     
     area.prototype.draw = function(pageid, top, left) {
         //remove existing floorPolygon:
-        var floorPolygons = this.getProperty('floorPolygon');
-        var oldFloorPolygon;
-        for(var i = 0; i < floorPolygons; i++) {
-            if(floorPolygons[i].get('_pageid') === pageid) {
-                oldFloorPolygon = floorPolygons.splice(i);
-                break;
-            }
-        }
-        
-        if(oldFloorPolygon) {
+        var instanceIndex = this.getInstanceIndex(pageid);
+        if('undefined' !== typeof(instanceIndex)) {
+            var oldFloorPolygon = this.getProperty('floorPolygon').splice(instanceIndex);
             oldFloorPolygon.remove();
         }
         
-        log('--> ' + top + ', ' + left);
-        
-        
         //create new floorPolygon on map layer:
         var floorPolygon = drawPathObject(pageid, 'map', '#0000ff', this.getProperty('floorPlan'), top, left);
-        
-        log('--> ' + floorPolygon.get('top') + ', ' + floorPolygon.get('left'));
-        
         
         this.setProperty('floorPolygon', floorPolygon);
         this.save();
     };
     
-    area.prototype.load = function() {
-        //TODO
+    area.prototype.load = function(id) {
+        var areas = state.APIAreaMapper.areas;
+        var areaState;
+        areas.forEach(function(a) {
+            a.forEach(function(prop) {
+                if(prop[0] === 'id' && prop[1] === id) {
+                    areaState = a;
+                    return;
+                }
+            });
+            
+            if(areaState) {
+                return;
+            }
+        });
         
-        this.initializeCollectionProperty('floorPolygon');
+        for(var i = 0; i < areaState.length; i++) {
+            switch(areaState[i][0]) {
+                case 'id':
+                case 'floorPlan':
+                    this.setProperty(areaState[i][0], areaState[i][1]);
+                    break;
+                default:
+                    log('Unknown property "' + areaState[i][0] + '" in area.load().');
+                    break;
+            }
+        }
     };
     
     area.prototype.save = function() {
-        //TODO
+        var areaState = [];
+        areaState.push(['id', this.getProperty('id')]);
+        areaState.push(['floorPlan', this.getProperty('floorPlan')]);
         
-        this.load();
+        //remove existing area state:
+        var id = this.getProperty('id');
+        var areas = state.APIAreaMapper.areas;
+        var oldAreaState;
+        for(var i = 0; i < areas.length; i++) {
+            areas[i].forEach(function(prop) {
+                if(prop[0] === 'id' && prop[1] === id) {
+                    oldAreaState = state.APIAreaMapper.areas.splice(i);
+                    return;
+                }
+            });
+ 
+            if(oldAreaState) {
+                break;
+            }
+        }
+        
+        //save the updated area state:
+        state.APIAreaMapper.areas.push(areaState);
     };
     
+    //TODO: move this to instance object:
     area.prototype.alterInstance = function(pageid, relativeRotation, relativeScaleX, relativeScaleY, relativePositionX, relativePositionY) {
         //TODO: alter an area instance and everything contained within it
+    };
+    
+    //alters the area's floorPlan using an area instance as a control:
+    //TODO: rename to appendFloorPlan():
+    area.prototype.append = function(path, pageid, top, left) {
+        //TODO: this instance loading is going to change:
+        //get instance that appending is relative to:
+        var instanceIndex = this.getInstanceIndex(pageid);
+        if('undefined' !== typeof(instanceIndex)) {
+            log('No instance drawn on this page to append to.');
+            return;
+        }
+        var instance = this.getProperty('floorPolygon')[instanceIndex];
+        
+        var g = new graph();
+        g.addPath(this.getProperty('floorPlan'));
+        g.addPath(path, top, left); //TODO: make top/left relative to some drawing's top/left (I guess based on pageid)
+        
+        this.setProperty('floorPlan', g.getCleanPolygon().path);
+        this.draw();
+    };
+    
+    var areaInstance = function(areaId, pageId) {
+        typedObject.call(this);
+        this._type.push('areaInstance');
+        this._areaId = areaId;
+        this._pageId = pageId;
+    };
+    
+    inheritPrototype(areaInstance, typedObject);
+    
+    areaInstance.prototype.load = function() {
+        //TODO
+    };
+    
+    areaInstance.prototype.save = function() {
+        //TODO
     };
     
     /* area - end */
@@ -402,7 +484,15 @@ var APIAreaMapper = APIAreaMapper || (function() {
             return null;
         },
         
-        addPath = function(path) {
+        addPath = function(path, relativeX, relativeY) {
+            if('undefined' === typeof(relativeX)) {
+                relativeX = 0;
+            }
+            
+            if('undefined' === typeof(relativeY)) {
+                relativeY = 0;
+            }
+            
             path = JSON.parse(path);
             
             if(path && path.length > 1) {
@@ -412,7 +502,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     iPrior; //index of prior point
                     
                 path.forEach(function(pCurrentRaw) {
-                    var pCurrent = new point(pCurrentRaw[1], pCurrentRaw[2]); //current point
+                    var pCurrent = new point(pCurrentRaw[1] - relativeX, pCurrentRaw[2] - relativeY); //current point
                     var iCurrent = addPoint(pCurrent); //index of current point
                     
                     if(pPrior) {
@@ -492,8 +582,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 originalWidth = Math.max(originalWidth, points[i][0].x);
                 originalHeight = Math.max(originalHeight, points[i][0].y);
             }
-            
-            log('....' + originalWidth + ', ' + originalHeight);
             
             //the output of this function will be a path that is ready to be drawn:
             var cleanPolygon = '[[\"M\",' + points[iTopLeftPoint][0].x + ',' + points[iTopLeftPoint][0].y + ']';
@@ -750,38 +838,24 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         a.create(cp.path, path.get('_pageid'), path.get('top') - (cp.originalHeight / 2), path.get('left') - (cp.originalWidth / 2));
                         path.remove();
                         
-                        //state.APIAreaMapper.recordAreaMode = 'areaAppend';
+                        state.APIAreaMapper.recordAreaMode = 'areaAppend';
                         break;
                     case 'areaAppend':
-                        
-                        //TODO: this should take top/left, scale, & rotation into account so that the new polygon will be interpreted as a user would expect
-                        
-                        log(state.APIAreaMapper.tempArea);
-                        log(path.get('_path'));
-                        
+                        log('....');
                         var g = new graph();
-                        g.addPath(state.APIAreaMapper.tempArea);
-                        log(g);
                         g.addPath(path.get('_path'));
-                        
-                        log(g);
-                        
                         var cp = g.getCleanPolygon();
-                        state.APIAreaMapper.tempArea = cp;
                         
-                        log(state.APIAreaMapper.tempArea);
+                        //var a = state.APIAreaMapper.areas[0];
+                        var a = state.APIAreaMapper.areas[0];
+                        a = Object.create(area, a);
+                        //log('.');
+                        //log(state.APIAreaMapper.areas);
+                        //log(a);
+                        log(a.isType('area'));
+                        a.append(cp.path, path.get('_pageid'), path.get('top') - (cp.originalHeight / 2), path.get('left') - (cp.originalWidth / 2));
                         
-                        state.APIAreaMapper.tempIgnoreAddPath = true;
-                        createObj('path', {
-                            layer: 'objects',
-                            pageid: Campaign().get('playerpageid'),
-                            top: 50,
-                            left: 50,
-                            stroke: '#ff0000',
-                            stroke_width: 3,
-                            _path: cp
-                        });
-                        state.APIAreaMapper.tempIgnoreAddPath = false;
+                        path.remove();
                         break;
                     case 'areaRemove':
                         break;
