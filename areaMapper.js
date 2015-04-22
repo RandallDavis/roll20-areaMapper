@@ -19,7 +19,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
             log('APIAreaMapper: Resetting state.');
             state.APIAreaMapper = {
                 version: schemaVersion,
-                areas: []
+                areas: [],
+                areaInstances: []
             };
         } 
         
@@ -108,41 +109,26 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     area.prototype.setProperty = function(property, value) {
         switch(property) {
-            //type state:
             case 'id':
             case 'floorPlan': //path-ready list of coordinates representing a clean polygon
                 this['_' + property] = value;
-                break;
-            //instance state:
-            //TODO: instead of saving individual-component state for each instance, make an instance object:
-            case 'floorPolygon': //path object, zero or one per page
-                this['_' + property].push(['path', value]);
                 break;
             default:
                 typedObject.prototype.setProperty.call(this, property, value);
                 break;
         }
     };
-    
-    area.prototype.initializeCollectionProperty = function(property) {
-        switch(property) {
-            case 'floorPolygon':
-                this['_' + property] = [];
-                break;
-            default:
-                typedObject.prototype.initializeCollectionProperty.call(this, property);
-                break;
-        }
-    };
-    
+   
     area.prototype.create = function(floorPlan, pageid, top, left) {
         this.setProperty('id', Math.random());
         this.setProperty('floorPlan', floorPlan);
-        this.initializeCollectionProperty('floorPolygon');
         this.save();
-        this.draw(pageid, top, left);
+        
+        //TODO: create / draw new instance:
+        //this.draw(pageid, top, left);
     };
     
+    //TODO: this needs to change:
     area.prototype.getInstanceIndex = function(pageid) {
         var floorPolygons = this.getProperty('floorPolygon');
         for(var i = 0; i < floorPolygons; i++) {
@@ -154,6 +140,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return;
     };
     
+    //TODO: instances are drawn, not areas:
     area.prototype.draw = function(pageid, top, left) {
         //remove existing floorPolygon:
         var instanceIndex = this.getInstanceIndex(pageid);
@@ -224,11 +211,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
         state.APIAreaMapper.areas.push(areaState);
     };
     
-    //TODO: move this to instance object:
-    area.prototype.alterInstance = function(pageid, relativeRotation, relativeScaleX, relativeScaleY, relativePositionX, relativePositionY) {
-        //TODO: alter an area instance and everything contained within it
-    };
-    
     //alters the area's floorPlan using an area instance as a control:
     //TODO: rename to appendFloorPlan():
     area.prototype.append = function(path, pageid, top, left) {
@@ -258,12 +240,93 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     inheritPrototype(areaInstance, typedObject);
     
+    areaInstance.prototype.setProperty = function(property, value) {
+        switch(property) {
+            case 'areaId':
+            case 'pageId':
+            case 'area':
+                this['_' + property] = value;
+                break;
+            case 'floorPolygon': //path object
+                this['_' + property].push(['path', value]);
+                break;
+            default:
+                typedObject.prototype.setProperty.call(this, property, value);
+                break;
+        }
+    };
+    
+    /*areaInstance.prototype.initializeCollectionProperty = function(property) {
+        switch(property) {
+            case 'floorPolygon':
+                this['_' + property] = [];
+                break;
+            default:
+                typedObject.prototype.initializeCollectionProperty.call(this, property);
+                break;
+        }
+    };*/
+    
     areaInstance.prototype.load = function() {
         //TODO
+        
+        /*
+        var areas = state.APIAreaMapper.areas;
+        var areaState;
+        areas.forEach(function(a) {
+            a.forEach(function(prop) {
+                if(prop[0] === 'id' && prop[1] === id) {
+                    areaState = a;
+                    return;
+                }
+            });
+            
+            if(areaState) {
+                return;
+            }
+        });
+        
+        for(var i = 0; i < areaState.length; i++) {
+            switch(areaState[i][0]) {
+                case 'id':
+                case 'floorPlan':
+                    this.setProperty(areaState[i][0], areaState[i][1]);
+                    break;
+                default:
+                    log('Unknown property "' + areaState[i][0] + '" in area.load().');
+                    break;
+            }
+        }
+        */
     };
     
     areaInstance.prototype.save = function() {
-        //TODO
+        var areaInstanceState = [];
+        areaInstanceState.push(['areaId', this.getProperty('areaId')]);
+        areaInstanceState.push(['pageId', this.getProperty('pageId')]);
+        areaInstanceState.push(['floorPolygonId', this.getProperty('floorPolygon').id]); //TODO: is there always a floorPolygon when this is saved?
+        
+        //remove existing area instance state:
+        var areaInstances = state.APIAreaMapper.areaInstances;
+        var oldAreaInstanceState;
+        for(var i = 0; i < areaInstances.length; i++) {
+            //note: expects areaId and pageId to be the first and second properties:
+            if(areaInstances[i][0] === this.getProperty('areaId')
+                    && areaInstances[i][1] === this.getProperty('pageId')) {
+                oldAreaInstanceState = state.APIAreaMapper.areaInstances.splice(i);        
+            }
+   
+            if(oldAreaState) {
+                break;
+            }
+        }
+        
+        //save the updated area instance state:
+        state.APIAreaMapper.areaInstances.push(areaInstanceState);
+    };
+    
+    areaInstance.prototype.alter = function(pageid, relativeRotation, relativeScaleX, relativeScaleY, relativePositionX, relativePositionY) {
+        //TODO: alter an area instance and everything contained within it
     };
     
     /* area - end */
