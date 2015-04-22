@@ -123,12 +123,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this.setProperty('id', Math.random());
         this.setProperty('floorPlan', floorPlan);
         this.save();
-        
-        //TODO: create / draw new instance:
-        //this.draw(pageid, top, left);
+        this.draw(pageid, top, left);
     };
     
-    //TODO: this needs to change:
+    /*//TODO: this needs to change:
     area.prototype.getInstanceIndex = function(pageid) {
         var floorPolygons = this.getProperty('floorPolygon');
         for(var i = 0; i < floorPolygons; i++) {
@@ -138,25 +136,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }
         
         return;
-    };
+    };*/
     
-    //TODO: instances are drawn, not areas:
-    area.prototype.draw = function(pageid, top, left) {
-        //remove existing floorPolygon:
-        var instanceIndex = this.getInstanceIndex(pageid);
-        if('undefined' !== typeof(instanceIndex)) {
-            var oldFloorPolygon = this.getProperty('floorPolygon').splice(instanceIndex);
-            oldFloorPolygon.remove();
-        }
+    area.prototype.load = function() {
+        var id = this.getProperty('id');
         
-        //create new floorPolygon on map layer:
-        var floorPolygon = drawPathObject(pageid, 'map', '#0000ff', this.getProperty('floorPlan'), top, left);
-        
-        this.setProperty('floorPolygon', floorPolygon);
-        this.save();
-    };
-    
-    area.prototype.load = function(id) {
         var areas = state.APIAreaMapper.areas;
         var areaState;
         areas.forEach(function(a) {
@@ -231,6 +215,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this.draw();
     };
     
+    area.prototype.draw = function(pageId, top, left) {
+        instance = new areaInstance(this.getProperty('id'), pageId);
+        instance.draw(top, left);
+    };
+    
     var areaInstance = function(areaId, pageId) {
         typedObject.call(this);
         this._type.push('areaInstance');
@@ -245,10 +234,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'areaId':
             case 'pageId':
             case 'area':
-                this['_' + property] = value;
-                break;
             case 'floorPolygon': //path object
-                this['_' + property].push(['path', value]);
+                this['_' + property] = value;
                 break;
             default:
                 typedObject.prototype.setProperty.call(this, property, value);
@@ -268,43 +255,58 @@ var APIAreaMapper = APIAreaMapper || (function() {
     };*/
     
     areaInstance.prototype.load = function() {
-        //TODO
+        //note: areaId and pageId must be set already
+        var areaId = this.getProperty('areaId');
+        var pageId = this.getProperty('pageId');
         
-        /*
-        var areas = state.APIAreaMapper.areas;
-        var areaState;
-        areas.forEach(function(a) {
-            a.forEach(function(prop) {
-                if(prop[0] === 'id' && prop[1] === id) {
-                    areaState = a;
+        var areaInstances = state.APIAreaMapper.areaInstances;
+        var areaInstanceState;
+        areaInstances.forEach(function(a) {
+            if(a[0] === areaId
+                && a[1] === pageId) {
+                    areaInstanceState = a;
                     return;
-                }
-            });
+            }
             
-            if(areaState) {
+            if(areaInstanceState) {
                 return;
             }
         });
         
-        for(var i = 0; i < areaState.length; i++) {
-            switch(areaState[i][0]) {
-                case 'id':
-                case 'floorPlan':
-                    this.setProperty(areaState[i][0], areaState[i][1]);
+        //couldn't find any state to load:
+        if(!areaInstanceState) {
+            return;
+        }
+        
+        for(var i = 0; i < areaInstanceState.length; i++) {
+            switch(areaInstanceState[i][0]) {
+                case 'areaId':
+                case 'pageId':
+                    this.setProperty(areaInstanceState[i][0], areaInstanceState[i][1]);
+                    break;
+                case 'floorPolygonId':
+                    if(areaInstanceState[i][1].length > 0) {
+                        var floorPolygon = getObj('path', areaInstanceState[i][1]);
+                        if(floorPolygon) {
+                            this.setProperty('floorPolygon', floorPolygon);
+                        } else {
+                            log('Could not find floorPolygon matching ID "' + areaInstanceState[i][1] + '" in areaInstance.load().');
+                        }
+                    }
+                    
                     break;
                 default:
-                    log('Unknown property "' + areaState[i][0] + '" in area.load().');
+                    log('Unknown property "' + areaInstanceState[i][0] + '" in areaInstance.load().');
                     break;
             }
         }
-        */
     };
     
     areaInstance.prototype.save = function() {
         var areaInstanceState = [];
         areaInstanceState.push(['areaId', this.getProperty('areaId')]);
         areaInstanceState.push(['pageId', this.getProperty('pageId')]);
-        areaInstanceState.push(['floorPolygonId', this.getProperty('floorPolygon').id]); //TODO: is there always a floorPolygon when this is saved?
+        areaInstanceState.push(['floorPolygonId', this.getProperty('floorPolygon') ? this.getProperty('floorPolygon').id : '']);
         
         //remove existing area instance state:
         var areaInstances = state.APIAreaMapper.areaInstances;
@@ -316,13 +318,34 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 oldAreaInstanceState = state.APIAreaMapper.areaInstances.splice(i);        
             }
    
-            if(oldAreaState) {
+            if(oldAreaInstanceState) {
                 break;
             }
         }
         
         //save the updated area instance state:
         state.APIAreaMapper.areaInstances.push(areaInstanceState);
+    };
+    
+    areaInstance.prototype.draw = function(top, left) {
+        this.load();
+        
+        //remove existing floorPolygon:
+        var oldFloorPolygon = this.getProperty('floorPolygon');
+        if(oldFloorPolygon) {
+            oldFloorPolygon[1].remove();
+        }
+        
+        //get the floorPlan from the area:
+        var a = new area();
+        a.setProperty('id', this.getProperty('areaId'));
+        a.load();
+        
+        //create new floorPolygon on map layer:
+        var floorPolygon = drawPathObject(this.getProperty('pageId'), 'map', '#0000ff', a.getProperty('floorPlan'), top, left);
+        
+        this.setProperty('floorPolygon', floorPolygon);
+        this.save();
     };
     
     areaInstance.prototype.alter = function(pageid, relativeRotation, relativeScaleX, relativeScaleY, relativePositionX, relativePositionY) {
