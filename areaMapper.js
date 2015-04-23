@@ -209,15 +209,17 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }
         
         //TODO: incoming polygon should be relative to the instance's rotation and scale
+        var instanceTop = instance.getProperty('top');
+        var instanceLeft = instance.getProperty('left');
         
         var g = new graph();
         g.addPath(this.getProperty('floorPlan'));
-        g.addPath(path, instance.getProperty('top') - top, instance.getProperty('left') - left);
+        g.addPath(path, instanceTop - top, instanceLeft - left);
         var cp = g.getCleanPolygon();
         
         this.setProperty('floorPlan', g.getCleanPolygon().path);
         this.save();
-        this.draw(pageId, top, left);
+        this.draw(pageId, Math.min(instanceTop, top), Math.min(instanceLeft, left));
     };
     
     area.prototype.draw = function(pageId, top, left) {
@@ -268,8 +270,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var areaInstances = state.APIAreaMapper.areaInstances;
         var areaInstanceState;
         areaInstances.forEach(function(a) {
-            if(a[0] === areaId
-                && a[1] === pageId) {
+            if(a[0][1] === areaId
+                && a[1][1] === pageId) {
                     areaInstanceState = a;
                     return;
             }
@@ -346,7 +348,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         //remove existing floorPolygon:
         var oldFloorPolygon = this.getProperty('floorPolygon');
         if(oldFloorPolygon) {
-            oldFloorPolygon[1].remove();
+            oldFloorPolygon.remove();
         }
         
         //get the floorPlan from the area:
@@ -583,13 +585,13 @@ var APIAreaMapper = APIAreaMapper || (function() {
             return null;
         },
         
-        addPath = function(path, relativeX, relativeY) {
-            if('undefined' === typeof(relativeX)) {
-                relativeX = 0;
+        addPath = function(path, relativeTop, relativeLeft) {
+            if('undefined' === typeof(relativeTop)) {
+                relativeTop = 0;
             }
             
-            if('undefined' === typeof(relativeY)) {
-                relativeY = 0;
+            if('undefined' === typeof(relativeLeft)) {
+                relativeLeft = 0;
             }
             
             path = JSON.parse(path);
@@ -601,7 +603,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     iPrior; //index of prior point
                     
                 path.forEach(function(pCurrentRaw) {
-                    var pCurrent = new point(pCurrentRaw[1] - relativeX, pCurrentRaw[2] - relativeY); //current point
+                    var pCurrent = new point(pCurrentRaw[1] - relativeLeft, pCurrentRaw[2] - relativeTop); //current point
                     var iCurrent = addPoint(pCurrent); //index of current point
                     
                     if(pPrior) {
@@ -682,13 +684,16 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 originalHeight = Math.max(originalHeight, points[i][0].y);
             }
             
-            //the output of this function will be a path that is ready to be drawn:
-            var cleanPolygon = '[[\"M\",' + points[iTopLeftPoint][0].x + ',' + points[iTopLeftPoint][0].y + ']';
+            //start keeping the points that will be used in the output polygon:
+            var cleanPolygonPoints = [];
+            cleanPolygonPoints.push(points[iTopLeftPoint][0]);
+            var minX = points[iTopLeftPoint][0].x;
+            var minY = points[iTopLeftPoint][0].y;
             
             var iP = iTopLeftPoint; //index of current point
             var a = new angle(Math.PI / 2); //angle of prior segment; for first pass, initialize to facing up
             
-            var loopLimit = 5000; //limit the loop iterations in case there's a bug or the equality clause ends up needing an epsilon
+            var loopLimit = 10000; //limit the loop iterations in case there's a bug or the equality clause ends up needing an epsilon
             var firstIteration = true;
             
             //loop until the outside of the polygon has been traced:
@@ -730,13 +735,22 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 a = new angle((sAngle.radians + Math.PI) % (2 * Math.PI));
                 
                 //add the new point to the clean polygon:
-                cleanPolygon += ',[\"L\",' + points[iP][0].x + ',' + points[iP][0].y + ']';
+                cleanPolygonPoints.push(points[iP][0]);
+                minX = Math.min(minX, points[iP][0].x);
+                minY = Math.min(minY, points[iP][0].y);
             }
+           
+            //build the clean polygon path and make it originating from (0,0):
+            var firstCleanPoint = cleanPolygonPoints.shift();
+            var cleanPath = '[[\"M\",' + (firstCleanPoint.x - minX) + ',' + (firstCleanPoint.y - minY) + ']';
+            cleanPolygonPoints.forEach(function(p) {
+                cleanPath += ',[\"L\",' + (p.x - minX) + ',' + (p.y - minY) + ']';
+            });
+            cleanPath += ']';
             
-            cleanPolygon = cleanPolygon + ']';
-            
+            //stuff everything into a return object:
             var returnObject = [];
-            returnObject['path'] = cleanPolygon;
+            returnObject['path'] = cleanPath;
             returnObject['originalWidth'] = originalWidth;
             returnObject['originalHeight'] = originalHeight;
             
@@ -932,8 +946,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     case 'areaCreate':
                         var g = new graph();
                         g.addPath(path.get('_path'));
-                        var a = new area();
                         var cp = g.getCleanPolygon();
+                        
+                        var a = new area();
                         a.create(cp.path, path.get('_pageid'), path.get('top') - (cp.originalHeight / 2), path.get('left') - (cp.originalWidth / 2));
                         
                         state.APIAreaMapper.activeArea = a.getProperty('id');
