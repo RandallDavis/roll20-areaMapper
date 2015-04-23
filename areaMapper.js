@@ -20,7 +20,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
             state.APIAreaMapper = {
                 version: schemaVersion,
                 areas: [],
-                areaInstances: []
+                areaInstances: [],
+                activeArea: null
             };
         } 
         
@@ -196,23 +197,27 @@ var APIAreaMapper = APIAreaMapper || (function() {
     };
     
     //alters the area's floorPlan using an area instance as a control:
-    //TODO: rename to appendFloorPlan():
-    area.prototype.append = function(path, pageid, top, left) {
-        //TODO: this instance loading is going to change:
+    area.prototype.floorPlanAppend = function(path, pageId, top, left) {
         //get instance that appending is relative to:
-        var instanceIndex = this.getInstanceIndex(pageid);
-        if('undefined' !== typeof(instanceIndex)) {
-            log('No instance drawn on this page to append to.');
+        var instance = new areaInstance(this.getProperty('id'), pageId);
+        instance.load();
+        
+        //test a mandatory property to make sure that the instance actually exists:
+        if('undefined' === instance.getProperty('top')) {
+            log('No instance found append to in area.floorPlanAppend().');
             return;
         }
-        var instance = this.getProperty('floorPolygon')[instanceIndex];
+        
+        //TODO: incoming polygon should be relative to the instance's rotation and scale
         
         var g = new graph();
         g.addPath(this.getProperty('floorPlan'));
-        g.addPath(path, top, left); //TODO: make top/left relative to some drawing's top/left (I guess based on pageid)
+        g.addPath(path, instance.getProperty('top') - top, instance.getProperty('left') - left);
+        var cp = g.getCleanPolygon();
         
         this.setProperty('floorPlan', g.getCleanPolygon().path);
-        this.draw();
+        this.save();
+        this.draw(pageId, top, left);
     };
     
     area.prototype.draw = function(pageId, top, left) {
@@ -234,6 +239,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'areaId':
             case 'pageId':
             case 'area':
+            case 'top':
+            case 'left':
             case 'floorPolygon': //path object
                 this['_' + property] = value;
                 break;
@@ -255,7 +262,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
     };*/
     
     areaInstance.prototype.load = function() {
-        //note: areaId and pageId must be set already
         var areaId = this.getProperty('areaId');
         var pageId = this.getProperty('pageId');
         
@@ -282,6 +288,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
             switch(areaInstanceState[i][0]) {
                 case 'areaId':
                 case 'pageId':
+                case 'top':
+                case 'left':
                     this.setProperty(areaInstanceState[i][0], areaInstanceState[i][1]);
                     break;
                 case 'floorPolygonId':
@@ -306,6 +314,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var areaInstanceState = [];
         areaInstanceState.push(['areaId', this.getProperty('areaId')]);
         areaInstanceState.push(['pageId', this.getProperty('pageId')]);
+        areaInstanceState.push(['top', this.getProperty('top')]);
+        areaInstanceState.push(['left', this.getProperty('left')]);
         areaInstanceState.push(['floorPolygonId', this.getProperty('floorPolygon') ? this.getProperty('floorPolygon').id : '']);
         
         //remove existing area instance state:
@@ -329,6 +339,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     areaInstance.prototype.draw = function(top, left) {
         this.load();
+        
+        this.setProperty('top', top);
+        this.setProperty('left', left);
         
         //remove existing floorPolygon:
         var oldFloorPolygon = this.getProperty('floorPolygon');
@@ -922,24 +935,30 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         var a = new area();
                         var cp = g.getCleanPolygon();
                         a.create(cp.path, path.get('_pageid'), path.get('top') - (cp.originalHeight / 2), path.get('left') - (cp.originalWidth / 2));
+                        
+                        state.APIAreaMapper.activeArea = a.getProperty('id');
+                       
                         path.remove();
                         
                         state.APIAreaMapper.recordAreaMode = 'areaAppend';
                         break;
                     case 'areaAppend':
-                        log('....');
+                        if(!state.APIAreaMapper.activeArea) {
+                            log('An area needs to be active before appending.');
+                            return;
+                        }
+                        
                         var g = new graph();
                         g.addPath(path.get('_path'));
                         var cp = g.getCleanPolygon();
                         
-                        //var a = state.APIAreaMapper.areas[0];
-                        var a = state.APIAreaMapper.areas[0];
-                        a = Object.create(area, a);
-                        //log('.');
-                        //log(state.APIAreaMapper.areas);
-                        //log(a);
-                        log(a.isType('area'));
-                        a.append(cp.path, path.get('_pageid'), path.get('top') - (cp.originalHeight / 2), path.get('left') - (cp.originalWidth / 2));
+                        var areaId = state.APIAreaMapper.areas[0][0][1];
+                       
+                        var a = new area();
+                        a.setProperty('id', state.APIAreaMapper.activeArea);
+                        a.load();
+                        
+                        a.floorPlanAppend(cp.path, path.get('_pageid'), path.get('top') - (cp.originalHeight / 2), path.get('left') - (cp.originalWidth / 2));
                         
                         path.remove();
                         break;
