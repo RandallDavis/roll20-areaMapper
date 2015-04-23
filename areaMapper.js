@@ -213,8 +213,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var instanceLeft = instance.getProperty('left');
         
         var g = new graph();
-        g.addPath(this.getProperty('floorPlan'));
         g.addPath(path, instanceTop - top, instanceLeft - left);
+        
+        //TODO: this is getting weird - the graph never knows if it has a clean polygon or not.
+        //determine whether or not the old polygon is inside the new one:
+        //var isOldInNew = g.isInCleanPolygon(this.getProperty('floorPlan'));
+        
+        var result = g.addPath(this.getProperty('floorPlan'));
+        
         var cp = g.getCleanPolygon();
         
         this.setProperty('floorPlan', g.getCleanPolygon().path);
@@ -463,8 +469,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
             return index;
         },
         
-        //it's illogical to return a segment's index, becuse it might have been broken into pieces:
+        //it's illogical to return a segment's index, because it might have been broken into pieces:
         //it's also inconvient to do early detection of the segment being new, because of segment breaking:
+        //returns whether or not there were intersections, because this is useful information for certain algorithms:
         addSegment = function(s) {
             
             //don't add the segment if it's of 0 length:
@@ -515,9 +522,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 }
             });
             
+            var hadIntersections = false;
+            
             //add old broken segments:
             brokenSegments.forEach(function(seg) {
                 if(!seg.a.equals(seg.b)) {
+                    hadIntersections = true;
                     var iS = segments.push(seg) - 1;
                     var iPa = addPoint(seg.a);
                     var iPb = addPoint(seg.b);
@@ -536,6 +546,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     points[iPb][1].push(iS);
                 }
             });
+            
+            //create a return object with specific fields, so that the return values aren't misconstrued to be something more intuitive:
+            var returnObject = [];
+            returnObject.hadIntersections = hadIntersections;
+            return returnObject;
         },
         
         removeSegment = function(segment) {
@@ -594,6 +609,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 relativeLeft = 0;
             }
             
+            var hadIntersections = false;
+            
             path = JSON.parse(path);
             
             if(path && path.length > 1) {
@@ -607,7 +624,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     var iCurrent = addPoint(pCurrent); //index of current point
                     
                     if(pPrior) {
-                        addSegment(new segment(pPrior, pCurrent));
+                        var result = addSegment(new segment(pPrior, pCurrent));
+                        
+                        if(result && result.hadIntersections) {
+                            hadIntersections = true;
+                        }
                     } else {
                         pStart = pCurrent;
                     }
@@ -621,9 +642,20 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     addSegment(new segment(pPrior, pStart));
                 }
             }
+            
+            /*
+            If prior to calling this method, only a clean polygon was stored, and then another clean polygon
+            is added, whether or not there were intersections reveals something about the interrelation of 
+            the two polygons that is useful for some algorithms. If two clean polygons don't intersect, then
+            either they are siblings, or one is completely contained within the other. This is detected in
+            this method because it would lead to redundant processing to do it elsewhere.
+            */
+            var returnObject = [];
+            returnObject.hadIntersections = hadIntersections;
+            return returnObject;
         },
         
-        //draws a segment (for debugging):
+        /*//draws a segment (for debugging):
         drawSegment = function(s, color) {
             var isPositiveSlope = (((s.b.y - s.a.y) === 0) || (((s.b.x - s.a.x) / (s.b.y - s.a.y)) >= 0));
             var top = Math.min(s.a.y, s.b.y);
@@ -660,14 +692,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 _path: path
             });
             state.APIAreaMapper.tempIgnoreAddPath = false;
-        },
+        },*/
         
-        //draws individual segments (for debugging):
+        /*//draws individual segments (for debugging):
         drawSegments = function() {
             segments.forEach(function(s) {
                 drawSegment(s, '#0000ff');
             });
-        },
+        },*/
         
         getCleanPolygon = function() {
             //find the smallest x points, and of those, take the greatest y:
@@ -761,7 +793,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             points: points,
             segments: segments,
             addPath: addPath,
-            drawSegments: drawSegments,
+            //drawSegments: drawSegments,
             getCleanPolygon: getCleanPolygon
         };
     },
