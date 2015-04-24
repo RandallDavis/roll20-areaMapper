@@ -14,10 +14,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         log('-=> Area Mapper v'+version+' <=-');
         
+        //TODO: state resets shouldn't destroy areas, and needs the ability to convert them to newer versions to prevent backward compatibile code elsewhere:
         if(!_.has(state,'APIAreaMapper') || state.APIAreaMapper.version !== schemaVersion) {
             log('APIAreaMapper: Resetting state.');
             state.APIAreaMapper = {
-                version: schemaVersion
+                version: schemaVersion,
+                areas: [],
+                areaInstances: [],
+                activeArea: null
             };
         } 
         
@@ -37,7 +41,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     },
     
     typedObject = function() {
-        this._type = new Array();
+        this._type = [];
     };
     
     typedObject.prototype = {
@@ -95,8 +99,276 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     /* core - end */
     
+    /* area - begin */
+    
+    var area = function() {
+        typedObject.call(this);
+        this._type.push('area');
+    };
+    
+    inheritPrototype(area, typedObject);
+    
+    area.prototype.setProperty = function(property, value) {
+        switch(property) {
+            case 'id':
+            case 'floorPlan': //path-ready list of coordinates representing a clean polygon
+                this['_' + property] = value;
+                break;
+            default:
+                typedObject.prototype.setProperty.call(this, property, value);
+                break;
+        }
+    };
+   
+    area.prototype.create = function(floorPlan, pageid, top, left) {
+        this.setProperty('id', Math.random());
+        this.setProperty('floorPlan', floorPlan);
+        this.save();
+        this.draw(pageid, top, left);
+    };
+    
+    area.prototype.load = function() {
+        var id = this.getProperty('id');
+        
+        var areas = state.APIAreaMapper.areas;
+        var areaState;
+        areas.forEach(function(a) {
+            a.forEach(function(prop) {
+                if(prop[0] === 'id' && prop[1] === id) {
+                    areaState = a;
+                    return;
+                }
+            });
+            
+            if(areaState) {
+                return;
+            }
+        });
+        
+        for(var i = 0; i < areaState.length; i++) {
+            switch(areaState[i][0]) {
+                case 'id':
+                case 'floorPlan':
+                    this.setProperty(areaState[i][0], areaState[i][1]);
+                    break;
+                default:
+                    log('Unknown property "' + areaState[i][0] + '" in area.load().');
+                    break;
+            }
+        }
+    };
+    
+    area.prototype.save = function() {
+        var areaState = [];
+        areaState.push(['id', this.getProperty('id')]);
+        areaState.push(['floorPlan', this.getProperty('floorPlan')]);
+        
+        //remove existing area state:
+        var id = this.getProperty('id');
+        var areas = state.APIAreaMapper.areas;
+        var oldAreaState;
+        for(var i = 0; i < areas.length; i++) {
+            areas[i].forEach(function(prop) {
+                if(prop[0] === 'id' && prop[1] === id) {
+                    oldAreaState = state.APIAreaMapper.areas.splice(i);
+                    return;
+                }
+            });
+ 
+            if(oldAreaState) {
+                break;
+            }
+        }
+        
+        //save the updated area state:
+        state.APIAreaMapper.areas.push(areaState);
+    };
+    
+    //alters the area's floorPlan using an area instance as a control:
+    area.prototype.floorPlanAppend = function(path, pageId, top, left) {
+        //get instance that appending is relative to:
+        var instance = new areaInstance(this.getProperty('id'), pageId);
+        instance.load();
+        
+        //test a mandatory property to make sure that the instance actually exists:
+        if('undefined' === instance.getProperty('top')) {
+            log('No instance found append to in area.floorPlanAppend().');
+            return;
+        }
+        
+        //TODO: incoming polygon should be relative to the instance's rotation and scale
+        var instanceTop = instance.getProperty('top');
+        var instanceLeft = instance.getProperty('left');
+        
+        var g = new graph();
+        g.addPath(path, instanceTop - top, instanceLeft - left);
+        
+        //TODO: this is getting weird - the graph never knows if it has a clean polygon or not. Fix with polymorphic graph data structures.
+        //determine whether or not the old polygon is inside the new one:
+        var firstPointInOldFloorPlanRaw = JSON.parse(this.getProperty('floorPlan'))[0];
+        var isOldInNew = g.isInCleanPolygon(firstPointInOldFloorPlanRaw[1], firstPointInOldFloorPlanRaw[2]);
+        
+        var result = g.addPath(this.getProperty('floorPlan'));
+        
+        //if the polygons intersect, or if the old one is engulfed in the new one, update the floorPlan:
+        if(result.hadIntersections || isOldInNew) {
+            var cp = g.getCleanPolygon();
+            this.setProperty('floorPlan', g.getCleanPolygon().path);
+            this.save();
+            this.draw(pageId, Math.min(instanceTop, top), Math.min(instanceLeft, left));
+        }
+    };
+    
+    area.prototype.draw = function(pageId, top, left) {
+        instance = new areaInstance(this.getProperty('id'), pageId);
+        instance.draw(top, left);
+    };
+    
+    var areaInstance = function(areaId, pageId) {
+        typedObject.call(this);
+        this._type.push('areaInstance');
+        this._areaId = areaId;
+        this._pageId = pageId;
+    };
+    
+    inheritPrototype(areaInstance, typedObject);
+    
+    areaInstance.prototype.setProperty = function(property, value) {
+        switch(property) {
+            case 'areaId':
+            case 'pageId':
+            case 'area':
+            case 'top':
+            case 'left':
+            case 'floorPolygon': //path object
+                this['_' + property] = value;
+                break;
+            default:
+                typedObject.prototype.setProperty.call(this, property, value);
+                break;
+        }
+    };
+    
+    /*areaInstance.prototype.initializeCollectionProperty = function(property) {
+        switch(property) {
+            case 'floorPolygon':
+                this['_' + property] = [];
+                break;
+            default:
+                typedObject.prototype.initializeCollectionProperty.call(this, property);
+                break;
+        }
+    };*/
+    
+    areaInstance.prototype.load = function() {
+        var areaId = this.getProperty('areaId');
+        var pageId = this.getProperty('pageId');
+        
+        var areaInstances = state.APIAreaMapper.areaInstances;
+        var areaInstanceState;
+        areaInstances.forEach(function(a) {
+            if(a[0][1] === areaId
+                && a[1][1] === pageId) {
+                    areaInstanceState = a;
+                    return;
+            }
+            
+            if(areaInstanceState) {
+                return;
+            }
+        });
+        
+        //couldn't find any state to load:
+        if(!areaInstanceState) {
+            return;
+        }
+        
+        for(var i = 0; i < areaInstanceState.length; i++) {
+            switch(areaInstanceState[i][0]) {
+                case 'areaId':
+                case 'pageId':
+                case 'top':
+                case 'left':
+                    this.setProperty(areaInstanceState[i][0], areaInstanceState[i][1]);
+                    break;
+                case 'floorPolygonId':
+                    if(areaInstanceState[i][1].length > 0) {
+                        var floorPolygon = getObj('path', areaInstanceState[i][1]);
+                        if(floorPolygon) {
+                            this.setProperty('floorPolygon', floorPolygon);
+                        } else {
+                            log('Could not find floorPolygon matching ID "' + areaInstanceState[i][1] + '" in areaInstance.load().');
+                        }
+                    }
+                    
+                    break;
+                default:
+                    log('Unknown property "' + areaInstanceState[i][0] + '" in areaInstance.load().');
+                    break;
+            }
+        }
+    };
+    
+    areaInstance.prototype.save = function() {
+        var areaInstanceState = [];
+        areaInstanceState.push(['areaId', this.getProperty('areaId')]);
+        areaInstanceState.push(['pageId', this.getProperty('pageId')]);
+        areaInstanceState.push(['top', this.getProperty('top')]);
+        areaInstanceState.push(['left', this.getProperty('left')]);
+        areaInstanceState.push(['floorPolygonId', this.getProperty('floorPolygon') ? this.getProperty('floorPolygon').id : '']);
+        
+        //remove existing area instance state:
+        var areaInstances = state.APIAreaMapper.areaInstances;
+        var oldAreaInstanceState;
+        for(var i = 0; i < areaInstances.length; i++) {
+            //note: expects areaId and pageId to be the first and second properties:
+            if(areaInstances[i][0] === this.getProperty('areaId')
+                    && areaInstances[i][1] === this.getProperty('pageId')) {
+                oldAreaInstanceState = state.APIAreaMapper.areaInstances.splice(i);        
+            }
+   
+            if(oldAreaInstanceState) {
+                break;
+            }
+        }
+        
+        //save the updated area instance state:
+        state.APIAreaMapper.areaInstances.push(areaInstanceState);
+    };
+    
+    areaInstance.prototype.draw = function(top, left) {
+        this.load();
+        
+        this.setProperty('top', top);
+        this.setProperty('left', left);
+        
+        //remove existing floorPolygon:
+        var oldFloorPolygon = this.getProperty('floorPolygon');
+        if(oldFloorPolygon) {
+            oldFloorPolygon.remove();
+        }
+        
+        //get the floorPlan from the area:
+        var a = new area();
+        a.setProperty('id', this.getProperty('areaId'));
+        a.load();
+        
+        //create new floorPolygon on map layer:
+        var floorPolygon = drawPathObject(this.getProperty('pageId'), 'map', '#0000ff', a.getProperty('floorPlan'), top, left);
+        
+        this.setProperty('floorPolygon', floorPolygon);
+        this.save();
+    };
+    
+    areaInstance.prototype.alter = function(pageid, relativeRotation, relativeScaleX, relativeScaleY, relativePositionX, relativePositionY) {
+        //TODO: alter an area instance and everything contained within it
+    };
+    
+    /* area - end */
+    
     /* polygon logic - begin */
     
+    //TODO: move functionality to prototype and set up for polymorphism:
     var graph = function() {
         
         var points = [], //array of [point, [segment index]]
@@ -188,8 +460,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
             return index;
         },
         
-        //it's illogical to return a segment's index, becuse it might have been broken into pieces:
+        //it's illogical to return a segment's index, because it might have been broken into pieces:
         //it's also inconvient to do early detection of the segment being new, because of segment breaking:
+        //returns whether or not there were intersections, because this is useful information for certain algorithms:
         addSegment = function(s) {
             
             //don't add the segment if it's of 0 length:
@@ -240,9 +513,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 }
             });
             
+            var hadIntersections = false;
+            
             //add old broken segments:
             brokenSegments.forEach(function(seg) {
                 if(!seg.a.equals(seg.b)) {
+                    hadIntersections = true;
                     var iS = segments.push(seg) - 1;
                     var iPa = addPoint(seg.a);
                     var iPb = addPoint(seg.b);
@@ -261,6 +537,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     points[iPb][1].push(iS);
                 }
             });
+            
+            //create a return object with specific fields, so that the return values aren't misconstrued to be something more intuitive:
+            var returnObject = [];
+            returnObject.hadIntersections = hadIntersections;
+            return returnObject;
         },
         
         removeSegment = function(segment) {
@@ -310,7 +591,17 @@ var APIAreaMapper = APIAreaMapper || (function() {
             return null;
         },
         
-        addPath = function(path) {
+        addPath = function(path, relativeTop, relativeLeft) {
+            if('undefined' === typeof(relativeTop)) {
+                relativeTop = 0;
+            }
+            
+            if('undefined' === typeof(relativeLeft)) {
+                relativeLeft = 0;
+            }
+            
+            var hadIntersections = false;
+            
             path = JSON.parse(path);
             
             if(path && path.length > 1) {
@@ -320,11 +611,15 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     iPrior; //index of prior point
                     
                 path.forEach(function(pCurrentRaw) {
-                    var pCurrent = new point(pCurrentRaw[1], pCurrentRaw[2]); //current point
+                    var pCurrent = new point(pCurrentRaw[1] - relativeLeft, pCurrentRaw[2] - relativeTop); //current point
                     var iCurrent = addPoint(pCurrent); //index of current point
                     
                     if(pPrior) {
-                        addSegment(new segment(pPrior, pCurrent));
+                        var result = addSegment(new segment(pPrior, pCurrent));
+                        
+                        if(result && result.hadIntersections) {
+                            hadIntersections = true;
+                        }
                     } else {
                         pStart = pCurrent;
                     }
@@ -338,9 +633,20 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     addSegment(new segment(pPrior, pStart));
                 }
             }
+            
+            /*
+            If prior to calling this method, only a clean polygon was stored, and then another clean polygon
+            is added, whether or not there were intersections reveals something about the interrelation of 
+            the two polygons that is useful for some algorithms. If two clean polygons don't intersect, then
+            either they are siblings, or one is completely contained within the other. This is detected in
+            this method because it would lead to redundant processing to do it elsewhere.
+            */
+            var returnObject = [];
+            returnObject.hadIntersections = hadIntersections;
+            return returnObject;
         },
         
-        //draws a segment (for debugging):
+        /*//draws a segment (for debugging):
         drawSegment = function(s, color) {
             var isPositiveSlope = (((s.b.y - s.a.y) === 0) || (((s.b.x - s.a.x) / (s.b.y - s.a.y)) >= 0));
             var top = Math.min(s.a.y, s.b.y);
@@ -377,32 +683,40 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 _path: path
             });
             state.APIAreaMapper.tempIgnoreAddPath = false;
-        },
+        },*/
         
-        //draws individual segments (for debugging):
+        /*//draws individual segments (for debugging):
         drawSegments = function() {
             segments.forEach(function(s) {
                 drawSegment(s, '#0000ff');
             });
-        },
+        },*/
         
         getCleanPolygon = function() {
             //find the smallest x points, and of those, take the greatest y:
             var iTopLeftPoint = 0;
+            var originalWidth = 0;
+            var originalHeight = 0;
             for(var i = 0; i < points.length; i++) {
                 if((points[i][0].x < points[iTopLeftPoint][0].x)
                         || (points[i][0].x == points[iTopLeftPoint][0].x && points[i][0].y > points[iTopLeftPoint][0].y)) {
                     iTopLeftPoint = i;
                 }
+                
+                originalWidth = Math.max(originalWidth, points[i][0].x);
+                originalHeight = Math.max(originalHeight, points[i][0].y);
             }
             
-            //the output of this function will be a path that is ready to be drawn:
-            var cleanPolygon = '[[\"M\",' + points[iTopLeftPoint][0].x + ',' + points[iTopLeftPoint][0].y + ']';
+            //start keeping the points that will be used in the output polygon:
+            var cleanPolygonPoints = [];
+            cleanPolygonPoints.push(points[iTopLeftPoint][0]);
+            var minX = points[iTopLeftPoint][0].x;
+            var minY = points[iTopLeftPoint][0].y;
             
             var iP = iTopLeftPoint; //index of current point
             var a = new angle(Math.PI / 2); //angle of prior segment; for first pass, initialize to facing up
             
-            var loopLimit = 5000; //limit the loop iterations in case there's a bug or the equality clause ends up needing an epsilon
+            var loopLimit = 10000; //limit the loop iterations in case there's a bug or the equality clause ends up needing an epsilon
             var firstIteration = true;
             
             //loop until the outside of the polygon has been traced:
@@ -444,24 +758,81 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 a = new angle((sAngle.radians + Math.PI) % (2 * Math.PI));
                 
                 //add the new point to the clean polygon:
-                cleanPolygon += ',[\"L\",' + points[iP][0].x + ',' + points[iP][0].y + ']';
+                cleanPolygonPoints.push(points[iP][0]);
+                minX = Math.min(minX, points[iP][0].x);
+                minY = Math.min(minY, points[iP][0].y);
             }
+           
+            //build the clean polygon path and make it originating from (0,0):
+            var firstCleanPoint = cleanPolygonPoints.shift();
+            var cleanPath = '[[\"M\",' + (firstCleanPoint.x - minX) + ',' + (firstCleanPoint.y - minY) + ']';
+            cleanPolygonPoints.forEach(function(p) {
+                cleanPath += ',[\"L\",' + (p.x - minX) + ',' + (p.y - minY) + ']';
+            });
+            cleanPath += ']';
             
-            cleanPolygon = cleanPolygon + ']';
+            //stuff everything into a return object:
+            var returnObject = [];
+            returnObject['path'] = cleanPath;
+            returnObject['originalWidth'] = originalWidth;
+            returnObject['originalHeight'] = originalHeight;
             
-            return cleanPolygon;
+            return returnObject;
+        },
+        
+        //this assumes that the currently stored information represents a clean polygon and tests if the point is inside it:
+        isInCleanPolygon = function(x, y) {
+            //use an arbitrarily long horizontal segment that goes into negatives (because of relative coordinates):
+            var horizontalSegment = new segment(new point(-1000000000, y), new point(1000000000, y));
+            
+            //count the intersecting points that appear to the left of the point in question:
+            var pointsOnLeft = 0;
+            
+            //find segments that intersect the point horizontally:
+            segments.forEach(function(s) {
+                var intersectingPoint = segmentsIntersect(horizontalSegment, s);
+                if(intersectingPoint && intersectingPoint.x < x) {
+                    pointsOnLeft++;
+                }
+            });
+            
+            //there will be an even number of intersections; if the point in question is between an odd number of intersections, it's inside the polygon:
+            return (pointsOnLeft % 2 === 1);
         };
         
         return {
             points: points,
             segments: segments,
             addPath: addPath,
-            drawSegments: drawSegments,
-            getCleanPolygon: getCleanPolygon
+            //drawSegments: drawSegments,
+            getCleanPolygon: getCleanPolygon,
+            isInCleanPolygon: isInCleanPolygon
         };
     },
     
     /* polygon logic - end */
+    
+    /* roll20 object management - begin */
+    
+    drawPathObject = function(pageid, layer, stroke, path, top, left) {
+        state.APIAreaMapper.tempIgnoreAddPath = true;
+        
+        var obj = createObj('path', {
+            layer: layer,
+            pageid: pageid,
+            top: top,
+            left: left,
+            stroke: stroke,
+            stroke_width: 1,
+            _path: path
+        });
+        
+        state.APIAreaMapper.tempIgnoreAddPath = false;
+        
+        return obj;
+    },
+    
+    /* roll20 object management - end */
     
     /* user interface - begin */
     
@@ -619,59 +990,36 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     case 'areaCreate':
                         var g = new graph();
                         g.addPath(path.get('_path'));
-                        
-                        log(path.get('_path'));
-                        log(g);
-                        
                         var cp = g.getCleanPolygon();
-                        state.APIAreaMapper.tempArea = cp;
                         
-                        log(state.APIAreaMapper.tempArea);
+                        var a = new area();
+                        a.create(cp.path, path.get('_pageid'), path.get('top') - (cp.originalHeight / 2), path.get('left') - (cp.originalWidth / 2));
                         
-                        state.APIAreaMapper.tempIgnoreAddPath = true;
-                        createObj('path', {
-                            layer: 'objects',
-                            pageid: Campaign().get('playerpageid'),
-                            top: 50,
-                            left: 50,
-                            stroke: '#ff0000',
-                            stroke_width: 3,
-                            _path: cp
-                        });
-                        state.APIAreaMapper.tempIgnoreAddPath = false;
+                        state.APIAreaMapper.activeArea = a.getProperty('id');
+                       
+                        path.remove();
                         
                         state.APIAreaMapper.recordAreaMode = 'areaAppend';
                         break;
                     case 'areaAppend':
-                        
-                        //TODO: this should take top/left, scale, & rotation into account so that the new polygon will be interpreted as a user would expect
-                        
-                        log(state.APIAreaMapper.tempArea);
-                        log(path.get('_path'));
+                        if(!state.APIAreaMapper.activeArea) {
+                            log('An area needs to be active before appending.');
+                            return;
+                        }
                         
                         var g = new graph();
-                        g.addPath(state.APIAreaMapper.tempArea);
-                        log(g);
                         g.addPath(path.get('_path'));
-                        
-                        log(g);
-                        
                         var cp = g.getCleanPolygon();
-                        state.APIAreaMapper.tempArea = cp;
                         
-                        log(state.APIAreaMapper.tempArea);
+                        var areaId = state.APIAreaMapper.areas[0][0][1];
+                       
+                        var a = new area();
+                        a.setProperty('id', state.APIAreaMapper.activeArea);
+                        a.load();
                         
-                        state.APIAreaMapper.tempIgnoreAddPath = true;
-                        createObj('path', {
-                            layer: 'objects',
-                            pageid: Campaign().get('playerpageid'),
-                            top: 50,
-                            left: 50,
-                            stroke: '#ff0000',
-                            stroke_width: 3,
-                            _path: cp
-                        });
-                        state.APIAreaMapper.tempIgnoreAddPath = false;
+                        a.floorPlanAppend(cp.path, path.get('_pageid'), path.get('top') - (cp.originalHeight / 2), path.get('left') - (cp.originalWidth / 2));
+                        
+                        path.remove();
                         break;
                     case 'areaRemove':
                         break;
