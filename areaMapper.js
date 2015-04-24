@@ -127,18 +127,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this.draw(pageid, top, left);
     };
     
-    /*//TODO: this needs to change:
-    area.prototype.getInstanceIndex = function(pageid) {
-        var floorPolygons = this.getProperty('floorPolygon');
-        for(var i = 0; i < floorPolygons; i++) {
-            if(floorPolygons[i].get('_pageid') === pageid) {
-                return i;
-            }
-        }
-        
-        return;
-    };*/
-    
     area.prototype.load = function() {
         var id = this.getProperty('id');
         
