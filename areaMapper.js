@@ -215,17 +215,20 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var g = new graph();
         g.addPath(path, instanceTop - top, instanceLeft - left);
         
-        //TODO: this is getting weird - the graph never knows if it has a clean polygon or not.
+        //TODO: this is getting weird - the graph never knows if it has a clean polygon or not. Fix with polymorphic graph data structures.
         //determine whether or not the old polygon is inside the new one:
-        //var isOldInNew = g.isInCleanPolygon(this.getProperty('floorPlan'));
+        var firstPointInOldFloorPlanRaw = JSON.parse(this.getProperty('floorPlan'))[0];
+        var isOldInNew = g.isInCleanPolygon(firstPointInOldFloorPlanRaw[1], firstPointInOldFloorPlanRaw[2]);
         
         var result = g.addPath(this.getProperty('floorPlan'));
         
-        var cp = g.getCleanPolygon();
-        
-        this.setProperty('floorPlan', g.getCleanPolygon().path);
-        this.save();
-        this.draw(pageId, Math.min(instanceTop, top), Math.min(instanceLeft, left));
+        //if the polygons intersect, or if the old one is engulfed in the new one, update the floorPlan:
+        if(result.hadIntersections || isOldInNew) {
+            var cp = g.getCleanPolygon();
+            this.setProperty('floorPlan', g.getCleanPolygon().path);
+            this.save();
+            this.draw(pageId, Math.min(instanceTop, top), Math.min(instanceLeft, left));
+        }
     };
     
     area.prototype.draw = function(pageId, top, left) {
@@ -787,6 +790,26 @@ var APIAreaMapper = APIAreaMapper || (function() {
             returnObject['originalHeight'] = originalHeight;
             
             return returnObject;
+        },
+        
+        //this assumes that the currently stored information represents a clean polygon and tests if the point is inside it:
+        isInCleanPolygon = function(x, y) {
+            //use an arbitrarily long horizontal segment that goes into negatives (because of relative coordinates):
+            var horizontalSegment = new segment(new point(-1000000000, y), new point(1000000000, y));
+            
+            //count the intersecting points that appear to the left of the point in question:
+            var pointsOnLeft = 0;
+            
+            //find segments that intersect the point horizontally:
+            segments.forEach(function(s) {
+                var intersectingPoint = segmentsIntersect(horizontalSegment, s);
+                if(intersectingPoint && intersectingPoint.x < x) {
+                    pointsOnLeft++;
+                }
+            });
+            
+            //there will be an even number of intersections; if the point in question is between an odd number of intersections, it's inside the polygon:
+            return (pointsOnLeft % 2 === 1);
         };
         
         return {
@@ -794,7 +817,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
             segments: segments,
             addPath: addPath,
             //drawSegments: drawSegments,
-            getCleanPolygon: getCleanPolygon
+            getCleanPolygon: getCleanPolygon,
+            isInCleanPolygon: isInCleanPolygon
         };
     },
     
