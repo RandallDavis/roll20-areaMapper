@@ -380,7 +380,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this.y = y;
         
         this.equals = function(comparedPoint) {
-            return (x === comparedPoint.x && y === comparedPoint.y);
+            return (this.x === comparedPoint.x && this.y === comparedPoint.y);
         };
     },
     
@@ -501,7 +501,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     //it's also inconvient to do early detection of the segment being new, because of segment breaking:
     //returns whether or not there were intersections, because this is useful information for certain algorithms:
     polygon.prototype.addSegment = function(s) {
-        
+
         //don't add the segment if it's of 0 length:
         if(s.a.equals(s.b)) {
             return;
@@ -518,7 +518,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             if(segmentsIntersect(s, seg)) {
                 intersectingSegments.push(seg);
             }
-        });
+        }, this);
         
         //break segment against all intersecting segments and remove intersecting segments:
         intersectingSegments.forEach(function(seg) {
@@ -627,7 +627,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var rawPath = '[[\"M\",' + (firstPoint[0].x - minX) + ',' + (firstPoint[0].y - minY) + ']';
         pointsCopy.forEach(function(p) {
             rawPath += ',[\"L\",' + (p[0].x - minX) + ',' + (p[0].y - minY) + ']';
-        });
+        }, this);
         rawPath += ']';
         
         var returnObject = [];
@@ -679,6 +679,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     //TODO: different implementations for complex vs. outline?
     polygon.prototype.addRawPath = function(rawPath, top, left, isFromEvent) {
+        
         //get points that take top, left, and isFromEvent into account:
         var pathPoints = this.convertRawPathToPath(rawPath, top, left, isFromEvent);
         
@@ -759,8 +760,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         //start keeping the points that will be used in the output polygon:
         var cleanPolygonPoints = [];
         cleanPolygonPoints.push(this.points[iTopLeftPoint][0]);
-        var minX = this.points[iTopLeftPoint][0].x;
-        var minY = this.points[iTopLeftPoint][0].y;
+        //var minX = this.points[iTopLeftPoint][0].x;
+        //var minY = this.points[iTopLeftPoint][0].y;
         
         var iP = iTopLeftPoint; //index of current point
         var a = new angle(Math.PI / 2); //angle of prior segment; for first pass, initialize to facing up
@@ -808,18 +809,22 @@ var APIAreaMapper = APIAreaMapper || (function() {
             
             //add the new point to the clean polygon:
             cleanPolygonPoints.push(this.points[iP][0]);
-            minX = Math.min(minX, this.points[iP][0].x);
-            minY = Math.min(minY, this.points[iP][0].y);
+            //minX = Math.min(minX, this.points[iP][0].x);
+            //minY = Math.min(minY, this.points[iP][0].y);
         }
-       
+        
+        //create an outlinePolygon with the points:
+        var op = new outlinePolygon();
+        op.addPointsPath(cleanPolygonPoints);
+        return op;
         
         //TOOD: return outlinePolygon; can build it from points as an option instead of raw - same thing really
-        var returnObject = [];
+        /*var returnObject = [];
         returnObject['path'] = cleanPolygonPoints;
         //returnObject['originalWidth'] = originalWidth;
         //returnObject['originalHeight'] = originalHeight;
         returnObject['minX'] = minX;
-        returnObject['minY'] = minY;
+        returnObject['minY'] = minY;*/
        
         //build the clean polygon path and make it originating from (0,0):
         /*var firstCleanPoint = cleanPolygonPoints.shift();
@@ -854,6 +859,46 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 break;
         }
     };*/
+    
+    outlinePolygon.prototype.addPointsPath = function(pathPoints, top, left) {
+        if('undefined' === typeof(top)) {
+            top = 0;
+        }
+        
+        if('undefined' === typeof(left)) {
+            left = 0;
+        }
+        
+        if(pathPoints && pathPoints.length > 1) {
+            
+            var pStart, //start point
+                pPrior, //prior point
+                iPrior; //index of prior point
+                
+            pathPoints.forEach(function(pCurrent) {
+                var iCurrent = this.addPoint(pCurrent); //index of current point
+                
+                if(pPrior) {
+                    //var result = 
+                    this.addSegment(new segment(pPrior, pCurrent));
+                    
+                    /*if(result && result.hadIntersections) {
+                        hadIntersections = true;
+                    }*/
+                } else {
+                    pStart = pCurrent;
+                }
+                
+                pPrior = pCurrent;
+                iPrior = iCurrent;
+            }, this);
+            
+            //close the polygon if it isn't closed already:
+            if(!pPrior.equals(pStart)) {
+                this.addSegment(new segment(pPrior, pStart));
+            }
+        }
+    };
     
     
     var graph = function() {
@@ -900,6 +945,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     graph.prototype.convertComplexPolygonToOutlinePolygon = function(index) {
         var op = this.getProperty('complexPolygons')[index].convertToOutlinePolygon();
+        this.getProperty('complexPolygons').splice(index);
         return this.setProperty('outlinePolygons', op);
     };
     
@@ -1544,14 +1590,24 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         g.initialize();
                         g.addComplexPolygon(path.get('_path'), path.get('top'), path.get('left'), true);
                         log(g);
+                       
+                        /*
                         var rp = g.getRawPath('complexPolygons', 0);
                         log(rp.rawPath);
                         log(rp.top);
                         log(rp.left);
-                        drawPathObject(Campaign().get('playerpageid'), 'map', '#ff0000', rp.rawPath, rp.top, rp.left)
+                        drawPathObject(Campaign().get('playerpageid'), 'map', '#ff0000', rp.rawPath, rp.top, rp.left);
+                        */
                         
-                        //var op = g.convertComplexPolygonToOutlinePolygon(0);
-                        //log(op);
+                        var op = g.convertComplexPolygonToOutlinePolygon(0);
+                        log(g);
+                        log(op);
+                        
+                        var rp = g.getRawPath('outlinePolygons', 0);
+                        log(rp.rawPath);
+                        log(rp.top);
+                        log(rp.left);
+                        drawPathObject(Campaign().get('playerpageid'), 'map', '#ff0000', rp.rawPath, rp.top, rp.left);
                         
                         /*var g = new graph();
                         g.addPath(path.get('_path'));
@@ -1560,11 +1616,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         var a = new area();
                         a.create(cp.path, path.get('_pageid'), path.get('top') - (cp.originalHeight / 2), path.get('left') - (cp.originalWidth / 2));
                         
-                        state.APIAreaMapper.activeArea = a.getProperty('id');
+                        state.APIAreaMapper.activeArea = a.getProperty('id');*/
                        
                         path.remove();
                         
-                        state.APIAreaMapper.recordAreaMode = 'areaAppend';*/
+                        //state.APIAreaMapper.recordAreaMode = 'areaAppend';
                         break;
                     case 'areaAppend':
                         if(!state.APIAreaMapper.activeArea) {
