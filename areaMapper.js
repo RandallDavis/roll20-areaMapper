@@ -267,10 +267,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var areaInstances = state.APIAreaMapper.areaInstances;
         var areaInstanceState;
         areaInstances.forEach(function(a) {
-            if(a[0][1] === areaId
-                && a[1][1] === pageId) {
-                    areaInstanceState = a;
-                    return;
+            if(a[0][1] === areaId && a[1][1] === pageId) {
+                areaInstanceState = a;
+                return;
             }
             
             if(areaInstanceState) {
@@ -368,8 +367,560 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     /* polygon logic - begin */
     
-    //TODO: move functionality to prototype and set up for polymorphism:
+    
+    
+    
+    
+    /*
+    Points, segments, and angles are kept as simple, non-polymorphic datatypes for efficiency purposes.
+    */
+    
+    var point = function(x, y) {
+        this.x = x;
+        this.y = y;
+        
+        this.equals = function(comparedPoint) {
+            return (x === comparedPoint.x && y === comparedPoint.y);
+        };
+    },
+    
+    //angle object to simplify comparisons with epsilons:
+    angle = function(radians) {
+        this.radians = radians;
+        
+        this.equals = function(comparedRadians) {
+            return Math.round(radians * 10000) == Math.round(comparedRadians * 10000);
+        };
+        
+        this.greaterThan = function(comparedRadians) {
+            return Math.round(radians * 10000) > Math.round(comparedRadians * 10000);
+        };
+        
+        this.subtract = function(subtractedRadians) {
+            return new angle(((radians - subtractedRadians) + (2 * Math.PI) + 0.000001) % (2 * Math.PI));
+        };
+    },
+    
+    //segment between points a and b:
+    segment = function(a, b) {
+        this.a = a;
+        this.b = b;
+            
+        this.length = function() {
+            var xDist = b.x - a.x;
+            var yDist = b.y - a.y;
+            return Math.sqrt((xDist * xDist) + (yDist * yDist));
+        };
+        
+        //return an angle with respect to a specfic endpoint:
+        this.angle = function(p) {
+            var radians = (Math.atan2(b.y - a.y, b.x - a.x) + (2 * Math.PI)) % (2 * Math.PI);
+            
+            if(b.x === p.x && b.y === p.y) {
+                //use angle with respect to b:
+                radians = (radians + (Math.PI)) % (2 * Math.PI);
+            }
+            
+            return new angle(radians);
+        };
+    },
+    
+    //this is a modified version of https://gist.github.com/Joncom/e8e8d18ebe7fe55c3894
+    segmentsIntersect = function(s1, s2) {
+        //exclude segments with shared endpoints:
+        if(s1.a.equals(s2.a) || s1.a.equals(s2.b) || s1.b.equals(s2.a) || s1.b.equals(s2.b)) {
+            return null;
+        }
+        
+        var s1_x = s1.b.x - s1.a.x;
+        var s1_y = s1.b.y - s1.a.y;
+        var s2_x = s2.b.x - s2.a.x;
+        var s2_y = s2.b.y - s2.a.y;
+        
+        var s = (-s1_y * (s1.a.x - s2.a.x) + s1_x * (s1.a.y - s2.a.y)) / (-s2_x * s1_y + s1_x * s2_y);
+        var t = (s2_x * (s1.a.y - s2.a.y) - s2_y * (s1.a.x - s2.a.x)) / (-s2_x * s1_y + s1_x * s2_y);
+        
+        if(s >= 0 && s <= 1 && t >= 0 && t <= 1) {
+            return new point(s1.a.x + (t * s1_x), s1.a.y + (t * s1_y));
+        }
+     
+        return null;
+    },
+    
+    
+    
+    
+    
+    polygon = function() {
+        typedObject.call(this);
+        this._type.push('polygon');
+        this.points = []; //don't use getter/setter mechanism for the purpose of efficiency
+        this.segments = []; //don't use getter/setter mechanism for the purpose of efficiency
+    };
+    
+    inheritPrototype(polygon, typedObject);
+    
+    polygon.prototype.getPointIndex = function(p) {
+        for(var i = 0; i < this.points.length; i++) {
+            if(p.equals(this.points[i][0])) {
+                return i;
+            }
+        }
+        
+        return;
+    };
+    
+    //TODO: make get segment index and ditch this method
+    //find item in container; if position is defined, it represents the index in a nested array:
+    polygon.prototype.getItemIndex = function(container, item, position) {
+        var index;
+        
+        for(var i = 0; i < container.length; i++) {
+            if(item === (((container.length > 0) && ('undefined' !== typeof(position))) ? container[i][position] : container[i])) {
+                index = i;
+                break;
+            }
+        }
+        
+        return index;
+    };
+    
+    polygon.prototype.addPoint = function(p) {
+        var index = this.getPointIndex(p);
+        
+        if('undefined' === typeof(index)) {
+            //add point and return its index:
+            return this.points.push([p, []]) - 1;
+        }
+        
+        return index;
+    };
+    
+    //TODO: move this to complexPolygon and create a simpler implementation for outlinePolygon that doesn't do intersection testing:
+    //it's illogical to return a segment's index, because it might have been broken into pieces:
+    //it's also inconvient to do early detection of the segment being new, because of segment breaking:
+    //returns whether or not there were intersections, because this is useful information for certain algorithms:
+    polygon.prototype.addSegment = function(s) {
+        
+        //don't add the segment if it's of 0 length:
+        if(s.a.equals(s.b)) {
+            return;
+        }
+        
+        var newSegments = [];
+        var brokenSegments = [];
+        var intersectingSegments = [];
+        
+        newSegments.push(s);
+        
+        //find segments that the new segment intersects:
+        this.segments.forEach(function(seg) {
+            if(segmentsIntersect(s, seg)) {
+                intersectingSegments.push(seg);
+            }
+        });
+        
+        //break segment against all intersecting segments and remove intersecting segments:
+        intersectingSegments.forEach(function(seg) {
+           
+            //loop through new segments to look for intersections:
+            for(var i = 0; i < newSegments.length; i++) {
+               
+                //because we're breaking new segments, we have to retest for intersection:
+                var intersectionPoint = segmentsIntersect(newSegments[i], seg);
+                if(intersectionPoint) {
+                    
+                    //create broken segments out of old segment that was intersected:
+                    brokenSegments.push(new segment(seg.a, intersectionPoint));
+                    brokenSegments.push(new segment(intersectionPoint, seg.b));
+                    
+                    //remove the segment that was intersected from the graph:
+                    this.removeSegment(seg);
+                    
+                    //create new broken segments:
+                    newSegments.unshift(new segment(newSegments[i].a, intersectionPoint));
+                    newSegments.unshift(new segment(intersectionPoint, newSegments[i + 1].b));
+                    
+                    //remove the new segment that was just broken:
+                    newSegments.splice(i + 2, 1);
+                    
+                    //adjust the loop to bypass the broken newSegments that were already tested against seg:
+                    i++;
+                }
+            }
+        }, this);
+        
+        var hadIntersections = false;
+        
+        //add old broken segments:
+        brokenSegments.forEach(function(seg) {
+            if(!seg.a.equals(seg.b)) {
+                hadIntersections = true;
+                var iS = this.segments.push(seg) - 1;
+                var iPa = this.addPoint(seg.a);
+                var iPb = this.addPoint(seg.b);
+                this.points[iPa][1].push(iS);
+                this.points[iPb][1].push(iS);
+            }
+        }, this);
+        
+        //add new segments:
+        newSegments.forEach(function(seg) {
+            if(!seg.a.equals(seg.b)) {
+                var iS = this.segments.push(seg) - 1;
+                var iPa = this.addPoint(seg.a);
+                var iPb = this.addPoint(seg.b);
+                this.points[iPa][1].push(iS);
+                this.points[iPb][1].push(iS);
+            }
+        }, this);
+        
+        //create a return object with specific fields, so that the return values aren't misconstrued to be something more intuitive:
+        var returnObject = [];
+        returnObject.hadIntersections = hadIntersections;
+        return returnObject;
+    };
+    
+    polygon.prototype.removeSegment = function(s) {
+        var iS = this.getItemIndex(this.segments, s);
+            
+        //remove segment from points:
+        for(var pI = this.points.length - 1; pI >= 0; pI--) {
+            for(var i = 0; i < this.points[pI][1].length; i++) {
+                if(this.points[pI][1][i] === iS) {
+                    
+                    //remove the segment reference:
+                    this.points[pI][1].splice(i, 1);
+                    
+                    //fix i since an item was deleted:
+                    i--;
+                } else if(this.points[pI][1][i] > iS) {
+                    
+                    //decrement segment index references, since a segment is being removed:
+                    this.points[pI][1][i]--;
+                }
+            }
+        }
+        
+        //remove segment from segments:
+        this.segments.splice(iS, 1);
+    };
+    
+    //returns a raw path aligned at (0,0) with top/left offsets:
+    //TODO: this function is stupid in that it just runs through points, not segments:
+    //TODO: move this to outlinePolygon - there's no point in returning a rawPath of a complex polygon, because it's been altered so heavily that it can only be expressed as a collection of segments:
+    polygon.prototype.getRawPath = function() {
+        if(!(this.points && this.points.length > 0)) {
+            return;
+        }
+        
+        var pointsCopy = this.points;
+        var minX = pointsCopy[0][0].x;
+        var minY = pointsCopy[0][0].y;
+        
+        pointsCopy.forEach(function(p) {
+            minX = Math.min(minX, p[0].x);
+            minY = Math.min(minY, p[0].y);
+        }, this);
+        
+        var firstPoint = pointsCopy.shift();
+        var rawPath = '[[\"M\",' + (firstPoint[0].x - minX) + ',' + (firstPoint[0].y - minY) + ']';
+        pointsCopy.forEach(function(p) {
+            rawPath += ',[\"L\",' + (p[0].x - minX) + ',' + (p[0].y - minY) + ']';
+        });
+        rawPath += ']';
+        
+        var returnObject = [];
+        returnObject.rawPath = rawPath;
+        returnObject.top = minY;
+        returnObject.left = minX;
+        return returnObject;
+    };
+    
+    polygon.prototype.convertRawPathToPath = function(rawPath, top, left, isFromEvent) {
+        var pathPoints = [],
+            rawPathParsed = JSON.parse(rawPath);
+        
+        //if the path is from an event, the top/left is relative to the height/width of the path and needs to be corrected:
+        if(isFromEvent) {
+            var maxX = 0,
+                maxY = 0;
+                
+            rawPathParsed.forEach(function(pRaw) {
+                //TODO: handle types other than M and L:
+                var p = new point(pRaw[1], pRaw[2]);
+                pathPoints.push(p);
+                
+                //find the height and width as we loop through the points:
+                maxX = Math.max(maxX, p.x);
+                maxY = Math.max(maxY, p.y);
+            }, this);
+            
+            //fix top/left:
+            top -= maxY / 2;
+    		left -= maxX / 2;
+    	    
+            //apply corrected top/left offsets to points:
+            pathPoints.forEach(function(p) {
+                p.x += left;
+                p.y += top;
+            }, this);
+        }
+        //if the path isn't from an event, the top/left can be interpreted literally and can be applied while creating the points:
+        else {
+            rawPathParsed.forEach(function(pRaw) {
+                //TODO: handle types other than M and L:
+                pathPoints.push(new point(pRaw[1] + left, pRaw[2] + top));
+            }, this);
+        }
+        
+        return pathPoints;
+    };
+    
+    //TODO: different implementations for complex vs. outline?
+    polygon.prototype.addRawPath = function(rawPath, top, left, isFromEvent) {
+        //get points that take top, left, and isFromEvent into account:
+        var pathPoints = this.convertRawPathToPath(rawPath, top, left, isFromEvent);
+        
+        var hadIntersections = false;
+        
+        if(pathPoints && pathPoints.length > 1) {
+            
+            var pStart, //start point
+                pPrior, //prior point
+                iPrior; //index of prior point
+                
+            pathPoints.forEach(function(pCurrent) {
+                var iCurrent = this.addPoint(pCurrent); //index of current point
+                
+                if(pPrior) {
+                    var result = this.addSegment(new segment(pPrior, pCurrent));
+                    
+                    if(result && result.hadIntersections) {
+                        hadIntersections = true;
+                    }
+                } else {
+                    pStart = pCurrent;
+                }
+                
+                pPrior = pCurrent;
+                iPrior = iCurrent;
+            }, this);
+            
+            //close the polygon if it isn't closed already:
+            if(!pPrior.equals(pStart)) {
+                this.addSegment(new segment(pPrior, pStart));
+            }
+        }
+        
+        /*
+        If prior to calling this method, only a clean polygon was stored, and then another clean polygon
+        is added, whether or not there were intersections reveals something about the interrelation of 
+        the two polygons that is useful for some algorithms. If two clean polygons don't intersect, then
+        either they are siblings, or one is completely contained within the other. This is detected in
+        this method because it would lead to redundant processing to do it elsewhere.
+        */
+        var returnObject = [];
+        returnObject.hadIntersections = hadIntersections;
+        return returnObject;
+    };
+    
+    
+    var complexPolygon = function() {
+        polygon.call(this);
+        this._type.push('complexPolygon');
+    };
+    
+    inheritPrototype(complexPolygon, polygon);
+    
+    /*complexPolygon.prototype.setProperty = function(property, value) {
+        switch(property) {
+            default:
+                polygon.prototype.setProperty.call(this, property, value);
+                break;
+        }
+    };*/
+    
+    complexPolygon.prototype.convertToOutlinePolygon = function() {
+        //find the smallest x points, and of those, take the greatest y:
+        var iTopLeftPoint = 0;
+        //var originalWidth = 0;
+        //var originalHeight = 0;
+        for(var i = 0; i < this.points.length; i++) {
+            if((this.points[i][0].x < this.points[iTopLeftPoint][0].x)
+                    || (this.points[i][0].x == this.points[iTopLeftPoint][0].x && this.points[i][0].y > this.points[iTopLeftPoint][0].y)) {
+                iTopLeftPoint = i;
+            }
+            
+            //originalWidth = Math.max(originalWidth, this.points[i][0].x);
+            //originalHeight = Math.max(originalHeight, this.points[i][0].y);
+        }
+        
+        //start keeping the points that will be used in the output polygon:
+        var cleanPolygonPoints = [];
+        cleanPolygonPoints.push(this.points[iTopLeftPoint][0]);
+        var minX = this.points[iTopLeftPoint][0].x;
+        var minY = this.points[iTopLeftPoint][0].y;
+        
+        var iP = iTopLeftPoint; //index of current point
+        var a = new angle(Math.PI / 2); //angle of prior segment; for first pass, initialize to facing up
+        
+        var loopLimit = 10000; //limit the loop iterations in case there's a bug or the equality clause ends up needing an epsilon
+        var firstIteration = true;
+        
+        //loop until the outside of the polygon has been traced:
+        while((loopLimit-- > 0) && !(!firstIteration && iP === iTopLeftPoint)) {
+            
+            firstIteration = false;
+            
+            //find the longest segment originating from the current point that is the most counter-clockwise from the prior segment's angle:
+            var s = 0;
+            var chosenSegment = this.segments[this.points[iP][1][s]];
+            var sAngle = chosenSegment.angle(this.points[iP][0]);
+            var sLength = chosenSegment.length();
+            var sRelativeAngle = sAngle.subtract(a.radians);
+        
+            //loop through the segments of this point:
+            for(var iS = 1; iS < this.points[iP][1].length; iS++) {
+                var seg = this.segments[this.points[iP][1][iS]];
+                var segAngle = seg.angle(this.points[iP][0]);
+                var relativeAngle = segAngle.subtract(a.radians);
+                
+                if((relativeAngle.greaterThan(sRelativeAngle.radians))
+                        || (relativeAngle.equals(sRelativeAngle.radians) && seg.length() > sLength)) {
+                    s = iS;
+                    chosenSegment = this.segments[this.points[iP][1][s]];
+                    sAngle = chosenSegment.angle(this.points[iP][0]);
+                    sLength = chosenSegment.length();
+                    sRelativeAngle = relativeAngle;
+                }
+            }
+            
+            //the next point should be the endpoint of the segment that wasn't the prior point:
+            if(chosenSegment.a.equals(this.points[iP][0])) {
+                iP = this.getPointIndex(chosenSegment.b);
+            } else {
+                iP = this.getPointIndex(chosenSegment.a);
+            }
+            
+            //the angle of the current segment will be used as a limit for finding the next segment:
+            a = new angle((sAngle.radians + Math.PI) % (2 * Math.PI));
+            
+            //add the new point to the clean polygon:
+            cleanPolygonPoints.push(this.points[iP][0]);
+            minX = Math.min(minX, this.points[iP][0].x);
+            minY = Math.min(minY, this.points[iP][0].y);
+        }
+       
+        
+        //TOOD: return outlinePolygon; can build it from points as an option instead of raw - same thing really
+        var returnObject = [];
+        returnObject['path'] = cleanPolygonPoints;
+        //returnObject['originalWidth'] = originalWidth;
+        //returnObject['originalHeight'] = originalHeight;
+        returnObject['minX'] = minX;
+        returnObject['minY'] = minY;
+       
+        //build the clean polygon path and make it originating from (0,0):
+        /*var firstCleanPoint = cleanPolygonPoints.shift();
+        var cleanPath = '[[\"M\",' + (firstCleanPoint.x - minX) + ',' + (firstCleanPoint.y - minY) + ']';
+        cleanPolygonPoints.forEach(function(p) {
+            cleanPath += ',[\"L\",' + (p.x - minX) + ',' + (p.y - minY) + ']';
+        });
+        cleanPath += ']';*/
+        
+        
+        /*//stuff everything into a return object:
+        var returnObject = [];
+        returnObject['path'] = cleanPath;
+        returnObject['originalWidth'] = originalWidth;
+        returnObject['originalHeight'] = originalHeight;
+        
+        return returnObject;*/
+    };
+    
+    
+    var outlinePolygon = function() {
+        polygon.call(this);
+        this._type.push('outlinePolygon');
+    };
+    
+    inheritPrototype(outlinePolygon, polygon);
+    
+    /*outlinePolygon.prototype.setProperty = function(property, value) {
+        switch(property) {
+            default:
+                polygon.prototype.setProperty.call(this, property, value);
+                break;
+        }
+    };*/
+    
+    
     var graph = function() {
+        typedObject.call(this);
+        this._type.push('graph');
+    };
+    
+    inheritPrototype(graph, typedObject);
+    
+    graph.prototype.setProperty = function(property, value) {
+        switch(property) {
+            case 'complexPolygons':
+            case 'outlinePolygons':
+                return this['_' + property].push(value) - 1;
+                break;
+            default:
+                typedObject.prototype.setProperty.call(this, property, value);
+                break;
+        }
+    };
+    
+    graph.prototype.initializeCollectionProperty = function(property) {
+        switch(property) {
+            case 'complexPolygons':
+            case 'outlinePolygons':
+                this['_' + property] = [];
+                break;
+            default:
+                typedObject.prototype.initializeCollectionProperty.call(this, property);
+                break;
+        }
+    };
+    
+    graph.prototype.initialize = function() {
+        this.initializeCollectionProperty('complexPolygons');
+        this.initializeCollectionProperty('outlinePolygons');
+    };
+    
+    graph.prototype.addComplexPolygon = function(rawPath, top, left, isFromEvent) {
+        var cp = new complexPolygon();
+        cp.addRawPath(rawPath, top, left, isFromEvent);
+        this.setProperty('complexPolygons', cp);
+    };
+    
+    graph.prototype.convertComplexPolygonToOutlinePolygon = function(index) {
+        var op = this.getProperty('complexPolygons')[index].convertToOutlinePolygon();
+        return this.setProperty('outlinePolygons', op);
+    };
+    
+    graph.prototype.getRawPath = function(pathType, index) {
+        log('graph.getRawPath');
+        log(this.getProperty(pathType)[index].getRawPath().rawPath);
+        return this.getProperty(pathType)[index].getRawPath();
+    };
+    
+    graph.prototype.mergeOutlinePolygons = function(index1, index2) {
+        //TODO
+    };
+    
+    
+    
+    
+    
+    
+    
+    //TODO: move functionality to prototype and set up for polymorphism:
+    var graphOld = function() {
         
         var points = [], //array of [point, [segment index]]
             segments = [], //array of segment
@@ -988,7 +1539,21 @@ var APIAreaMapper = APIAreaMapper || (function() {
             if(state.APIAreaMapper.recordAreaMode) {
                 switch(state.APIAreaMapper.recordAreaMode) {
                     case 'areaCreate':
+                        
                         var g = new graph();
+                        g.initialize();
+                        g.addComplexPolygon(path.get('_path'), path.get('top'), path.get('left'), true);
+                        log(g);
+                        var rp = g.getRawPath('complexPolygons', 0);
+                        log(rp.rawPath);
+                        log(rp.top);
+                        log(rp.left);
+                        drawPathObject(Campaign().get('playerpageid'), 'map', '#ff0000', rp.rawPath, rp.top, rp.left)
+                        
+                        //var op = g.convertComplexPolygonToOutlinePolygon(0);
+                        //log(op);
+                        
+                        /*var g = new graph();
                         g.addPath(path.get('_path'));
                         var cp = g.getCleanPolygon();
                         
@@ -999,7 +1564,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                        
                         path.remove();
                         
-                        state.APIAreaMapper.recordAreaMode = 'areaAppend';
+                        state.APIAreaMapper.recordAreaMode = 'areaAppend';*/
                         break;
                     case 'areaAppend':
                         if(!state.APIAreaMapper.activeArea) {
