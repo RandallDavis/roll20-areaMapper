@@ -614,20 +614,20 @@ var APIAreaMapper = APIAreaMapper || (function() {
             return;
         }
         
-        var pointsCopy = this.points;
-        var minX = pointsCopy[0][0].x;
-        var minY = pointsCopy[0][0].y;
+        //var pointsCopy = this.points;
+        var minX = this.points[0][0].x;
+        var minY = this.points[0][0].y;
         
-        pointsCopy.forEach(function(p) {
+        this.points.forEach(function(p) {
             minX = Math.min(minX, p[0].x);
             minY = Math.min(minY, p[0].y);
         }, this);
         
-        var firstPoint = pointsCopy.shift();
-        var rawPath = '[[\"M\",' + (firstPoint[0].x - minX) + ',' + (firstPoint[0].y - minY) + ']';
-        pointsCopy.forEach(function(p) {
-            rawPath += ',[\"L\",' + (p[0].x - minX) + ',' + (p[0].y - minY) + ']';
-        }, this);
+        var rawPath = '[[\"M\",' + (this.points[0][0].x - minX) + ',' + (this.points[0][0].y - minY) + ']';
+        for(var i = 1; i < this.points.length; i++) {
+            rawPath += ',[\"L\",' + (this.points[i][0].x - minX) + ',' + (this.points[i][0].y - minY) + ']';
+        }
+        rawPath += ',[\"L\",' + (this.points[0][0].x - minX) + ',' + (this.points[0][0].y - minY) + ']';
         rawPath += ']';
         
         var returnObject = [];
@@ -745,23 +745,16 @@ var APIAreaMapper = APIAreaMapper || (function() {
     complexPolygon.prototype.convertToOutlinePolygon = function() {
         //find the smallest x points, and of those, take the greatest y:
         var iTopLeftPoint = 0;
-        //var originalWidth = 0;
-        //var originalHeight = 0;
         for(var i = 0; i < this.points.length; i++) {
             if((this.points[i][0].x < this.points[iTopLeftPoint][0].x)
                     || (this.points[i][0].x == this.points[iTopLeftPoint][0].x && this.points[i][0].y > this.points[iTopLeftPoint][0].y)) {
                 iTopLeftPoint = i;
             }
-            
-            //originalWidth = Math.max(originalWidth, this.points[i][0].x);
-            //originalHeight = Math.max(originalHeight, this.points[i][0].y);
         }
         
-        //start keeping the points that will be used in the output polygon:
+        //start keeping the points that will be used in the output polygon in the proper order:
         var cleanPolygonPoints = [];
         cleanPolygonPoints.push(this.points[iTopLeftPoint][0]);
-        //var minX = this.points[iTopLeftPoint][0].x;
-        //var minY = this.points[iTopLeftPoint][0].y;
         
         var iP = iTopLeftPoint; //index of current point
         var a = new angle(Math.PI / 2); //angle of prior segment; for first pass, initialize to facing up
@@ -809,8 +802,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
             
             //add the new point to the clean polygon:
             cleanPolygonPoints.push(this.points[iP][0]);
-            //minX = Math.min(minX, this.points[iP][0].x);
-            //minY = Math.min(minY, this.points[iP][0].y);
         }
         
         //create an outlinePolygon with the points:
@@ -879,12 +870,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 var iCurrent = this.addPoint(pCurrent); //index of current point
                 
                 if(pPrior) {
-                    //var result = 
                     this.addSegment(new segment(pPrior, pCurrent));
-                    
-                    /*if(result && result.hadIntersections) {
-                        hadIntersections = true;
-                    }*/
                 } else {
                     pStart = pCurrent;
                 }
@@ -950,8 +936,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
     };
     
     graph.prototype.getRawPath = function(pathType, index) {
-        log('graph.getRawPath');
-        log(this.getProperty(pathType)[index].getRawPath().rawPath);
         return this.getProperty(pathType)[index].getRawPath();
     };
     
@@ -1585,42 +1569,21 @@ var APIAreaMapper = APIAreaMapper || (function() {
             if(state.APIAreaMapper.recordAreaMode) {
                 switch(state.APIAreaMapper.recordAreaMode) {
                     case 'areaCreate':
-                        
                         var g = new graph();
                         g.initialize();
                         g.addComplexPolygon(path.get('_path'), path.get('top'), path.get('left'), true);
-                        log(g);
-                       
-                        /*
-                        var rp = g.getRawPath('complexPolygons', 0);
-                        log(rp.rawPath);
-                        log(rp.top);
-                        log(rp.left);
-                        drawPathObject(Campaign().get('playerpageid'), 'map', '#ff0000', rp.rawPath, rp.top, rp.left);
-                        */
-                        
                         var op = g.convertComplexPolygonToOutlinePolygon(0);
-                        log(g);
-                        log(op);
-                        
-                        var rp = g.getRawPath('outlinePolygons', 0);
-                        log(rp.rawPath);
-                        log(rp.top);
-                        log(rp.left);
-                        drawPathObject(Campaign().get('playerpageid'), 'map', '#ff0000', rp.rawPath, rp.top, rp.left);
-                        
-                        /*var g = new graph();
-                        g.addPath(path.get('_path'));
-                        var cp = g.getCleanPolygon();
+                        var rp = g.getRawPath('outlinePolygons', op);
+                        //drawPathObject(Campaign().get('playerpageid'), 'map', '#ff0000', rp.rawPath, rp.top, rp.left);
                         
                         var a = new area();
-                        a.create(cp.path, path.get('_pageid'), path.get('top') - (cp.originalHeight / 2), path.get('left') - (cp.originalWidth / 2));
+                        a.create(rp.rawPath, path.get('_pageid'), rp.top, rp.left);
                         
-                        state.APIAreaMapper.activeArea = a.getProperty('id');*/
+                        state.APIAreaMapper.activeArea = a.getProperty('id');
                        
                         path.remove();
                         
-                        //state.APIAreaMapper.recordAreaMode = 'areaAppend';
+                        state.APIAreaMapper.recordAreaMode = 'areaAppend';
                         break;
                     case 'areaAppend':
                         if(!state.APIAreaMapper.activeArea) {
