@@ -119,12 +119,17 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 break;
         }
     };
-   
-    area.prototype.create = function(floorPlan, pageid, top, left) {
+    
+    area.prototype.create = function(rawPath, pageId, top, left, isFromEvent) {
+        var g = new graph();
+        g.initialize();
+        g.addComplexPolygon(rawPath, top, left, isFromEvent);
+        var op = g.convertComplexPolygonToOutlinePolygon(0);
+        var rp = g.getRawPath('outlinePolygons', op);
         this.setProperty('id', Math.random());
-        this.setProperty('floorPlan', floorPlan);
+        this.setProperty('floorPlan', rp.rawPath);
         this.save();
-        this.draw(pageid, top, left);
+        this.draw(pageId, rp.top, rp.left);
     };
     
     area.prototype.load = function() {
@@ -1130,16 +1135,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
             if(state.APIAreaMapper.recordAreaMode) {
                 switch(state.APIAreaMapper.recordAreaMode) {
                     case 'areaCreate':
-                        //TODO: push this code into area.create();
-                        var g = new graph();
-                        g.initialize();
-                        g.addComplexPolygon(path.get('_path'), path.get('top'), path.get('left'), true);
-                        var op = g.convertComplexPolygonToOutlinePolygon(0);
-                        var rp = g.getRawPath('outlinePolygons', op);
-                        
                         var a = new area();
-                        a.create(rp.rawPath, path.get('_pageid'), rp.top, rp.left);
-                        
+                        a.create(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
                         state.APIAreaMapper.activeArea = a.getProperty('id');
                        
                         path.remove();
