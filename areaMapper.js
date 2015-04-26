@@ -484,11 +484,139 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return index;
     };
     
-    //TODO: move this to complexPolygon and create a simpler implementation for outlinePolygon that doesn't do intersection testing:
+    polygon.prototype.removeSegment = function(s) {
+        var iS = this.getItemIndex(this.segments, s);
+            
+        //remove segment from points:
+        for(var pI = this.points.length - 1; pI >= 0; pI--) {
+            for(var i = 0; i < this.points[pI][1].length; i++) {
+                if(this.points[pI][1][i] === iS) {
+                    
+                    //remove the segment reference:
+                    this.points[pI][1].splice(i, 1);
+                    
+                    //fix i since an item was deleted:
+                    i--;
+                } else if(this.points[pI][1][i] > iS) {
+                    
+                    //decrement segment index references, since a segment is being removed:
+                    this.points[pI][1][i]--;
+                }
+            }
+        }
+        
+        //remove segment from segments:
+        this.segments.splice(iS, 1);
+    };
+    
+    polygon.prototype.convertRawPathToPath = function(rawPath, top, left, isFromEvent) {
+        var pathPoints = [],
+            rawPathParsed = JSON.parse(rawPath);
+        
+        //if the path is from an event, the top/left is relative to the height/width of the path and needs to be corrected:
+        if(isFromEvent) {
+            var maxX = 0,
+                maxY = 0;
+                
+            rawPathParsed.forEach(function(pRaw) {
+                //TODO: handle types other than M and L:
+                var p = new point(pRaw[1], pRaw[2]);
+                pathPoints.push(p);
+                
+                //find the height and width as we loop through the points:
+                maxX = Math.max(maxX, p.x);
+                maxY = Math.max(maxY, p.y);
+            }, this);
+            
+            //fix top/left:
+            top -= maxY / 2;
+    		left -= maxX / 2;
+    	    
+            //apply corrected top/left offsets to points:
+            pathPoints.forEach(function(p) {
+                p.x += left;
+                p.y += top;
+            }, this);
+        }
+        //if the path isn't from an event, the top/left can be interpreted literally and can be applied while creating the points:
+        else {
+            rawPathParsed.forEach(function(pRaw) {
+                //TODO: handle types other than M and L:
+                pathPoints.push(new point(pRaw[1] + left, pRaw[2] + top));
+            }, this);
+        }
+        
+        return pathPoints;
+    };
+    
+    polygon.prototype.addRawPath = function(rawPath, top, left, isFromEvent) {
+        
+        //get points that take top, left, and isFromEvent into account:
+        var pathPoints = this.convertRawPathToPath(rawPath, top, left, isFromEvent);
+        
+        var hadIntersections = false;
+        
+        if(pathPoints && pathPoints.length > 1) {
+            
+            var pStart, //start point
+                pPrior, //prior point
+                iPrior; //index of prior point
+                
+            pathPoints.forEach(function(pCurrent) {
+                var iCurrent = this.addPoint(pCurrent); //index of current point
+                
+                if(pPrior) {
+                    var result = this.addSegment(new segment(pPrior, pCurrent));
+                    
+                    if(result && result.hadIntersections) {
+                        hadIntersections = true;
+                    }
+                } else {
+                    pStart = pCurrent;
+                }
+                
+                pPrior = pCurrent;
+                iPrior = iCurrent;
+            }, this);
+            
+            //close the polygon if it isn't closed already:
+            if(!pPrior.equals(pStart)) {
+                this.addSegment(new segment(pPrior, pStart));
+            }
+        }
+        
+        /*
+        If prior to calling this method, only a clean polygon was stored, and then another clean polygon
+        is added, whether or not there were intersections reveals something about the interrelation of 
+        the two polygons that is useful for some algorithms. If two clean polygons don't intersect, then
+        either they are siblings, or one is completely contained within the other. This is detected in
+        this method because it would lead to redundant processing to do it elsewhere.
+        */
+        var returnObject = [];
+        returnObject.hadIntersections = hadIntersections;
+        return returnObject;
+    };
+    
+    
+    var complexPolygon = function() {
+        polygon.call(this);
+        this._type.push('complexPolygon');
+    };
+    
+    inheritPrototype(complexPolygon, polygon);
+    
+    /*complexPolygon.prototype.setProperty = function(property, value) {
+        switch(property) {
+            default:
+                polygon.prototype.setProperty.call(this, property, value);
+                break;
+        }
+    };*/
+    
     //it's illogical to return a segment's index, because it might have been broken into pieces:
     //it's also inconvient to do early detection of the segment being new, because of segment breaking:
     //returns whether or not there were intersections, because this is useful information for certain algorithms:
-    polygon.prototype.addSegment = function(s) {
+    complexPolygon.prototype.addSegment = function(s) {
 
         //don't add the segment if it's of 0 length:
         if(s.a.equals(s.b)) {
@@ -568,167 +696,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
         returnObject.hadIntersections = hadIntersections;
         return returnObject;
     };
-    
-    polygon.prototype.removeSegment = function(s) {
-        var iS = this.getItemIndex(this.segments, s);
-            
-        //remove segment from points:
-        for(var pI = this.points.length - 1; pI >= 0; pI--) {
-            for(var i = 0; i < this.points[pI][1].length; i++) {
-                if(this.points[pI][1][i] === iS) {
-                    
-                    //remove the segment reference:
-                    this.points[pI][1].splice(i, 1);
-                    
-                    //fix i since an item was deleted:
-                    i--;
-                } else if(this.points[pI][1][i] > iS) {
-                    
-                    //decrement segment index references, since a segment is being removed:
-                    this.points[pI][1][i]--;
-                }
-            }
-        }
-        
-        //remove segment from segments:
-        this.segments.splice(iS, 1);
-    };
-    
-    //returns a raw path aligned at (0,0) with top/left offsets:
-    //TODO: this function is stupid in that it just runs through points, not segments:
-    //TODO: move this to outlinePolygon - there's no point in returning a rawPath of a complex polygon, because it's been altered so heavily that it can only be expressed as a collection of segments:
-    polygon.prototype.getRawPath = function() {
-        if(!(this.points && this.points.length > 0)) {
-            return;
-        }
-        
-        //var pointsCopy = this.points;
-        var minX = this.points[0][0].x;
-        var minY = this.points[0][0].y;
-        
-        this.points.forEach(function(p) {
-            minX = Math.min(minX, p[0].x);
-            minY = Math.min(minY, p[0].y);
-        }, this);
-        
-        var rawPath = '[[\"M\",' + (this.points[0][0].x - minX) + ',' + (this.points[0][0].y - minY) + ']';
-        for(var i = 1; i < this.points.length; i++) {
-            rawPath += ',[\"L\",' + (this.points[i][0].x - minX) + ',' + (this.points[i][0].y - minY) + ']';
-        }
-        rawPath += ',[\"L\",' + (this.points[0][0].x - minX) + ',' + (this.points[0][0].y - minY) + ']';
-        rawPath += ']';
-        
-        var returnObject = [];
-        returnObject.rawPath = rawPath;
-        returnObject.top = minY;
-        returnObject.left = minX;
-        return returnObject;
-    };
-    
-    polygon.prototype.convertRawPathToPath = function(rawPath, top, left, isFromEvent) {
-        var pathPoints = [],
-            rawPathParsed = JSON.parse(rawPath);
-        
-        //if the path is from an event, the top/left is relative to the height/width of the path and needs to be corrected:
-        if(isFromEvent) {
-            var maxX = 0,
-                maxY = 0;
-                
-            rawPathParsed.forEach(function(pRaw) {
-                //TODO: handle types other than M and L:
-                var p = new point(pRaw[1], pRaw[2]);
-                pathPoints.push(p);
-                
-                //find the height and width as we loop through the points:
-                maxX = Math.max(maxX, p.x);
-                maxY = Math.max(maxY, p.y);
-            }, this);
-            
-            //fix top/left:
-            top -= maxY / 2;
-    		left -= maxX / 2;
-    	    
-            //apply corrected top/left offsets to points:
-            pathPoints.forEach(function(p) {
-                p.x += left;
-                p.y += top;
-            }, this);
-        }
-        //if the path isn't from an event, the top/left can be interpreted literally and can be applied while creating the points:
-        else {
-            rawPathParsed.forEach(function(pRaw) {
-                //TODO: handle types other than M and L:
-                pathPoints.push(new point(pRaw[1] + left, pRaw[2] + top));
-            }, this);
-        }
-        
-        return pathPoints;
-    };
-    
-    //TODO: different implementations for complex vs. outline?
-    polygon.prototype.addRawPath = function(rawPath, top, left, isFromEvent) {
-        
-        //get points that take top, left, and isFromEvent into account:
-        var pathPoints = this.convertRawPathToPath(rawPath, top, left, isFromEvent);
-        
-        var hadIntersections = false;
-        
-        if(pathPoints && pathPoints.length > 1) {
-            
-            var pStart, //start point
-                pPrior, //prior point
-                iPrior; //index of prior point
-                
-            pathPoints.forEach(function(pCurrent) {
-                var iCurrent = this.addPoint(pCurrent); //index of current point
-                
-                if(pPrior) {
-                    var result = this.addSegment(new segment(pPrior, pCurrent));
-                    
-                    if(result && result.hadIntersections) {
-                        hadIntersections = true;
-                    }
-                } else {
-                    pStart = pCurrent;
-                }
-                
-                pPrior = pCurrent;
-                iPrior = iCurrent;
-            }, this);
-            
-            //close the polygon if it isn't closed already:
-            if(!pPrior.equals(pStart)) {
-                this.addSegment(new segment(pPrior, pStart));
-            }
-        }
-        
-        /*
-        If prior to calling this method, only a clean polygon was stored, and then another clean polygon
-        is added, whether or not there were intersections reveals something about the interrelation of 
-        the two polygons that is useful for some algorithms. If two clean polygons don't intersect, then
-        either they are siblings, or one is completely contained within the other. This is detected in
-        this method because it would lead to redundant processing to do it elsewhere.
-        */
-        var returnObject = [];
-        returnObject.hadIntersections = hadIntersections;
-        return returnObject;
-    };
-    
-    
-    var complexPolygon = function() {
-        polygon.call(this);
-        this._type.push('complexPolygon');
-    };
-    
-    inheritPrototype(complexPolygon, polygon);
-    
-    /*complexPolygon.prototype.setProperty = function(property, value) {
-        switch(property) {
-            default:
-                polygon.prototype.setProperty.call(this, property, value);
-                break;
-        }
-    };*/
     
     complexPolygon.prototype.convertToOutlinePolygon = function() {
         //find the smallest x points, and of those, take the greatest y:
@@ -814,6 +781,17 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }
     };*/
     
+    //doesn't test for intersections - assumes this is already part of an outline on good faith:
+    outlinePolygon.prototype.addSegment = function(s) {
+        if(!s.a.equals(s.b)) {
+            var iS = this.segments.push(s) - 1;
+            var iPa = this.addPoint(s.a);
+            var iPb = this.addPoint(s.b);
+            this.points[iPa][1].push(iS);
+            this.points[iPb][1].push(iS);
+        }
+    };
+    
     outlinePolygon.prototype.addPointsPath = function(pathPoints, top, left) {
         if('undefined' === typeof(top)) {
             top = 0;
@@ -867,6 +845,35 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         //there will be an even number of intersections; if the point in question is between an odd number of intersections, it's inside the polygon:
         return (pointsOnLeft % 2 === 1);
+    };
+    
+    //returns a raw path aligned at (0,0) with top/left offsets:
+    outlinePolygon.prototype.getRawPath = function() {
+        if(!(this.points && this.points.length > 0)) {
+            return;
+        }
+        
+        //var pointsCopy = this.points;
+        var minX = this.points[0][0].x;
+        var minY = this.points[0][0].y;
+        
+        this.points.forEach(function(p) {
+            minX = Math.min(minX, p[0].x);
+            minY = Math.min(minY, p[0].y);
+        }, this);
+        
+        var rawPath = '[[\"M\",' + (this.points[0][0].x - minX) + ',' + (this.points[0][0].y - minY) + ']';
+        for(var i = 1; i < this.points.length; i++) {
+            rawPath += ',[\"L\",' + (this.points[i][0].x - minX) + ',' + (this.points[i][0].y - minY) + ']';
+        }
+        rawPath += ',[\"L\",' + (this.points[0][0].x - minX) + ',' + (this.points[0][0].y - minY) + ']';
+        rawPath += ']';
+        
+        var returnObject = [];
+        returnObject.rawPath = rawPath;
+        returnObject.top = minY;
+        returnObject.left = minX;
+        return returnObject;
     };
     
     
