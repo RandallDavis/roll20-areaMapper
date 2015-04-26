@@ -20,4 +20,4 @@ Possibilites:
 Implementation:
 - All of the polygon logic should be handled as a clustered graph algorithm. For fun, don't do research on others' approaches to this, but do it from scratch.
 
-
+![graph algorithms!](http://i.imgur.com/QUJJXA5.jpg)
