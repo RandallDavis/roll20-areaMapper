@@ -226,13 +226,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         //TODO: factor in instance's rotation & scale:
         var floorPlanOpIndex = g.addOutlinePolygon(this.getProperty('floorPlan'), instance.getProperty('top'), instance.getProperty('left'));
-        var mergedOpIndex = g.removeFromOutlinePolygon(floorPlanOpIndex, removeOpIndex);
+        var removedOpIndex = g.removeFromOutlinePolygon(floorPlanOpIndex, removeOpIndex);
         
-        
-        
-        //TODO
-        
-        
+        var rp = g.getRawPath('outlinePolygons', removedOpIndex);
+        this.setProperty('floorPlan', rp.rawPath);
+        this.save();
+        this.draw(pageId, rp.top, rp.left);
     };
     
     area.prototype.draw = function(pageId, top, left) {
@@ -952,7 +951,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     var pointNotContained = thisTest ? s.b : s.a;
                     intersectionPoints.forEach(function(p) {
                         var distance = new segment(pointNotContained, p).length();
-                        log('distance: ' + distance);
                         if(distance < intersectionPointDistance) {
                             intersectionPoint = p;
                             intersectionPointDistance = distance;
@@ -976,16 +974,32 @@ var APIAreaMapper = APIAreaMapper || (function() {
             //loop through again and remove any contained points:
             for(var i = testedPoints.length - 1; i >= 0; i--) {
                 if(testedPoints[i][1]) {
-                    log(testedPoints);
                     testedPoints.splice(i, 1);
-                    log(testedPoints);
                 }
             }
         }
         
-        //TODO: do this with addPoints() instead of exporting / importing rawPoints
-        //stuff the results into an outlinePolygon:
         
+        //stuff the results into an outlinePolygon:
+        //TODO: implement and use outlinePolygon.addPath() and send points in, rather than extracting and importing raw paths:
+        var minX = testedPoints[0][0].x;
+        var minY = testedPoints[0][0].y;
+        
+        testedPoints.forEach(function(p) {
+            minX = Math.min(minX, p[0].x);
+            minY = Math.min(minY, p[0].y);
+        }, this);
+        
+        var rawPath = '[[\"M\",' + (testedPoints[0][0].x - minX) + ',' + (testedPoints[0][0].y - minY) + ']';
+        for(var i = 1; i < testedPoints.length; i++) {
+            rawPath += ',[\"L\",' + (testedPoints[i][0].x - minX) + ',' + (testedPoints[i][0].y - minY) + ']';
+        }
+        rawPath += ',[\"L\",' + (testedPoints[0][0].x - minX) + ',' + (testedPoints[0][0].y - minY) + ']';
+        rawPath += ']';
+        
+        var newOp = new outlinePolygon();
+        newOp.addRawPath(rawPath, minY, minX);
+        return newOp;
     };
     
     
@@ -1086,22 +1100,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var op1 = this.getProperty('outlinePolygons')[index1];
         var op2 = this.getProperty('outlinePolygons')[index2];
         
-        op1.removeIntersection(op2);
-        
-        /*
-        var rp1 = op1.getRawPath();
-        var rp2 = op2.getRawPath();
-        
-        cp.addRawPath(rp1.rawPath, rp1.top, rp1.left);
-        var cpResult = cp.addRawPath(rp2.rawPath, rp2.top, rp2.left);
-        
-        //polygons intersect, so return their merge:
-        if(cpResult.hadIntersections) {
-            var cpIndex = this.setProperty('complexPolygons', cp);
-            return this.convertComplexPolygonToOutlinePolygon(cpIndex);
-        } 
-        
-        */
+        var op3 = op1.removeIntersection(op2);
+        return this.setProperty('outlinePolygons', op3);
     };
      
     /* polygon logic - end */
