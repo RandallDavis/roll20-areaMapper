@@ -571,10 +571,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
     };
     
     polygon.prototype.addRawPath = function(rawPath, top, left, isFromEvent) {
-        
-        //get points that take top, left, and isFromEvent into account:
         var pathPoints = this.convertRawPathToPath(rawPath, top, left, isFromEvent);
-        
+        return this.addPointsPath(pathPoints);
+    };
+    
+    polygon.prototype.addPointsPath = function(pathPoints) {
         var hadIntersections = false;
         
         if(pathPoints && pathPoints.length > 1) {
@@ -812,42 +813,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             this.points[iPb][1].push(iS);
         }
     };
-    
-    outlinePolygon.prototype.addPointsPath = function(pathPoints, top, left) {
-        if('undefined' === typeof(top)) {
-            top = 0;
-        }
-        
-        if('undefined' === typeof(left)) {
-            left = 0;
-        }
-        
-        if(pathPoints && pathPoints.length > 1) {
-            
-            var pStart, //start point
-                pPrior, //prior point
-                iPrior; //index of prior point
-                
-            pathPoints.forEach(function(pCurrent) {
-                var iCurrent = this.addPoint(pCurrent); //index of current point
-                
-                if(pPrior) {
-                    this.addSegment(new segment(pPrior, pCurrent));
-                } else {
-                    pStart = pCurrent;
-                }
-                
-                pPrior = pCurrent;
-                iPrior = iCurrent;
-            }, this);
-            
-            //close the polygon if it isn't closed already:
-            if(!pPrior.equals(pStart)) {
-                this.addSegment(new segment(pPrior, pStart));
-            }
-        }
-    };
-    
+  
     //tests if the point is inside the polygon:
     outlinePolygon.prototype.hasInside = function(p) {
         //use an arbitrarily long horizontal segment that goes into negatives (because of relative coordinates):
@@ -866,6 +832,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         //there will be an even number of intersections; if the point in question is between an odd number of intersections, it's inside the polygon:
         return (pointsOnLeft % 2 === 1);
+    };
+    
+    outlinePolygon.prototype.getPointsPath = function() {
+        var pointsPath = [];
+        this.points.forEach(function(p) {
+            pointsPath.push(p[0]);
+        }, this);
+        return pointsPath;
     };
     
     //returns a raw path aligned at (0,0) with top/left offsets:
@@ -979,26 +953,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
             }
         }
         
-        
         //stuff the results into an outlinePolygon:
-        //TODO: implement and use outlinePolygon.addPath() and send points in, rather than extracting and importing raw paths:
-        var minX = testedPoints[0][0].x;
-        var minY = testedPoints[0][0].y;
-        
+        var pointsPath = [];
         testedPoints.forEach(function(p) {
-            minX = Math.min(minX, p[0].x);
-            minY = Math.min(minY, p[0].y);
+            pointsPath.push(p[0]);
         }, this);
         
-        var rawPath = '[[\"M\",' + (testedPoints[0][0].x - minX) + ',' + (testedPoints[0][0].y - minY) + ']';
-        for(var i = 1; i < testedPoints.length; i++) {
-            rawPath += ',[\"L\",' + (testedPoints[i][0].x - minX) + ',' + (testedPoints[i][0].y - minY) + ']';
-        }
-        rawPath += ',[\"L\",' + (testedPoints[0][0].x - minX) + ',' + (testedPoints[0][0].y - minY) + ']';
-        rawPath += ']';
-        
         var newOp = new outlinePolygon();
-        newOp.addRawPath(rawPath, minY, minX);
+        newOp.addPointsPath(pointsPath);
         return newOp;
     };
     
@@ -1070,10 +1032,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         cp.segments = op1.segments;
         
         var op2 = this.getProperty('outlinePolygons')[index2];
-        var rp2 = op2.getRawPath();
-        
-        //TODO: implement and use cp.addPath() and send op2.points in, rather than extracting and importing raw paths:
-        var cpResult = cp.addRawPath(rp2.rawPath, rp2.top, rp2.left);
+        var cpResult = cp.addPointsPath(op2.getPointsPath());
         
         //polygons intersect, so return their merge:
         if(cpResult.hadIntersections) {
