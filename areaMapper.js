@@ -226,12 +226,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         //TODO: factor in instance's rotation & scale:
         var floorPlanOpIndex = g.addOutlinePolygon(this.getProperty('floorPlan'), instance.getProperty('top'), instance.getProperty('left'));
-        var removedOpIndex = g.removeFromOutlinePolygon(floorPlanOpIndex, removeOpIndex);
+        var mergedOpIndex = g.removeFromOutlinePolygon(floorPlanOpIndex, removeOpIndex);
         
-        var rp = g.getRawPath('outlinePolygons', removedOpIndex);
-        this.setProperty('floorPlan', rp.rawPath);
-        this.save();
-        this.draw(pageId, rp.top, rp.left);
+        if('undefined' !== mergedOpIndex) {
+            var rp = g.getRawPath('outlinePolygons', mergedOpIndex);
+            this.setProperty('floorPlan', rp.rawPath);
+            this.save();
+            this.draw(pageId, rp.top, rp.left);
+        }
     };
     
     area.prototype.draw = function(pageId, top, left) {
@@ -893,31 +895,37 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         //if no control point was found, the whole polygon should be removed:
         if(controlPointIndex === null) {
-     
-            //clear out testedPoints and let the polygon be rebuilt later:
-            testedPoints = [];
-        } else {
-            var loopLimit = 100; //loop limiter to prevent infinite loops during debugging
-            var i = (controlPointIndex + 1) % testedPoints.length;
-            var firstIteration = true;
-            var priorTest = false;
+            return;
+        } 
+        
+        var loopLimit = 5000; //loop limiter to prevent infinite loops during debugging
+        var i = (controlPointIndex + 1) % testedPoints.length;
+        var firstIteration = true;
+        var priorTest = false;
+        
+        while(loopLimit-- && !(!firstIteration && i === (controlPointIndex + 1) % testedPoints.length)) {
+            firstIteration = false;
+            var thisTest = testedPoints[i][1];
             
-            while(loopLimit-- && !(!firstIteration && i === (controlPointIndex + 1) % testedPoints.length)) {
-                firstIteration = false;
-                var thisTest = testedPoints[i][1];
+            //if the prior point's test !== this point's test, then their segment intersects a segment in rop:
+            if(thisTest !== priorTest) {
                 
-                //if the prior point's test !== this point's test, then their segment intersects a segment in rop:
-                if(thisTest !== priorTest) {
+                //find intersection points:
+                var s = new segment(testedPoints[i][0], testedPoints[(i + testedPoints.length - 1) % testedPoints.length][0]);
+                var intersectionPoints = [];
+                rop.segments.forEach(function(seg) {
+                    var intersectionPoint = segmentsIntersect(s, seg);
+                    if(intersectionPoint) {
+                        intersectionPoints.push(intersectionPoint);
+                    }
+                }, this);
+                
+                //TODO: fix bug where there are no intersection points:
+                if(intersectionPoints.length == 0) {
                     
-                    //find intersection points:
-                    var s = new segment(testedPoints[i][0], testedPoints[(i + testedPoints.length - 1) % testedPoints.length][0]);
-                    var intersectionPoints = [];
-                    rop.segments.forEach(function(seg) {
-                        var intersectionPoint = segmentsIntersect(s, seg);
-                        if(intersectionPoint) {
-                            intersectionPoints.push(intersectionPoint);
-                        }
-                    }, this);
+                    //avoid the 'no intersection points bug' (which is pretty rare) by hacking this point back in:
+                    testedPoints.splice(i, 0, [testedPoints[i][0], null]);
+                } else {
                     
                     //find the most invasive intersection point:
                     var intersectionPoint;
@@ -933,23 +941,23 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     
                     //insert the intersection point inbetween the two points:
                     testedPoints.splice(i, 0, [intersectionPoint, null]);
-                    
-                    //increment indexes because we added a point:
-                    if(i <= controlPointIndex) {
-                        controlPointIndex++;
-                    }
-                    i++;
                 }
                 
-                i = (i + 1) % testedPoints.length;
-                priorTest = thisTest;
+                //increment indexes because we added a point:
+                if(i <= controlPointIndex) {
+                    controlPointIndex++;
+                }
+                i++;
             }
             
-            //loop through again and remove any contained points:
-            for(var i = testedPoints.length - 1; i >= 0; i--) {
-                if(testedPoints[i][1]) {
-                    testedPoints.splice(i, 1);
-                }
+            i = (i + 1) % testedPoints.length;
+            priorTest = thisTest;
+        }
+        
+        //loop through again and remove any contained points:
+        for(var i = testedPoints.length - 1; i >= 0; i--) {
+            if(testedPoints[i][1]) {
+                testedPoints.splice(i, 1);
             }
         }
         
@@ -1058,8 +1066,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var cp = new complexPolygon();
         var op1 = this.getProperty('outlinePolygons')[index1];
         var op2 = this.getProperty('outlinePolygons')[index2];
-        
         var op3 = op1.removeIntersection(op2);
+        
+        if(!op3) {
+            return;
+        } 
+        
         return this.setProperty('outlinePolygons', op3);
     };
      
