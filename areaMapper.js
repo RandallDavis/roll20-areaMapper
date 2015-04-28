@@ -175,7 +175,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         for(var i = 0; i < areas.length; i++) {
             areas[i].forEach(function(prop) {
                 if(prop[0] === 'id' && prop[1] === id) {
-                    oldAreaState = state.APIAreaMapper.areas.splice(i);
+                    oldAreaState = state.APIAreaMapper.areas.splice(i, 1);
                     return;
                 }
             });
@@ -214,10 +214,33 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }
     };
     
+    area.prototype.floorPlanRemove = function(rawPath, pageId, top, left, isFromEvent) {
+        var g = new graph();
+        g.initialize();
+        g.addComplexPolygon(rawPath, top, left, isFromEvent);
+        var removeOpIndex = g.convertComplexPolygonToOutlinePolygon(0);
+        
+        //get instance that appending is relative to:
+        var instance = new areaInstance(this.getProperty('id'), pageId);
+        instance.load();
+        
+        //TODO: factor in instance's rotation & scale:
+        var floorPlanOpIndex = g.addOutlinePolygon(this.getProperty('floorPlan'), instance.getProperty('top'), instance.getProperty('left'));
+        var mergedOpIndex = g.removeFromOutlinePolygon(floorPlanOpIndex, removeOpIndex);
+        
+        if('undefined' !== typeof(mergedOpIndex)) {
+            var rp = g.getRawPath('outlinePolygons', mergedOpIndex);
+            this.setProperty('floorPlan', rp.rawPath);
+            this.save();
+            this.draw(pageId, rp.top, rp.left);
+        }
+    };
+    
     area.prototype.draw = function(pageId, top, left) {
         instance = new areaInstance(this.getProperty('id'), pageId);
         instance.draw(top, left);
     };
+    
     
     var areaInstance = function(areaId, pageId) {
         typedObject.call(this);
@@ -243,17 +266,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 break;
         }
     };
-    
-    /*areaInstance.prototype.initializeCollectionProperty = function(property) {
-        switch(property) {
-            case 'floorPolygon':
-                this['_' + property] = [];
-                break;
-            default:
-                typedObject.prototype.initializeCollectionProperty.call(this, property);
-                break;
-        }
-    };*/
     
     areaInstance.prototype.load = function() {
         var areaId = this.getProperty('areaId');
@@ -318,7 +330,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             //note: expects areaId and pageId to be the first and second properties:
             if(areaInstances[i][0] === this.getProperty('areaId')
                     && areaInstances[i][1] === this.getProperty('pageId')) {
-                oldAreaInstanceState = state.APIAreaMapper.areaInstances.splice(i);        
+                oldAreaInstanceState = state.APIAreaMapper.areaInstances.splice(i, 1);        
             }
    
             if(oldAreaInstanceState) {
@@ -530,8 +542,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
             
             //fix top/left:
             top -= maxY / 2;
-    		left -= maxX / 2;
-    	    
+            left -= maxX / 2;
+            
             //apply corrected top/left offsets to points:
             pathPoints.forEach(function(p) {
                 p.x += left;
@@ -550,10 +562,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
     };
     
     polygon.prototype.addRawPath = function(rawPath, top, left, isFromEvent) {
-        
-        //get points that take top, left, and isFromEvent into account:
         var pathPoints = this.convertRawPathToPath(rawPath, top, left, isFromEvent);
-        
+        return this.addPointsPath(pathPoints);
+    };
+    
+    polygon.prototype.addPointsPath = function(pathPoints) {
         var hadIntersections = false;
         
         if(pathPoints && pathPoints.length > 1) {
@@ -604,14 +617,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
     };
     
     inheritPrototype(complexPolygon, polygon);
-    
-    /*complexPolygon.prototype.setProperty = function(property, value) {
-        switch(property) {
-            default:
-                polygon.prototype.setProperty.call(this, property, value);
-                break;
-        }
-    };*/
     
     //it's illogical to return a segment's index, because it might have been broken into pieces:
     //it's also inconvient to do early detection of the segment being new, because of segment breaking:
@@ -773,14 +778,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     inheritPrototype(outlinePolygon, polygon);
     
-    /*outlinePolygon.prototype.setProperty = function(property, value) {
-        switch(property) {
-            default:
-                polygon.prototype.setProperty.call(this, property, value);
-                break;
-        }
-    };*/
-    
     //doesn't test for intersections - assumes this is already part of an outline on good faith:
     outlinePolygon.prototype.addSegment = function(s) {
         if(!s.a.equals(s.b)) {
@@ -791,42 +788,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             this.points[iPb][1].push(iS);
         }
     };
-    
-    outlinePolygon.prototype.addPointsPath = function(pathPoints, top, left) {
-        if('undefined' === typeof(top)) {
-            top = 0;
-        }
-        
-        if('undefined' === typeof(left)) {
-            left = 0;
-        }
-        
-        if(pathPoints && pathPoints.length > 1) {
-            
-            var pStart, //start point
-                pPrior, //prior point
-                iPrior; //index of prior point
-                
-            pathPoints.forEach(function(pCurrent) {
-                var iCurrent = this.addPoint(pCurrent); //index of current point
-                
-                if(pPrior) {
-                    this.addSegment(new segment(pPrior, pCurrent));
-                } else {
-                    pStart = pCurrent;
-                }
-                
-                pPrior = pCurrent;
-                iPrior = iCurrent;
-            }, this);
-            
-            //close the polygon if it isn't closed already:
-            if(!pPrior.equals(pStart)) {
-                this.addSegment(new segment(pPrior, pStart));
-            }
-        }
-    };
-    
+  
     //tests if the point is inside the polygon:
     outlinePolygon.prototype.hasInside = function(p) {
         //use an arbitrarily long horizontal segment that goes into negatives (because of relative coordinates):
@@ -845,6 +807,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         //there will be an even number of intersections; if the point in question is between an odd number of intersections, it's inside the polygon:
         return (pointsOnLeft % 2 === 1);
+    };
+    
+    outlinePolygon.prototype.getPointsPath = function() {
+        var pointsPath = [];
+        this.points.forEach(function(p) {
+            pointsPath.push(p[0]);
+        }, this);
+        return pointsPath;
     };
     
     //returns a raw path aligned at (0,0) with top/left offsets:
@@ -874,6 +844,105 @@ var APIAreaMapper = APIAreaMapper || (function() {
         returnObject.top = minY;
         returnObject.left = minX;
         return returnObject;
+    };
+    
+    //removes intersection with rop (Removed Outline Polygon):
+    outlinePolygon.prototype.removeIntersection = function(rop) {
+        
+        //points will be converted into a datatype that is better for this algorithm:
+        var testedPoints = [];
+        
+        //TODO: fix bug where hasInside() is failing (rarely) when it should succeed:
+        //test all points to see which are contained in rop:
+        this.points.forEach(function(p) {
+            testedPoints.push([p[0], rop.hasInside(p[0])]);
+        }, this);
+        
+        //find a control point (the first point that's not contained in rop):
+        var controlPointIndex = null;
+        for(var i = 0; i < testedPoints.length; i++) {
+            if(!testedPoints[i][1]) {
+                controlPointIndex = i;
+                break;
+            }
+        }
+        
+        //if no control point was found, the whole polygon should be removed:
+        if(controlPointIndex === null) {
+            return;
+        } 
+        
+        var loopLimit = 5000; //loop limiter to prevent infinite loops during debugging
+        var i = (controlPointIndex + 1) % testedPoints.length;
+        var firstIteration = true;
+        var priorTest = false;
+        
+        while(loopLimit-- && !(!firstIteration && i === (controlPointIndex + 1) % testedPoints.length)) {
+            firstIteration = false;
+            var thisTest = testedPoints[i][1];
+            
+            //if the prior point's test !== this point's test, then their segment intersects a segment in rop:
+            if(thisTest !== priorTest) {
+                
+                //find intersection points:
+                var s = new segment(testedPoints[i][0], testedPoints[(i + testedPoints.length - 1) % testedPoints.length][0]);
+                var intersectionPoints = [];
+                rop.segments.forEach(function(seg) {
+                    var intersectionPoint = segmentsIntersect(s, seg);
+                    if(intersectionPoint) {
+                        intersectionPoints.push(intersectionPoint);
+                    }
+                }, this);
+                
+                if(intersectionPoints.length == 0) {
+                    
+                    //avoid the 'rop.hasInside()' failure bug (which is pretty rare) by hacking this point back in:
+                    testedPoints.splice(i, 0, [testedPoints[i][0], null]);
+                } else {
+                    
+                    //find the most invasive intersection point:
+                    var intersectionPoint;
+                    var intersectionPointDistance = 1000000000; //this will be corrected in the first iteration
+                    var pointNotContained = thisTest ? s.b : s.a;
+                    intersectionPoints.forEach(function(p) {
+                        var distance = new segment(pointNotContained, p).length();
+                        if(distance < intersectionPointDistance) {
+                            intersectionPoint = p;
+                            intersectionPointDistance = distance;
+                        }
+                    }, this);
+                    
+                    //insert the intersection point inbetween the two points:
+                    testedPoints.splice(i, 0, [intersectionPoint, null]);
+                }
+                
+                //increment indexes because we added a point:
+                if(i <= controlPointIndex) {
+                    controlPointIndex++;
+                }
+                i++;
+            }
+            
+            i = (i + 1) % testedPoints.length;
+            priorTest = thisTest;
+        }
+        
+        //loop through again and remove any contained points:
+        for(var i = testedPoints.length - 1; i >= 0; i--) {
+            if(testedPoints[i][1]) {
+                testedPoints.splice(i, 1);
+            }
+        }
+        
+        //stuff the results into an outlinePolygon:
+        var pointsPath = [];
+        testedPoints.forEach(function(p) {
+            pointsPath.push(p[0]);
+        }, this);
+        
+        var newOp = new outlinePolygon();
+        newOp.addPointsPath(pointsPath);
+        return newOp;
     };
     
     
@@ -927,7 +996,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     graph.prototype.convertComplexPolygonToOutlinePolygon = function(index) {
         var op = this.getProperty('complexPolygons')[index].convertToOutlinePolygon();
-        this.getProperty('complexPolygons').splice(index);
+        this.getProperty('complexPolygons').splice(index, 1);
         return this.setProperty('outlinePolygons', op);
     };
     
@@ -938,12 +1007,13 @@ var APIAreaMapper = APIAreaMapper || (function() {
     graph.prototype.mergeOutlinePolygons = function(index1, index2) {
         var cp = new complexPolygon();
         var op1 = this.getProperty('outlinePolygons')[index1];
-        var op2 = this.getProperty('outlinePolygons')[index2];
-        var rp1 = op1.getRawPath();
-        var rp2 = op2.getRawPath();
         
-        cp.addRawPath(rp1.rawPath, rp1.top, rp1.left);
-        var cpResult = cp.addRawPath(rp2.rawPath, rp2.top, rp2.left);
+        //stuff points from op1 into cp, rather than re-inserting, for the sake of efficiency:
+        cp.points = op1.points;
+        cp.segments = op1.segments;
+        
+        var op2 = this.getProperty('outlinePolygons')[index2];
+        var cpResult = cp.addPointsPath(op2.getPointsPath());
         
         //polygons intersect, so return their merge:
         if(cpResult.hadIntersections) {
@@ -962,6 +1032,20 @@ var APIAreaMapper = APIAreaMapper || (function() {
         else {
             return null;
         }
+    };
+    
+    //removes the intersection between the two polygons from the first:
+    graph.prototype.removeFromOutlinePolygon = function(index1, index2) {
+        var cp = new complexPolygon();
+        var op1 = this.getProperty('outlinePolygons')[index1];
+        var op2 = this.getProperty('outlinePolygons')[index2];
+        var op3 = op1.removeIntersection(op2);
+        
+        if(!op3) {
+            return;
+        } 
+        
+        return this.setProperty('outlinePolygons', op3);
     };
      
     /* polygon logic - end */
@@ -1164,6 +1248,17 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         path.remove();
                         break;
                     case 'areaRemove':
+                        if(!state.APIAreaMapper.activeArea) {
+                            log('An area needs to be active before appending.');
+                            return;
+                        }
+                        
+                        var a = new area();
+                        a.setProperty('id', state.APIAreaMapper.activeArea);
+                        a.load();
+                        a.floorPlanRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                 
+                        path.remove();
                         break;
                     default:
                         break;
