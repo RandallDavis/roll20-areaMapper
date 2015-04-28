@@ -9,6 +9,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         mainBackgroundColor = '#3D8FE1',
         headerBackgroundColor = '#386EA5',
         notificationBackgroundColor = '#64EED7',
+        wallImageUrl = 'https://s3.amazonaws.com/files.d20.io/images/9089092/XSZ5ydJTf3QplrTkpEwFQg/thumb.png?1430187885',
         
     checkInstall = function() {
         
@@ -360,7 +361,15 @@ var APIAreaMapper = APIAreaMapper || (function() {
         a.load();
         
         //create new floorPolygon on map layer:
-        var floorPolygon = drawPathObject(this.getProperty('pageId'), 'map', '#0000ff', a.getProperty('floorPlan'), top, left);
+        var floorPolygon = drawPathObject(this.getProperty('pageId'), 'map', '#0000ff', 'transparent', a.getProperty('floorPlan'), top, left);
+        
+        //draw walls:
+        var g = new graph();
+        g.initialize();
+        var opIndex = g.addOutlinePolygon(a.getProperty('floorPlan'), top, left);
+        g.getProperty('outlinePolygons')[opIndex].segments.forEach(function(s) {
+            createTokenObjectFromSegment(wallImageUrl, this.getProperty('pageId'), 'objects', s, 6);
+        }, this);
         
         this.setProperty('floorPolygon', floorPolygon);
         this.save();
@@ -420,11 +429,16 @@ var APIAreaMapper = APIAreaMapper || (function() {
             var radians = (Math.atan2(b.y - a.y, b.x - a.x) + (2 * Math.PI)) % (2 * Math.PI);
             
             if(b.x === p.x && b.y === p.y) {
+                
                 //use angle with respect to b:
                 radians = (radians + (Math.PI)) % (2 * Math.PI);
             }
             
             return new angle(radians);
+        };
+        
+        this.angleDegrees = function(p) {
+            return this.angle(p).radians * 180 / Math.PI;
         };
     },
     
@@ -489,6 +503,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var index = this.getPointIndex(p);
         
         if('undefined' === typeof(index)) {
+            
             //add point and return its index:
             return this.points.push([p, []]) - 1;
         }
@@ -791,6 +806,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
   
     //tests if the point is inside the polygon:
     outlinePolygon.prototype.hasInside = function(p) {
+        
         //use an arbitrarily long horizontal segment that goes into negatives (because of relative coordinates):
         var horizontalSegment = new segment(new point(-1000000000, p.y), new point(1000000000, p.y));
         
@@ -1052,22 +1068,36 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     /* roll20 object management - begin */
     
-    var drawPathObject = function(pageid, layer, stroke, path, top, left) {
+    var drawPathObject = function(pageId, layer, stroke, fill, path, top, left) {
         state.APIAreaMapper.tempIgnoreAddPath = true;
         
         var obj = createObj('path', {
             layer: layer,
-            pageid: pageid,
+            pageid: pageId,
             top: top,
             left: left,
             stroke: stroke,
             stroke_width: 1,
+            fill: fill,
             _path: path
         });
         
         state.APIAreaMapper.tempIgnoreAddPath = false;
         
         return obj;
+    },
+    
+    createTokenObjectFromSegment = function(imgsrc, pageId, layer, segment, width) {
+        return createObj('graphic', {
+            imgsrc: imgsrc,
+            layer: layer,
+            pageid: pageId,
+            width: width,
+            top: segment.b.y + ((segment.a.y - segment.b.y) / 2),
+            left: segment.b.x + ((segment.a.x - segment.b.x) / 2),
+            height: segment.length(),
+            rotation: segment.angleDegrees(segment.a) + 90
+        });
     },
     
     /* roll20 object management - end */
