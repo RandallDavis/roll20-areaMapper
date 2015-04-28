@@ -228,7 +228,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var floorPlanOpIndex = g.addOutlinePolygon(this.getProperty('floorPlan'), instance.getProperty('top'), instance.getProperty('left'));
         var mergedOpIndex = g.removeFromOutlinePolygon(floorPlanOpIndex, removeOpIndex);
         
-        if('undefined' !== mergedOpIndex) {
+        if('undefined' !== typeof(mergedOpIndex)) {
             var rp = g.getRawPath('outlinePolygons', mergedOpIndex);
             this.setProperty('floorPlan', rp.rawPath);
             this.save();
@@ -879,6 +879,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         //points will be converted into a datatype that is better for this algorithm:
         var testedPoints = [];
         
+        //TODO: fix bug where rop.hasInside() is failing (rarely) when it should succeed:
         //test all points to see which are contained in rop:
         this.points.forEach(function(p) {
             testedPoints.push([p[0], rop.hasInside(p[0])]);
@@ -920,10 +921,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     }
                 }, this);
                 
-                //TODO: fix bug where there are no intersection points:
                 if(intersectionPoints.length == 0) {
                     
-                    //avoid the 'no intersection points bug' (which is pretty rare) by hacking this point back in:
+                    //avoid the 'rop.hasInside()' failure bug (which is pretty rare) by hacking this point back in:
                     testedPoints.splice(i, 0, [testedPoints[i][0], null]);
                 } else {
                     
