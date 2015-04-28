@@ -267,17 +267,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }
     };
     
-    /*areaInstance.prototype.initializeCollectionProperty = function(property) {
-        switch(property) {
-            case 'floorPolygon':
-                this['_' + property] = [];
-                break;
-            default:
-                typedObject.prototype.initializeCollectionProperty.call(this, property);
-                break;
-        }
-    };*/
-    
     areaInstance.prototype.load = function() {
         var areaId = this.getProperty('areaId');
         var pageId = this.getProperty('pageId');
@@ -629,14 +618,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     inheritPrototype(complexPolygon, polygon);
     
-    /*complexPolygon.prototype.setProperty = function(property, value) {
-        switch(property) {
-            default:
-                polygon.prototype.setProperty.call(this, property, value);
-                break;
-        }
-    };*/
-    
     //it's illogical to return a segment's index, because it might have been broken into pieces:
     //it's also inconvient to do early detection of the segment being new, because of segment breaking:
     //returns whether or not there were intersections, because this is useful information for certain algorithms:
@@ -797,14 +778,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     inheritPrototype(outlinePolygon, polygon);
     
-    /*outlinePolygon.prototype.setProperty = function(property, value) {
-        switch(property) {
-            default:
-                polygon.prototype.setProperty.call(this, property, value);
-                break;
-        }
-    };*/
-    
     //doesn't test for intersections - assumes this is already part of an outline on good faith:
     outlinePolygon.prototype.addSegment = function(s) {
         if(!s.a.equals(s.b)) {
@@ -879,7 +852,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         //points will be converted into a datatype that is better for this algorithm:
         var testedPoints = [];
         
-        //TODO: fix bug where rop.hasInside() is failing (rarely) when it should succeed:
+        //TODO: fix bug where hasInside() is failing (rarely) when it should succeed:
         //test all points to see which are contained in rop:
         this.points.forEach(function(p) {
             testedPoints.push([p[0], rop.hasInside(p[0])]);
