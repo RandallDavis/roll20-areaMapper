@@ -273,6 +273,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'area':
             case 'top':
             case 'left':
+            case 'floorTileId': //token id
             case 'floorPolygon': //path object
                 this['_' + property] = value;
                 break;
@@ -327,6 +328,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 case 'pageId':
                 case 'top':
                 case 'left':
+                case 'floorTileId':
                     this.setProperty(areaInstanceState[i][0], areaInstanceState[i][1]);
                     break;
                 case 'edgeWallIds':
@@ -357,6 +359,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         areaInstanceState.push(['top', this.getProperty('top')]);
         areaInstanceState.push(['left', this.getProperty('left')]);
         areaInstanceState.push(['floorPolygonId', this.getProperty('floorPolygon') ? this.getProperty('floorPolygon').id : '']);
+        areaInstanceState.push(['floorTileId', this.getProperty('floorTileId')]);
         areaInstanceState.push(['edgeWallIds', this.getProperty('edgeWallIds')]);
         
         //remove existing area instance state:
@@ -403,13 +406,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         
         
-        //TODO: delete old floor tile:
-        //TODO: delete old floor tile mask:
+        //delete old floor tile:
+        deleteObject('graphic', this.getProperty('floorTileId'));
         
         //draw new floor tile:
-        var floorDimensions = new segment(new point(left, top), new point(left + a.getProperty('width'), top + a.getProperty('height')));
-        var floorTile = createTokenObject(floorImageUrl, this.getProperty('pageId'), 'map', floorDimensions);
+        var floorTile = createTokenObject(floorImageUrl, this.getProperty('pageId'), 'map', new segment(new point(left, top), new point(left + a.getProperty('width'), top + a.getProperty('height'))));
+        this.setProperty('floorTileId', floorTile.id);
         
+        //TODO: delete old floor tile mask:
         
         //TODO: draw new floor tile mask:
         
@@ -1174,11 +1178,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     //creates a token object using a segment to define its dimensions:
     createTokenObject = function(imgsrc, pageId, layer, segment) {
-        
-        log('createTokenObject');
-        log(segment);
-        log(Math.max(segment.a.y, segment.b.y));
-        
         return createObj('graphic', {
             imgsrc: imgsrc,
             layer: layer,
