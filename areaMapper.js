@@ -248,6 +248,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this._type.push('areaInstance');
         this._areaId = areaId;
         this._pageId = pageId;
+        this.initializeCollectionProperty('edgeWallIds');
     };
     
     inheritPrototype(areaInstance, typedObject);
@@ -262,8 +263,25 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'floorPolygon': //path object
                 this['_' + property] = value;
                 break;
+            case 'edgeWallIds': //tokens
+                return this['_' + property].push(value) - 1;
             default:
                 typedObject.prototype.setProperty.call(this, property, value);
+                break;
+        }
+    };
+    
+    areaInstance.prototype.initializeCollectionProperty = function(property, value) {
+        switch(property) {
+            case 'edgeWallIds':
+                if('undefined' === typeof(value)) {
+                    this['_' + property] = [];
+                } else {
+                    this['_' + property] = value;
+                }
+                break;
+            default:
+                typedObject.prototype.initializeCollectionProperty.call(this, property);
                 break;
         }
     };
@@ -298,6 +316,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 case 'left':
                     this.setProperty(areaInstanceState[i][0], areaInstanceState[i][1]);
                     break;
+                case 'edgeWallIds':
+                    this.initializeCollectionProperty(areaInstanceState[i][0], areaInstanceState[i][1]);
+                    break;
                 case 'floorPolygonId':
                     if(areaInstanceState[i][1].length > 0) {
                         var floorPolygon = getObj('path', areaInstanceState[i][1]);
@@ -323,6 +344,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         areaInstanceState.push(['top', this.getProperty('top')]);
         areaInstanceState.push(['left', this.getProperty('left')]);
         areaInstanceState.push(['floorPolygonId', this.getProperty('floorPolygon') ? this.getProperty('floorPolygon').id : '']);
+        areaInstanceState.push(['edgeWallIds', this.getProperty('edgeWallIds')]);
         
         //remove existing area instance state:
         var areaInstances = state.APIAreaMapper.areaInstances;
@@ -360,18 +382,25 @@ var APIAreaMapper = APIAreaMapper || (function() {
         a.setProperty('id', this.getProperty('areaId'));
         a.load();
         
-        //create new floorPolygon on map layer:
-        var floorPolygon = drawPathObject(this.getProperty('pageId'), 'map', '#0000ff', 'transparent', a.getProperty('floorPlan'), top, left);
+        //create new floorPolygon:
+        var floorPolygon = null;
+        //floorPolygon = drawPathObject(this.getProperty('pageId'), 'map', '#0000ff', 'transparent', a.getProperty('floorPlan'), top, left);
+        this.setProperty('floorPolygon', floorPolygon);
         
-        //draw walls:
+        //delete old edge walls:
+        this.getProperty('edgeWallIds').forEach(function(wId) {
+            deleteObject('graphic', wId);
+        }, this);
+        this.initializeCollectionProperty('edgeWallIds');
+        
+        //draw new edge walls:
         var g = new graph();
         g.initialize();
         var opIndex = g.addOutlinePolygon(a.getProperty('floorPlan'), top, left);
         g.getProperty('outlinePolygons')[opIndex].segments.forEach(function(s) {
-            createTokenObjectFromSegment(wallImageUrl, this.getProperty('pageId'), 'objects', s, 6);
+            this.setProperty('edgeWallIds', createTokenObjectFromSegment(wallImageUrl, this.getProperty('pageId'), 'map', s, 20).id);
         }, this);
-        
-        this.setProperty('floorPolygon', floorPolygon);
+       
         this.save();
     };
     
@@ -993,6 +1022,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }
     };
     
+    //TODO: move this to constructor:
     graph.prototype.initialize = function() {
         this.initializeCollectionProperty('complexPolygons');
         this.initializeCollectionProperty('outlinePolygons');
@@ -1068,7 +1098,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     /* roll20 object management - begin */
     
-    var drawPathObject = function(pageId, layer, stroke, fill, path, top, left) {
+    var deleteObject = function(type, id) {
+        var obj = getObj(type, id);
+        if(obj) {
+            obj.remove();
+        }
+    },
+    
+    drawPathObject = function(pageId, layer, stroke, fill, path, top, left) {
         state.APIAreaMapper.tempIgnoreAddPath = true;
         
         var obj = createObj('path', {
@@ -1095,7 +1132,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             width: width,
             top: segment.b.y + ((segment.a.y - segment.b.y) / 2),
             left: segment.b.x + ((segment.a.x - segment.b.x) / 2),
-            height: segment.length(),
+            height: segment.length() + 16,
             rotation: segment.angleDegrees(segment.a) + 90
         });
     },
@@ -1252,47 +1289,45 @@ var APIAreaMapper = APIAreaMapper || (function() {
     },
     
     handlePathAdd = function(path) {
-        if(!state.APIAreaMapper.tempIgnoreAddPath) {
-            if(state.APIAreaMapper.recordAreaMode) {
-                switch(state.APIAreaMapper.recordAreaMode) {
-                    case 'areaCreate':
-                        var a = new area();
-                        a.create(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
-                        state.APIAreaMapper.activeArea = a.getProperty('id');
-                       
-                        path.remove();
-                        
-                        state.APIAreaMapper.recordAreaMode = 'areaAppend';
-                        break;
-                    case 'areaAppend':
-                        if(!state.APIAreaMapper.activeArea) {
-                            log('An area needs to be active before appending.');
-                            return;
-                        }
-                        
-                        var a = new area();
-                        a.setProperty('id', state.APIAreaMapper.activeArea);
-                        a.load();
-                        a.floorPlanAppend(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+        if(!state.APIAreaMapper.tempIgnoreAddPath && state.APIAreaMapper.recordAreaMode) {
+            switch(state.APIAreaMapper.recordAreaMode) {
+                case 'areaCreate':
+                    var a = new area();
+                    a.create(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                    state.APIAreaMapper.activeArea = a.getProperty('id');
+                   
+                    path.remove();
                     
-                        path.remove();
-                        break;
-                    case 'areaRemove':
-                        if(!state.APIAreaMapper.activeArea) {
-                            log('An area needs to be active before appending.');
-                            return;
-                        }
-                        
-                        var a = new area();
-                        a.setProperty('id', state.APIAreaMapper.activeArea);
-                        a.load();
-                        a.floorPlanRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
-                 
-                        path.remove();
-                        break;
-                    default:
-                        break;
-                }
+                    state.APIAreaMapper.recordAreaMode = 'areaAppend';
+                    break;
+                case 'areaAppend':
+                    if(!state.APIAreaMapper.activeArea) {
+                        log('An area needs to be active before appending.');
+                        return;
+                    }
+                    
+                    var a = new area();
+                    a.setProperty('id', state.APIAreaMapper.activeArea);
+                    a.load();
+                    a.floorPlanAppend(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                
+                    path.remove();
+                    break;
+                case 'areaRemove':
+                    if(!state.APIAreaMapper.activeArea) {
+                        log('An area needs to be active before appending.');
+                        return;
+                    }
+                    
+                    var a = new area();
+                    a.setProperty('id', state.APIAreaMapper.activeArea);
+                    a.load();
+                    a.floorPlanRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+             
+                    path.remove();
+                    break;
+                default:
+                    break;
             }
         }
     },
