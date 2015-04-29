@@ -2,14 +2,15 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.1,
-        schemaVersion = 0.1,
+    var version = 0.02,
+        schemaVersion = 0.02,
         buttonBackgroundColor = '#E92862',
         buttonHighlightColor = '#00FF00',
         mainBackgroundColor = '#3D8FE1',
         headerBackgroundColor = '#386EA5',
         notificationBackgroundColor = '#64EED7',
         wallImageUrl = 'https://s3.amazonaws.com/files.d20.io/images/9089092/XSZ5ydJTf3QplrTkpEwFQg/thumb.png?1430187885',
+        floorImageUrl = 'https://s3.amazonaws.com/files.d20.io/images/48971/thumb.jpg?1340229647',
         
     checkInstall = function() {
         
@@ -113,6 +114,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         switch(property) {
             case 'id':
             case 'floorPlan': //path-ready list of coordinates representing a clean polygon
+            case 'width':
+            case 'height':
                 this['_' + property] = value;
                 break;
             default:
@@ -129,6 +132,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var rp = g.getRawPath('outlinePolygons', op);
         this.setProperty('id', Math.random());
         this.setProperty('floorPlan', rp.rawPath);
+        this.setProperty('width', rp.width);
+        this.setProperty('height', rp.height);
         this.save();
         this.draw(pageId, rp.top, rp.left);
     };
@@ -155,6 +160,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
             switch(areaState[i][0]) {
                 case 'id':
                 case 'floorPlan':
+                case 'width':
+                case 'height':
                     this.setProperty(areaState[i][0], areaState[i][1]);
                     break;
                 default:
@@ -168,6 +175,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var areaState = [];
         areaState.push(['id', this.getProperty('id')]);
         areaState.push(['floorPlan', this.getProperty('floorPlan')]);
+        areaState.push(['width', this.getProperty('width')]);
+        areaState.push(['height', this.getProperty('height')]);
         
         //remove existing area state:
         var id = this.getProperty('id');
@@ -210,6 +219,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         if(mergedOpIndex !== null) {
             var rp = g.getRawPath('outlinePolygons', mergedOpIndex);
             this.setProperty('floorPlan', rp.rawPath);
+            this.setProperty('width', rp.width);
+            this.setProperty('height', rp.height);
             this.save();
             this.draw(pageId, rp.top, rp.left);
         }
@@ -232,6 +243,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         if('undefined' !== typeof(mergedOpIndex)) {
             var rp = g.getRawPath('outlinePolygons', mergedOpIndex);
             this.setProperty('floorPlan', rp.rawPath);
+            this.setProperty('width', rp.width);
+            this.setProperty('height', rp.height);
             this.save();
             this.draw(pageId, rp.top, rp.left);
         }
@@ -387,6 +400,21 @@ var APIAreaMapper = APIAreaMapper || (function() {
         //floorPolygon = drawPathObject(this.getProperty('pageId'), 'map', '#0000ff', 'transparent', a.getProperty('floorPlan'), top, left);
         this.setProperty('floorPolygon', floorPolygon);
         
+        
+        
+        
+        //TODO: delete old floor tile:
+        //TODO: delete old floor tile mask:
+        
+        //draw new floor tile:
+        var floorDimensions = new segment(new point(left, top), new point(left + a.getProperty('width'), top + a.getProperty('height')));
+        var floorTile = createTokenObject(floorImageUrl, this.getProperty('pageId'), 'map', floorDimensions);
+        
+        
+        //TODO: draw new floor tile mask:
+        
+        
+        
         //delete old edge walls:
         this.getProperty('edgeWallIds').forEach(function(wId) {
             deleteObject('graphic', wId);
@@ -400,6 +428,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         g.getProperty('outlinePolygons')[opIndex].segments.forEach(function(s) {
             this.setProperty('edgeWallIds', createTokenObjectFromSegment(wallImageUrl, this.getProperty('pageId'), 'map', s, 20).id);
         }, this);
+        
+        
        
         this.save();
     };
@@ -868,13 +898,16 @@ var APIAreaMapper = APIAreaMapper || (function() {
             return;
         }
         
-        //var pointsCopy = this.points;
         var minX = this.points[0][0].x;
         var minY = this.points[0][0].y;
+        var maxX = this.points[0][0].x;
+        var maxY = this.points[0][0].y;
         
         this.points.forEach(function(p) {
             minX = Math.min(minX, p[0].x);
             minY = Math.min(minY, p[0].y);
+            maxX = Math.max(maxX, p[0].x);
+            maxY = Math.max(maxY, p[0].y);
         }, this);
         
         var rawPath = '[[\"M\",' + (this.points[0][0].x - minX) + ',' + (this.points[0][0].y - minY) + ']';
@@ -888,6 +921,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         returnObject.rawPath = rawPath;
         returnObject.top = minY;
         returnObject.left = minX;
+        returnObject.width = maxX - minX;
+        returnObject.height = maxY - minY;
         return returnObject;
     };
     
@@ -1134,6 +1169,25 @@ var APIAreaMapper = APIAreaMapper || (function() {
             left: segment.b.x + ((segment.a.x - segment.b.x) / 2),
             height: segment.length() + 16,
             rotation: segment.angleDegrees(segment.a) + 90
+        });
+    },
+    
+    //creates a token object using a segment to define its dimensions:
+    createTokenObject = function(imgsrc, pageId, layer, segment) {
+        
+        log('createTokenObject');
+        log(segment);
+        log(Math.max(segment.a.y, segment.b.y));
+        
+        return createObj('graphic', {
+            imgsrc: imgsrc,
+            layer: layer,
+            pageid: pageId,
+            top: segment.b.y + ((segment.a.y - segment.b.y) / 2),
+            left: segment.b.x + ((segment.a.x - segment.b.x) / 2),
+            height: segment.b.y - segment.a.y,
+            width: segment.b.x - segment.a.x,
+            rotation: 0
         });
     },
     
