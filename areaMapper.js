@@ -126,7 +126,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     area.prototype.create = function(rawPath, pageId, top, left, isFromEvent) {
         var g = new graph();
-        g.initialize();
         g.addComplexPolygon(rawPath, top, left, isFromEvent);
         var op = g.convertComplexPolygonToOutlinePolygon(0);
         var rp = g.getRawPath('outlinePolygons', op);
@@ -203,7 +202,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
     area.prototype.floorPlanAppend = function(rawPath, pageId, top, left, isFromEvent) {
         //get an outline polygon from the rawPath:
         var g = new graph();
-        g.initialize();
         g.addComplexPolygon(rawPath, top, left, isFromEvent);
         var appendOpIndex = g.convertComplexPolygonToOutlinePolygon(0);
         
@@ -228,7 +226,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     area.prototype.floorPlanRemove = function(rawPath, pageId, top, left, isFromEvent) {
         var g = new graph();
-        g.initialize();
         g.addComplexPolygon(rawPath, top, left, isFromEvent);
         var removeOpIndex = g.convertComplexPolygonToOutlinePolygon(0);
         
@@ -407,7 +404,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var page = getObj('page', this.getProperty('pageId'));
         var maskColor = page.get('background_color');
         var g = new graph();
-        g.initialize();
         var floorPlanOpIndex = g.addOutlinePolygon(a.getProperty('floorPlan'), top, left);
         var floorMaskOpIndex = g.invertOutlinePolygon(floorPlanOpIndex);
         var floorMaskRawPath = g.getRawPath('outlinePolygons', floorMaskOpIndex);
@@ -1072,6 +1068,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
     var graph = function() {
         typedObject.call(this);
         this._type.push('graph');
+        this.initializeCollectionProperty('complexPolygons');
+        this.initializeCollectionProperty('outlinePolygons');
     };
     
     inheritPrototype(graph, typedObject);
@@ -1098,12 +1096,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 typedObject.prototype.initializeCollectionProperty.call(this, property);
                 break;
         }
-    };
-    
-    //TODO: move this to constructor:
-    graph.prototype.initialize = function() {
-        this.initializeCollectionProperty('complexPolygons');
-        this.initializeCollectionProperty('outlinePolygons');
     };
     
     graph.prototype.addComplexPolygon = function(rawPath, top, left, isFromEvent) {
