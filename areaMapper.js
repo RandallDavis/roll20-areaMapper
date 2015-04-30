@@ -9,7 +9,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         mainBackgroundColor = '#3D8FE1',
         headerBackgroundColor = '#386EA5',
         notificationBackgroundColor = '#64EED7',
-        wallImageUrl = 'https://s3.amazonaws.com/files.d20.io/images/9089092/XSZ5ydJTf3QplrTkpEwFQg/thumb.png?1430187885',
+        wallImageUrl = 'https://s3.amazonaws.com/files.d20.io/images/9135040/iotz-ReGEKdEqcMnwAVqIw/thumb.png?1430355896',
         floorImageUrl = 'https://s3.amazonaws.com/files.d20.io/images/48971/thumb.jpg?1340229647',
         
     checkInstall = function() {
@@ -436,7 +436,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         //draw new edge walls:
         g.getProperty('outlinePolygons')[floorPlanOpIndex].segments.forEach(function(s) {
-            this.setProperty('edgeWallIds', createTokenObjectFromSegment(wallImageUrl, this.getProperty('pageId'), 'objects', s, 20).id);
+            this.setProperty('edgeWallIds', createTokenObjectFromSegment(wallImageUrl, this.getProperty('pageId'), 'objects', s, 200).id);
         }, this);
        
         this.save();
@@ -1226,7 +1226,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             width: width,
             top: segment.b.y + ((segment.a.y - segment.b.y) / 2),
             left: segment.b.x + ((segment.a.x - segment.b.x) / 2),
-            height: segment.length() + 16,
+            height: segment.length() + 14,
             rotation: segment.angleDegrees(segment.a) + 90
         });
         toFront(obj);
