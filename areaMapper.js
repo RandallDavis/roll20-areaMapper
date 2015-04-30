@@ -359,6 +359,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var areaInstances = state.APIAreaMapper.areaInstances;
         var oldAreaInstanceState;
         for(var i = 0; i < areaInstances.length; i++) {
+            
             //note: expects areaId and pageId to be the first and second properties:
             if(areaInstances[i][0] === this.getProperty('areaId')
                     && areaInstances[i][1] === this.getProperty('pageId')) {
@@ -390,7 +391,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         //create new floorPolygon:
         var floorPolygon = null;
-        //floorPolygon = drawPathObject(this.getProperty('pageId'), 'map', '#0000ff', 'transparent', a.getProperty('floorPlan'), top, left);
         this.setProperty('floorPolygonId', floorPolygon ? floorPolygon.id : '');
         
         //delete old floor tile:
@@ -437,7 +437,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     /* polygon logic - begin */
     
     /*
-    Points, segments, and angles are kept as simple, non-polymorphic datatypes for efficiency purposes.
+    Points, segments, and angles are kept as simple, non-polymorphic datatypes for performance.
     */
     
     var point = function(x, y) {
@@ -470,6 +470,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
     segment = function(a, b) {
         this.a = a;
         this.b = b;
+        
+        this.equals = function(comparedSegment) {
+            return (this.a.equals(comparedSegment.a) && this.b.equals(comparedSegment.b))
+                    || (this.a.equals(comparedSegment.b) && this.b.equals(comparedSegment.a));
+        };
             
         this.length = function() {
             var xDist = b.x - a.x;
@@ -497,6 +502,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     //this is a modified version of https://gist.github.com/Joncom/e8e8d18ebe7fe55c3894
     segmentsIntersect = function(s1, s2) {
+        
         //exclude segments with shared endpoints:
         if(s1.a.equals(s2.a) || s1.a.equals(s2.b) || s1.b.equals(s2.a) || s1.b.equals(s2.b)) {
             return null;
@@ -537,19 +543,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return;
     };
     
-    //TODO: make get segment index and ditch this method
-    //find item in container; if position is defined, it represents the index in a nested array:
-    polygon.prototype.getItemIndex = function(container, item, position) {
-        var index;
-        
-        for(var i = 0; i < container.length; i++) {
-            if(item === (((container.length > 0) && ('undefined' !== typeof(position))) ? container[i][position] : container[i])) {
-                index = i;
-                break;
+    polygon.prototype.getSegmentIndex = function(s) {
+        for(var i = 0; i < this.segments.length; i++) {
+            if(s.equals(this.segments[i])) {
+                return i;
             }
         }
         
-        return index;
+        return;
     };
     
     polygon.prototype.addPoint = function(p) {
@@ -565,7 +566,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     };
     
     polygon.prototype.removeSegment = function(s) {
-        var iS = this.getItemIndex(this.segments, s);
+        var iS = this.getSegmentIndex(s);
             
         //remove segment from points:
         for(var pI = this.points.length - 1; pI >= 0; pI--) {
@@ -771,6 +772,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     };
     
     complexPolygon.prototype.convertToOutlinePolygon = function() {
+        
         //find the smallest x points, and of those, take the greatest y:
         var iTopLeftPoint = 0;
         for(var i = 0; i < this.points.length; i++) {
@@ -968,6 +970,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     }
                 }, this);
                 
+                //there can only be 0 intersectionPoints because of the hasInside() bug:
                 if(intersectionPoints.length == 0) {
                     
                     //avoid the 'rop.hasInside()' failure bug (which is pretty rare) by hacking this point back in:
