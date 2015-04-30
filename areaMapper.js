@@ -866,7 +866,25 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         //find segments that intersect the point horizontally:
         this.segments.forEach(function(s) {
+            
+            //find a naturally occurring intersection point:
             var intersectingPoint = segmentsIntersect(horizontalSegment, s);
+            
+            //if there was no natural intersection point, test for a segment endpoint hitting the horizontal segment:
+            if(!intersectingPoint) {
+                
+                /*
+                If an endpoint on the segment is on the horizontal segment, count it as an intersecting segment if it is angling down from 
+                that point's perspective. This will result in two segments traveling through the horizontal segment to register as odd, and
+                will ignore any horizontal segments that are overlapping the horizontal segment.
+                */
+                if(s.a.y === p.y && s.b.y - s.a.y > 0) {
+                    intersectingPoint = s.a;
+                } else if(s.b.y === p.y && s.a.y - s.b.y > 0) {
+                    intersectingPoint = s.b;
+                }
+            }
+            
             if(intersectingPoint && intersectingPoint.x < p.x) {
                 pointsOnLeft++;
             }
@@ -924,7 +942,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
         //points will be converted into a datatype that is better for this algorithm:
         var testedPoints = [];
         
-        //TODO: fix bug where hasInside() is failing (rarely) when it should succeed:
         //test all points to see which are contained in rop:
         this.points.forEach(function(p) {
             testedPoints.push([p[0], rop.hasInside(p[0])]);
@@ -966,28 +983,20 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     }
                 }, this);
                 
-                //there can only be 0 intersectionPoints because of the hasInside() bug:
-                if(intersectionPoints.length == 0) {
-                    
-                    //avoid the 'rop.hasInside()' failure bug (which is pretty rare) by hacking this point back in:
-                    testedPoints.splice(i, 0, [testedPoints[i][0], null]);
-                } else {
-                    
-                    //find the most invasive intersection point:
-                    var intersectionPoint;
-                    var intersectionPointDistance = 1000000000; //this will be corrected in the first iteration
-                    var pointNotContained = thisTest ? s.b : s.a;
-                    intersectionPoints.forEach(function(p) {
-                        var distance = new segment(pointNotContained, p).length();
-                        if(distance < intersectionPointDistance) {
-                            intersectionPoint = p;
-                            intersectionPointDistance = distance;
-                        }
-                    }, this);
-                    
-                    //insert the intersection point inbetween the two points:
-                    testedPoints.splice(i, 0, [intersectionPoint, null]);
-                }
+                //find the most invasive intersection point:
+                var intersectionPoint;
+                var intersectionPointDistance = 1000000000; //this will be corrected in the first iteration
+                var pointNotContained = thisTest ? s.b : s.a;
+                intersectionPoints.forEach(function(p) {
+                    var distance = new segment(pointNotContained, p).length();
+                    if(distance < intersectionPointDistance) {
+                        intersectionPoint = p;
+                        intersectionPointDistance = distance;
+                    }
+                }, this);
+                
+                //insert the intersection point inbetween the two points:
+                testedPoints.splice(i, 0, [intersectionPoint, null]);
                 
                 //increment indexes because we added a point:
                 if(i <= controlPointIndex) {
