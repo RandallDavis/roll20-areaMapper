@@ -2,14 +2,15 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.1,
-        schemaVersion = 0.1,
+    var version = 0.02,
+        schemaVersion = 0.02,
         buttonBackgroundColor = '#E92862',
         buttonHighlightColor = '#00FF00',
         mainBackgroundColor = '#3D8FE1',
         headerBackgroundColor = '#386EA5',
         notificationBackgroundColor = '#64EED7',
         wallImageUrl = 'https://s3.amazonaws.com/files.d20.io/images/9089092/XSZ5ydJTf3QplrTkpEwFQg/thumb.png?1430187885',
+        floorImageUrl = 'https://s3.amazonaws.com/files.d20.io/images/48971/thumb.jpg?1340229647',
         
     checkInstall = function() {
         
@@ -113,6 +114,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         switch(property) {
             case 'id':
             case 'floorPlan': //path-ready list of coordinates representing a clean polygon
+            case 'width':
+            case 'height':
                 this['_' + property] = value;
                 break;
             default:
@@ -129,6 +132,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var rp = g.getRawPath('outlinePolygons', op);
         this.setProperty('id', Math.random());
         this.setProperty('floorPlan', rp.rawPath);
+        this.setProperty('width', rp.width);
+        this.setProperty('height', rp.height);
         this.save();
         this.draw(pageId, rp.top, rp.left);
     };
@@ -155,6 +160,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
             switch(areaState[i][0]) {
                 case 'id':
                 case 'floorPlan':
+                case 'width':
+                case 'height':
                     this.setProperty(areaState[i][0], areaState[i][1]);
                     break;
                 default:
@@ -168,6 +175,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var areaState = [];
         areaState.push(['id', this.getProperty('id')]);
         areaState.push(['floorPlan', this.getProperty('floorPlan')]);
+        areaState.push(['width', this.getProperty('width')]);
+        areaState.push(['height', this.getProperty('height')]);
         
         //remove existing area state:
         var id = this.getProperty('id');
@@ -210,6 +219,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         if(mergedOpIndex !== null) {
             var rp = g.getRawPath('outlinePolygons', mergedOpIndex);
             this.setProperty('floorPlan', rp.rawPath);
+            this.setProperty('width', rp.width);
+            this.setProperty('height', rp.height);
             this.save();
             this.draw(pageId, rp.top, rp.left);
         }
@@ -232,6 +243,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         if('undefined' !== typeof(mergedOpIndex)) {
             var rp = g.getRawPath('outlinePolygons', mergedOpIndex);
             this.setProperty('floorPlan', rp.rawPath);
+            this.setProperty('width', rp.width);
+            this.setProperty('height', rp.height);
             this.save();
             this.draw(pageId, rp.top, rp.left);
         }
@@ -260,7 +273,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'area':
             case 'top':
             case 'left':
-            case 'floorPolygon': //path object
+            case 'floorTileId': //token
+            case 'floorPolygon': //path
+            case 'floorMaskId': //path
                 this['_' + property] = value;
                 break;
             case 'edgeWallIds': //tokens
@@ -314,6 +329,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 case 'pageId':
                 case 'top':
                 case 'left':
+                case 'floorTileId':
+                case 'floorMaskId':
                     this.setProperty(areaInstanceState[i][0], areaInstanceState[i][1]);
                     break;
                 case 'edgeWallIds':
@@ -344,6 +361,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         areaInstanceState.push(['top', this.getProperty('top')]);
         areaInstanceState.push(['left', this.getProperty('left')]);
         areaInstanceState.push(['floorPolygonId', this.getProperty('floorPolygon') ? this.getProperty('floorPolygon').id : '']);
+        areaInstanceState.push(['floorTileId', this.getProperty('floorTileId')]);
+        areaInstanceState.push(['floorMaskId', this.getProperty('floorMaskId')]);
         areaInstanceState.push(['edgeWallIds', this.getProperty('edgeWallIds')]);
         
         //remove existing area instance state:
@@ -371,6 +390,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this.setProperty('top', top);
         this.setProperty('left', left);
         
+        //TODO: why bother holding the object? just use IDs:
         //remove existing floorPolygon:
         var oldFloorPolygon = this.getProperty('floorPolygon');
         if(oldFloorPolygon) {
@@ -387,6 +407,27 @@ var APIAreaMapper = APIAreaMapper || (function() {
         //floorPolygon = drawPathObject(this.getProperty('pageId'), 'map', '#0000ff', 'transparent', a.getProperty('floorPlan'), top, left);
         this.setProperty('floorPolygon', floorPolygon);
         
+        //delete old floor tile:
+        deleteObject('graphic', this.getProperty('floorTileId'));
+        
+        //draw new floor tile:
+        var floorTile = createTokenObject(floorImageUrl, this.getProperty('pageId'), 'map', new segment(new point(left, top), new point(left + a.getProperty('width'), top + a.getProperty('height'))));
+        this.setProperty('floorTileId', floorTile.id);
+        
+        //delete old floor tile mask:
+        deleteObject('path', this.getProperty('floorMaskId'));
+        
+        //draw new floor tile mask:
+        var page = getObj('page', this.getProperty('pageId'));
+        var maskColor = page.get('background_color');
+        var g = new graph();
+        g.initialize();
+        var floorPlanOpIndex = g.addOutlinePolygon(a.getProperty('floorPlan'), top, left);
+        var floorMaskOpIndex = g.invertOutlinePolygon(floorPlanOpIndex);
+        var floorMaskRawPath = g.getRawPath('outlinePolygons', floorMaskOpIndex);
+        var floorMask = drawPathObject(this.getProperty('pageId'), 'map', maskColor, maskColor, floorMaskRawPath.rawPath, floorMaskRawPath.top, floorMaskRawPath.left);
+        this.setProperty('floorMaskId', floorMask.id);
+        
         //delete old edge walls:
         this.getProperty('edgeWallIds').forEach(function(wId) {
             deleteObject('graphic', wId);
@@ -394,11 +435,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this.initializeCollectionProperty('edgeWallIds');
         
         //draw new edge walls:
-        var g = new graph();
-        g.initialize();
-        var opIndex = g.addOutlinePolygon(a.getProperty('floorPlan'), top, left);
-        g.getProperty('outlinePolygons')[opIndex].segments.forEach(function(s) {
-            this.setProperty('edgeWallIds', createTokenObjectFromSegment(wallImageUrl, this.getProperty('pageId'), 'map', s, 20).id);
+        g.getProperty('outlinePolygons')[floorPlanOpIndex].segments.forEach(function(s) {
+            this.setProperty('edgeWallIds', createTokenObjectFromSegment(wallImageUrl, this.getProperty('pageId'), 'objects', s, 20).id);
         }, this);
        
         this.save();
@@ -868,13 +906,16 @@ var APIAreaMapper = APIAreaMapper || (function() {
             return;
         }
         
-        //var pointsCopy = this.points;
         var minX = this.points[0][0].x;
         var minY = this.points[0][0].y;
+        var maxX = this.points[0][0].x;
+        var maxY = this.points[0][0].y;
         
         this.points.forEach(function(p) {
             minX = Math.min(minX, p[0].x);
             minY = Math.min(minY, p[0].y);
+            maxX = Math.max(maxX, p[0].x);
+            maxY = Math.max(maxY, p[0].y);
         }, this);
         
         var rawPath = '[[\"M\",' + (this.points[0][0].x - minX) + ',' + (this.points[0][0].y - minY) + ']';
@@ -888,6 +929,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         returnObject.rawPath = rawPath;
         returnObject.top = minY;
         returnObject.left = minX;
+        returnObject.width = maxX - minX;
+        returnObject.height = maxY - minY;
         return returnObject;
     };
     
@@ -988,6 +1031,52 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var newOp = new outlinePolygon();
         newOp.addPointsPath(pointsPath);
         return newOp;
+    };
+    
+    outlinePolygon.prototype.invert = function() {
+        var invertedPoints = this.getPointsPath();
+        
+        var minX = invertedPoints[0].x;
+        var minY = invertedPoints[0].y;
+        var maxX = invertedPoints[0].x;
+        var maxY = invertedPoints[0].y;
+        var controlPointIndex = 0;
+        
+        //find the smallest x points, and of those, take the greatest y:
+        for(var i = 0; i < invertedPoints.length; i++) {
+            if((invertedPoints[i].x < invertedPoints[controlPointIndex].x)
+                    || (invertedPoints[i].x == invertedPoints[controlPointIndex].x && invertedPoints[i].y > invertedPoints[controlPointIndex].y)) {
+                controlPointIndex = i;
+            }
+            
+            minX = Math.min(minX, invertedPoints[i].x);
+            minY = Math.min(minY, invertedPoints[i].y);
+            maxX = Math.max(maxX, invertedPoints[i].x);
+            maxY = Math.max(maxY, invertedPoints[i].y);
+        }
+        
+        //the inverted border needs to be this much larger than the original polygon:
+        var invertedBorderDistance = 1;
+        
+        //insert a point immediately down from the control point to branch off from:
+        invertedPoints.splice(controlPointIndex + 1, 0, new point(invertedPoints[controlPointIndex].x, invertedPoints[controlPointIndex].y + 1));
+        
+        //branch the new point to the edge of the inverted border:
+        invertedPoints.splice(controlPointIndex + 1, 0, new point(minX - invertedBorderDistance, invertedPoints[controlPointIndex].y + 1));
+        
+        //draw the inverted border corners stemming from control point:
+        invertedPoints.splice(controlPointIndex + 1, 0, new point(minX - invertedBorderDistance, maxY + invertedBorderDistance));
+        invertedPoints.splice(controlPointIndex + 1, 0, new point(maxX + invertedBorderDistance, maxY + invertedBorderDistance));
+        invertedPoints.splice(controlPointIndex + 1, 0, new point(maxX + invertedBorderDistance, minY - invertedBorderDistance));
+        invertedPoints.splice(controlPointIndex + 1, 0, new point(minX - invertedBorderDistance, minY - invertedBorderDistance));
+        
+        //insert a point from the control point leading to the edge of the inverted border:
+        invertedPoints.splice(controlPointIndex + 1, 0, new point(minX - invertedBorderDistance, invertedPoints[controlPointIndex].y));
+        
+        var op = new outlinePolygon();
+        op.addPointsPath(invertedPoints);
+        
+        return op;
     };
     
     
@@ -1093,6 +1182,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         return this.setProperty('outlinePolygons', op3);
     };
+    
+    graph.prototype.invertOutlinePolygon = function(index) {
+        var invertedOp = this.getProperty('outlinePolygons')[index].invert();
+        return this.setProperty('outlinePolygons', invertedOp);
+    };
      
     /* polygon logic - end */
     
@@ -1125,7 +1219,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     },
     
     createTokenObjectFromSegment = function(imgsrc, pageId, layer, segment, width) {
-        return createObj('graphic', {
+        var obj = createObj('graphic', {
             imgsrc: imgsrc,
             layer: layer,
             pageid: pageId,
@@ -1135,6 +1229,24 @@ var APIAreaMapper = APIAreaMapper || (function() {
             height: segment.length() + 16,
             rotation: segment.angleDegrees(segment.a) + 90
         });
+        toFront(obj);
+        return obj;
+    },
+    
+    //creates a token object using a segment to define its dimensions:
+    createTokenObject = function(imgsrc, pageId, layer, segment) {
+        var obj = createObj('graphic', {
+            imgsrc: imgsrc,
+            layer: layer,
+            pageid: pageId,
+            top: segment.b.y + ((segment.a.y - segment.b.y) / 2),
+            left: segment.b.x + ((segment.a.x - segment.b.x) / 2),
+            height: segment.b.y - segment.a.y,
+            width: segment.b.x - segment.a.x,
+            rotation: 0
+        });
+        toFront(obj);
+        return obj;
     },
     
     /* roll20 object management - end */
