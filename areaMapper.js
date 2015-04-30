@@ -2,7 +2,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.02,
+    var version = 0.03,
         schemaVersion = 0.02,
         buttonBackgroundColor = '#E92862',
         buttonHighlightColor = '#00FF00',
@@ -273,8 +273,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'area':
             case 'top':
             case 'left':
+            case 'floorPolygonId': //path
             case 'floorTileId': //token
-            case 'floorPolygon': //path
             case 'floorMaskId': //path
                 this['_' + property] = value;
                 break;
@@ -329,23 +329,13 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 case 'pageId':
                 case 'top':
                 case 'left':
+                case 'floorPolygonId':
                 case 'floorTileId':
                 case 'floorMaskId':
                     this.setProperty(areaInstanceState[i][0], areaInstanceState[i][1]);
                     break;
                 case 'edgeWallIds':
                     this.initializeCollectionProperty(areaInstanceState[i][0], areaInstanceState[i][1]);
-                    break;
-                case 'floorPolygonId':
-                    if(areaInstanceState[i][1].length > 0) {
-                        var floorPolygon = getObj('path', areaInstanceState[i][1]);
-                        if(floorPolygon) {
-                            this.setProperty('floorPolygon', floorPolygon);
-                        } else {
-                            log('Could not find floorPolygon matching ID "' + areaInstanceState[i][1] + '" in areaInstance.load().');
-                        }
-                    }
-                    
                     break;
                 default:
                     log('Unknown property "' + areaInstanceState[i][0] + '" in areaInstance.load().');
@@ -360,7 +350,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         areaInstanceState.push(['pageId', this.getProperty('pageId')]);
         areaInstanceState.push(['top', this.getProperty('top')]);
         areaInstanceState.push(['left', this.getProperty('left')]);
-        areaInstanceState.push(['floorPolygonId', this.getProperty('floorPolygon') ? this.getProperty('floorPolygon').id : '']);
+        areaInstanceState.push(['floorPolygonId', this.getProperty('floorPolygonId')]);
         areaInstanceState.push(['floorTileId', this.getProperty('floorTileId')]);
         areaInstanceState.push(['floorMaskId', this.getProperty('floorMaskId')]);
         areaInstanceState.push(['edgeWallIds', this.getProperty('edgeWallIds')]);
@@ -390,12 +380,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this.setProperty('top', top);
         this.setProperty('left', left);
         
-        //TODO: why bother holding the object? just use IDs:
         //remove existing floorPolygon:
-        var oldFloorPolygon = this.getProperty('floorPolygon');
-        if(oldFloorPolygon) {
-            oldFloorPolygon.remove();
-        }
+        deleteObject('graphic', this.getProperty('floorPolygonId'));
         
         //get the floorPlan from the area:
         var a = new area();
@@ -405,7 +391,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         //create new floorPolygon:
         var floorPolygon = null;
         //floorPolygon = drawPathObject(this.getProperty('pageId'), 'map', '#0000ff', 'transparent', a.getProperty('floorPlan'), top, left);
-        this.setProperty('floorPolygon', floorPolygon);
+        this.setProperty('floorPolygonId', floorPolygon ? floorPolygon.id : '');
         
         //delete old floor tile:
         deleteObject('graphic', this.getProperty('floorTileId'));
