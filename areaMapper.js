@@ -9,7 +9,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         mainBackgroundColor = '#3D8FE1',
         headerBackgroundColor = '#386EA5',
         notificationBackgroundColor = '#64EED7',
-        wallImageUrl = 'https://s3.amazonaws.com/files.d20.io/images/9135040/iotz-ReGEKdEqcMnwAVqIw/thumb.png?1430355896',
+        wallImageUrl = 'https://s3.amazonaws.com/files.d20.io/images/9136034/foLUiyrb1qQyK-pkkLKpTg/thumb.png?1430357960',
         floorImageUrl = 'https://s3.amazonaws.com/files.d20.io/images/48971/thumb.jpg?1340229647',
         
     checkInstall = function() {
@@ -436,7 +436,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         //draw new edge walls:
         g.getProperty('outlinePolygons')[floorPlanOpIndex].segments.forEach(function(s) {
-            this.setProperty('edgeWallIds', createTokenObjectFromSegment(wallImageUrl, this.getProperty('pageId'), 'objects', s, 200).id);
+            this.setProperty('edgeWallIds', createTokenObjectFromSegment(wallImageUrl, this.getProperty('pageId'), 'objects', s, 30).id);
         }, this);
        
         this.save();
