@@ -2,8 +2,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.031,
-        schemaVersion = 0.02,
+    var version = 0.032,
+        schemaVersion = 0.021,
         buttonBackgroundColor = '#E92862',
         buttonHighlightColor = '#00FF00',
         mainBackgroundColor = '#3D8FE1',
@@ -16,14 +16,16 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         log('-=> Area Mapper v'+version+' <=-');
         
-        //TODO: state resets shouldn't destroy areas, and needs the ability to convert them to newer versions to prevent backward compatibile code elsewhere:
+        //TODO: state resets shouldn't destroy areas or preferences, and needs the ability to convert them to newer versions to prevent backward compatibile code elsewhere:
         if(!_.has(state,'APIAreaMapper') || state.APIAreaMapper.version !== schemaVersion) {
             log('APIAreaMapper: Resetting state.');
             state.APIAreaMapper = {
                 version: schemaVersion,
                 areas: [],
                 areaInstances: [],
-                activeArea: null
+                activeArea: null,
+                activePage: null,
+                blueprintFloorPolygonColor: '#A3E1E4'
             };
         } 
         
@@ -33,7 +35,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     resetTemporaryState = function() {
         state.APIAreaMapper.tempIgnoreAddPath = false;
         state.APIAreaMapper.recordAreaMode = false;
-        delete state.APIAreaMapper.tempArea;
+        //state.APIAreaMapper.blueprintMode = false;
     },
     
     inheritPrototype = function(childObject, parentObject) {
@@ -247,6 +249,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }
     };
     
+    area.prototype.undraw = function(pageId) {
+        instance = new areaInstance(this.getProperty('id'), pageId);
+        instance.undraw();
+    };
+    
     area.prototype.draw = function(pageId, top, left) {
         instance = new areaInstance(this.getProperty('id'), pageId);
         instance.draw(top, left);
@@ -372,35 +379,68 @@ var APIAreaMapper = APIAreaMapper || (function() {
         state.APIAreaMapper.areaInstances.push(areaInstanceState);
     };
     
-    areaInstance.prototype.draw = function(top, left) {
+    areaInstance.prototype.undraw = function() {
         this.load();
         
-        this.setProperty('top', top);
-        this.setProperty('left', left);
+        //delete floorPolygon:
+        deleteObject('path', this.getProperty('floorPolygonId'));
+        this.setProperty('floorPolygonId', '');
         
-        //remove existing floorPolygon:
-        deleteObject('graphic', this.getProperty('floorPolygonId'));
+        //delete floor tile:
+        deleteObject('graphic', this.getProperty('floorTileId'));
+        this.setProperty('floorTileId', '');
+        
+        //delete floor tile mask:
+        deleteObject('path', this.getProperty('floorMaskId'));
+        this.setProperty('floorMaskId', '');
+        
+        //delete edge walls:
+        this.getProperty('edgeWallIds').forEach(function(wId) {
+            deleteObject('graphic', wId);
+        }, this);
+        this.initializeCollectionProperty('edgeWallIds');
+        
+        this.save();
+    };
+    
+    areaInstance.prototype.draw = function(top, left) {
+        this.undraw();
+        
+        this.load();
+        
+        if('undefined' !== typeof(top)) {
+            this.setProperty('top', top);
+        }
+        
+        if('undefined' !== typeof(left)) {
+            this.setProperty('left', left);
+        }
+        
+        this.save();
+        
+        if(state.APIAreaMapper.blueprintMode) {
+            this.drawBlueprint();
+        } else {
+            this.drawObjects();
+        }
+    };
+    
+    areaInstance.prototype.drawObjects = function() {
+        this.load();
+        
+        var top = this.getProperty('top');
+        var left = this.getProperty('left');
         
         //get the floorPlan from the area:
         var a = new area();
         a.setProperty('id', this.getProperty('areaId'));
         a.load();
         
-        //create new floorPolygon:
-        var floorPolygon = null;
-        this.setProperty('floorPolygonId', floorPolygon ? floorPolygon.id : '');
-        
-        //delete old floor tile:
-        deleteObject('graphic', this.getProperty('floorTileId'));
-        
         //draw new floor tile:
         var floorTile = createTokenObject(floorImageUrl, this.getProperty('pageId'), 'map', new segment(new point(left, top), new point(left + a.getProperty('width'), top + a.getProperty('height'))));
         this.setProperty('floorTileId', floorTile.id);
         
-        //delete old floor tile mask:
-        deleteObject('path', this.getProperty('floorMaskId'));
-        
-        //draw new floor tile mask:
+        //draw floor tile mask:
         var page = getObj('page', this.getProperty('pageId'));
         var maskColor = page.get('background_color');
         var g = new graph();
@@ -410,17 +450,29 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var floorMask = drawPathObject(this.getProperty('pageId'), 'map', maskColor, maskColor, floorMaskRawPath.rawPath, floorMaskRawPath.top, floorMaskRawPath.left);
         this.setProperty('floorMaskId', floorMask.id);
         
-        //delete old edge walls:
-        this.getProperty('edgeWallIds').forEach(function(wId) {
-            deleteObject('graphic', wId);
-        }, this);
-        this.initializeCollectionProperty('edgeWallIds');
-        
-        //draw new edge walls:
+        //draw edge walls:
         g.getProperty('outlinePolygons')[floorPlanOpIndex].segments.forEach(function(s) {
             this.setProperty('edgeWallIds', createTokenObjectFromSegment(wallImageUrl, this.getProperty('pageId'), 'objects', s, 30).id);
         }, this);
        
+        this.save();
+    };
+    
+    areaInstance.prototype.drawBlueprint = function() {
+        this.load();
+        
+        var top = this.getProperty('top');
+        var left = this.getProperty('left');
+        
+        //get the floorPlan from the area:
+        var a = new area();
+        a.setProperty('id', this.getProperty('areaId'));
+        a.load();
+        
+        //create floorPolygon:
+        var floorPolygon = drawPathObject(this.getProperty('pageId'), 'map', state.APIAreaMapper.blueprintFloorPolygonColor, state.APIAreaMapper.blueprintFloorPolygonColor, a.getProperty('floorPlan'), top, left);
+        this.setProperty('floorPolygonId', floorPolygon.id);
+        
         this.save();
     };
     
@@ -1280,11 +1332,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     //constructs a clickable command:
     commandLink = function(text, command, highlight) {
-        //hightlight defaults to false
+        //note: hightlight defaults to false
         
         //if(state.APIRoomManagement.uiPreference === 0) {
             if(highlight) {
-                //TODO: pad around this:
+                //TODO: pad around this?:
                 return '<span style="border: 1px solid white;display:inline-block;background-color: ' + buttonHighlightColor + ';padding: 3px 3px;"> <a href="!api-area ' + command + '">' + text + '</a> </span> ';
             } else {
                 return '[' + text + '](!api-area ' + command + ') ';
@@ -1308,6 +1360,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     interfaceAreaDrawingOptions = function(to) {
         sendStandardInterface(to, 'Area Mapper',
             commandLinks('Area Drawing', [
+                ['blueprint mode', 'blueprint', state.APIAreaMapper.blueprintMode],
                 ['create new area', 'areaCreate', (state.APIAreaMapper.recordAreaMode == 'areaCreate')],
                 ['add to area', 'areaAppend', (state.APIAreaMapper.recordAreaMode == 'areaAppend')],
                 ['remove from area', 'areaRemove', (state.APIAreaMapper.recordAreaMode == 'areaRemove')]
@@ -1320,6 +1373,16 @@ var APIAreaMapper = APIAreaMapper || (function() {
             state.APIAreaMapper.recordAreaMode = false;
         } else {
             state.APIAreaMapper.recordAreaMode = mode;
+        }
+    },
+    
+    toggleBlueprintMode = function() {
+        state.APIAreaMapper.blueprintMode = !state.APIAreaMapper.blueprintMode;
+        
+        if(state.APIAreaMapper.activeArea) {
+            var a = new area();
+            a.setProperty('id', state.APIAreaMapper.activeArea);
+            a.draw(state.APIAreaMapper.activePage);
         }
     },
     
@@ -1341,6 +1404,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     case 'areaRemove':
                         toggleOrSetAreaRecordMode(chatCommand[1]);
                         break;
+                    case 'blueprint':
+                        toggleBlueprintMode();
+                        break;
                     default:
                         break;
                 }
@@ -1355,6 +1421,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     var a = new area();
                     a.create(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
                     state.APIAreaMapper.activeArea = a.getProperty('id');
+                    state.APIAreaMapper.activePage = path.get('_pageid');
                    
                     path.remove();
                     
