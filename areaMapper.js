@@ -2,7 +2,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.03,
+    var version = 0.031,
         schemaVersion = 0.02,
         buttonBackgroundColor = '#E92862',
         buttonHighlightColor = '#00FF00',
@@ -453,6 +453,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
             return Math.round(radians * 10000) == Math.round(comparedRadians * 10000);
         };
         
+        this.lessThan = function(comparedRadians) {
+            return Math.round(radians * 10000) < Math.round(comparedRadians * 10000);
+        };
+        
         this.greaterThan = function(comparedRadians) {
             return Math.round(radians * 10000) > Math.round(comparedRadians * 10000);
         };
@@ -767,47 +771,45 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return returnObject;
     };
     
-    complexPolygon.prototype.convertToOutlinePolygon = function() {
-        
-        //find the smallest x points, and of those, take the greatest y:
-        var iTopLeftPoint = 0;
-        for(var i = 0; i < this.points.length; i++) {
-            if((this.points[i][0].x < this.points[iTopLeftPoint][0].x)
-                    || (this.points[i][0].x == this.points[iTopLeftPoint][0].x && this.points[i][0].y > this.points[iTopLeftPoint][0].y)) {
-                iTopLeftPoint = i;
-            }
-        }
+    //if isOuterDesired, this finds the most expansive path; otherwise, it finds the most restrictive path:
+    complexPolygon.prototype.convertToOutlinePolygon = function(controlPointIndex, controlAngle, isOuterDesired) {
         
         //start keeping the points that will be used in the output polygon in the proper order:
         var cleanPolygonPoints = [];
-        cleanPolygonPoints.push(this.points[iTopLeftPoint][0]);
+        cleanPolygonPoints.push(this.points[controlPointIndex][0]);
         
-        var iP = iTopLeftPoint; //index of current point
-        var a = new angle(Math.PI / 2); //angle of prior segment; for first pass, initialize to facing up
-        
+        var iP = controlPointIndex; //index of current point
+        var a = controlAngle; //angle of prior segment
         var loopLimit = 10000; //limit the loop iterations in case there's a bug or the equality clause ends up needing an epsilon
         var firstIteration = true;
         
         //loop until the outside of the polygon has been traced:
-        while((loopLimit-- > 0) && !(!firstIteration && iP === iTopLeftPoint)) {
+        while((loopLimit-- > 0) && !(!firstIteration && iP === controlPointIndex)) {
             
             firstIteration = false;
             
-            //find the longest segment originating from the current point that is the most counter-clockwise from the prior segment's angle:
-            var s = 0;
-            var chosenSegment = this.segments[this.points[iP][1][s]];
-            var sAngle = chosenSegment.angle(this.points[iP][0]);
-            var sLength = chosenSegment.length();
-            var sRelativeAngle = sAngle.subtract(a.radians);
+            //if isOuterDesired, find the longest segment originating from the current point that is the most counter-clockwise from the prior segment's angle:
+            //if not isOuterDesired, find the shortest segment originating from the current point that is the least counter-clockwise from the prior segment's angle, without backtracking:
+            
+            //initialize variables:
+            var s;
+            var chosenSegment;
+            var sAngle;
+            var sLength = isOuterDesired ? 0 : 1000000000;
+            var sRelativeAngle = new angle(isOuterDesired ? 0.0001 : (2 * Math.PI) - 0.0001);
         
             //loop through the segments of this point:
-            for(var iS = 1; iS < this.points[iP][1].length; iS++) {
+            for(var iS = 0; iS < this.points[iP][1].length; iS++) {
                 var seg = this.segments[this.points[iP][1][iS]];
                 var segAngle = seg.angle(this.points[iP][0]);
                 var relativeAngle = segAngle.subtract(a.radians);
                 
-                if((relativeAngle.greaterThan(sRelativeAngle.radians))
-                        || (relativeAngle.equals(sRelativeAngle.radians) && seg.length() > sLength)) {
+                if((isOuterDesired &&
+                        ((relativeAngle.greaterThan(sRelativeAngle.radians))
+                        || (relativeAngle.equals(sRelativeAngle.radians) && seg.length() > sLength)))
+                    || (!isOuterDesired && relativeAngle.radians > 0.00001 &&
+                        ((relativeAngle.lessThan(sRelativeAngle.radians))
+                        || (relativeAngle.equals(sRelativeAngle.radians) && seg.length() < sLength)))) {
                     s = iS;
                     chosenSegment = this.segments[this.points[iP][1][s]];
                     sAngle = chosenSegment.angle(this.points[iP][0]);
@@ -834,6 +836,20 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var op = new outlinePolygon();
         op.addPointsPath(cleanPolygonPoints);
         return op;
+    };
+    
+    complexPolygon.prototype.convertToOuterOutlinePolygon = function() {
+        
+        //find the smallest x points, and of those, take the greatest y:
+        var iTopLeftPoint = 0;
+        for(var i = 0; i < this.points.length; i++) {
+            if((this.points[i][0].x < this.points[iTopLeftPoint][0].x)
+                    || (this.points[i][0].x == this.points[iTopLeftPoint][0].x && this.points[i][0].y > this.points[iTopLeftPoint][0].y)) {
+                iTopLeftPoint = i;
+            }
+        }
+        
+        return this.convertToOutlinePolygon(iTopLeftPoint, new angle(Math.PI / 2), true);
     };
     
     
@@ -894,6 +910,16 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return (pointsOnLeft % 2 === 1);
     };
     
+    outlinePolygon.prototype.getPointNotContainedIndex = function(op) {
+        for(var i = 0; i < this.points.length; i++) {
+            if(!op.hasInside(this.points[i][0])) {
+                return i;
+            }
+        }
+        
+        return null;
+    };
+    
     outlinePolygon.prototype.getPointsPath = function() {
         var pointsPath = [];
         this.points.forEach(function(p) {
@@ -938,93 +964,25 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     //removes intersection with rop (Removed Outline Polygon):
     outlinePolygon.prototype.removeIntersection = function(rop) {
+        var controlPointIndex = this.getPointNotContainedIndex(rop);
         
-        //points will be converted into a datatype that is better for this algorithm:
-        var testedPoints = [];
-        
-        //test all points to see which are contained in rop:
-        this.points.forEach(function(p) {
-            testedPoints.push([p[0], rop.hasInside(p[0])]);
-        }, this);
-        
-        //find a control point (the first point that's not contained in rop):
-        var controlPointIndex = null;
-        for(var i = 0; i < testedPoints.length; i++) {
-            if(!testedPoints[i][1]) {
-                controlPointIndex = i;
-                break;
-            }
-        }
-        
-        //if no control point was found, the whole polygon should be removed:
         if(controlPointIndex === null) {
             return;
-        } 
-        
-        var loopLimit = 5000; //loop limiter to prevent infinite loops during debugging
-        var i = (controlPointIndex + 1) % testedPoints.length;
-        var firstIteration = true;
-        var priorTest = false;
-        
-        while(loopLimit-- && !(!firstIteration && i === (controlPointIndex + 1) % testedPoints.length)) {
-            firstIteration = false;
-            var thisTest = testedPoints[i][1];
-            
-            //if the prior point's test !== this point's test, then their segment intersects a segment in rop:
-            if(thisTest !== priorTest) {
-                
-                //find intersection points:
-                var s = new segment(testedPoints[i][0], testedPoints[(i + testedPoints.length - 1) % testedPoints.length][0]);
-                var intersectionPoints = [];
-                rop.segments.forEach(function(seg) {
-                    var intersectionPoint = segmentsIntersect(s, seg);
-                    if(intersectionPoint) {
-                        intersectionPoints.push(intersectionPoint);
-                    }
-                }, this);
-                
-                //find the most invasive intersection point:
-                var intersectionPoint;
-                var intersectionPointDistance = 1000000000; //this will be corrected in the first iteration
-                var pointNotContained = thisTest ? s.b : s.a;
-                intersectionPoints.forEach(function(p) {
-                    var distance = new segment(pointNotContained, p).length();
-                    if(distance < intersectionPointDistance) {
-                        intersectionPoint = p;
-                        intersectionPointDistance = distance;
-                    }
-                }, this);
-                
-                //insert the intersection point inbetween the two points:
-                testedPoints.splice(i, 0, [intersectionPoint, null]);
-                
-                //increment indexes because we added a point:
-                if(i <= controlPointIndex) {
-                    controlPointIndex++;
-                }
-                i++;
-            }
-            
-            i = (i + 1) % testedPoints.length;
-            priorTest = thisTest;
         }
         
-        //loop through again and remove any contained points:
-        for(var i = testedPoints.length - 1; i >= 0; i--) {
-            if(testedPoints[i][1]) {
-                testedPoints.splice(i, 1);
-            }
-        }
+        //get an angle from the control point to the prior point:
+        var controlSegment = new segment(this.points[controlPointIndex][0], this.points[(controlPointIndex - 1 + this.points.length) % this.points.length][0]);
+        var controlAngle = controlSegment.angle(controlSegment.a);
         
-        //stuff the results into an outlinePolygon:
-        var pointsPath = [];
-        testedPoints.forEach(function(p) {
-            pointsPath.push(p[0]);
-        }, this);
+        //stuff both polygons into a complex polygon:
+        var cp = new complexPolygon();
+        cp.addPointsPath(this.getPointsPath());
+        cp.addPointsPath(rop.getPointsPath());
         
-        var newOp = new outlinePolygon();
-        newOp.addPointsPath(pointsPath);
-        return newOp;
+        //get the point index out of cp in case it has changed since we found it in this.points:
+        var controlPointIndex = cp.getPointIndex(this.points[controlPointIndex][0]);
+        
+        return cp.convertToOutlinePolygon(controlPointIndex, controlAngle, false);
     };
     
     outlinePolygon.prototype.invert = function() {
@@ -1120,7 +1078,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     };
     
     graph.prototype.convertComplexPolygonToOutlinePolygon = function(index) {
-        var op = this.getProperty('complexPolygons')[index].convertToOutlinePolygon();
+        var op = this.getProperty('complexPolygons')[index].convertToOuterOutlinePolygon();
         this.getProperty('complexPolygons').splice(index, 1);
         return this.setProperty('outlinePolygons', op);
     };
