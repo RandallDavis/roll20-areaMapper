@@ -1113,16 +1113,16 @@ var APIAreaMapper = APIAreaMapper || (function() {
     var graph = function() {
         typedObject.call(this);
         this._type.push('graph');
-        this.initializeCollectionProperty('complexPolygons');
         this.initializeCollectionProperty('simplePolygons');
+        this.initializeCollectionProperty('complexPolygons');
     };
     
     inheritPrototype(graph, typedObject);
     
     graph.prototype.setProperty = function(property, value) {
         switch(property) {
-            case 'complexPolygons':
             case 'simplePolygons':
+            case 'complexPolygons':
                 return this['_' + property].push(value) - 1;
                 break;
             default:
@@ -1133,8 +1133,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     graph.prototype.initializeCollectionProperty = function(property) {
         switch(property) {
-            case 'complexPolygons':
             case 'simplePolygons':
+            case 'complexPolygons':
                 this['_' + property] = [];
                 break;
             default:
@@ -1143,16 +1143,16 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }
     };
     
-    graph.prototype.addComplexPolygon = function(rawPath, top, left, isFromEvent) {
-        var cp = new complexPolygon();
-        cp.addRawPath(rawPath, top, left, isFromEvent);
-        return this.setProperty('complexPolygons', cp);
-    };
-    
     graph.prototype.addSimplePolygon = function(rawPath, top, left) {
         var op = new simplePolygon();
         op.addRawPath(rawPath, top, left);
         return this.setProperty('simplePolygons', op);
+    };
+    
+    graph.prototype.addComplexPolygon = function(rawPath, top, left, isFromEvent) {
+        var cp = new complexPolygon();
+        cp.addRawPath(rawPath, top, left, isFromEvent);
+        return this.setProperty('complexPolygons', cp);
     };
     
     graph.prototype.convertComplexPolygonToSimplePolygon = function(index) {
