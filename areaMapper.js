@@ -705,8 +705,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
             if(pPrior) {
                 var result = this.addSegment(new segment(pPrior, pCurrent));
                 
-                if(result && result.hadIntersections) {
-                    hadIntersections = true;
+                if(result) {
+                    hadIntersections = hadIntersections || result.hadIntersections;
                 }
             } else {
                 pStart = pCurrent;
@@ -716,33 +716,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
             iPrior = iCurrent;
         }, this);
         
-        var returnObject = [];
-        returnObject.hadIntersections = hadIntersections;
-        returnObject.startPoint = pStart;
-        returnObject.endPoint = pPrior;
-        return returnObject;
-    };
-  
-  
-    //TODO: path -> complexPath -> complexPolygon; path -> simplePath -> simplePolygon
-    polygon = function() {
-        path.call(this);
-        this._type.push('polygon');
-    };
-    
-    inheritPrototype(polygon, path);
-    
-    polygon.prototype.addPointsPath = function(pathPoints) {
-        var hadIntersections = false;
-        
-        var result = path.prototype.addPointsPath.call(this, pathPoints);
-        
-        if(result) {
-            hadIntersections = result.hadIntersections;
-        
-            //close the polygon if it isn't closed already:
-            if(!result.startPoint.equals(result.endPoint)) {
-                result = this.addSegment(new segment(result.endPoint, result.startPoint));
+        //if this is a polygon (broken polymorphism because it would be better to do multiple inheritence), close the polygon if it isn't closed already:
+        if(this.isType('polygon')) {
+            if(!pPrior.equals(pStart)) {
+                var result = this.addSegment(new segment(pPrior, pStart));
                 
                 if(result) {
                     hadIntersections = hadIntersections || result.hadIntersections;
@@ -763,185 +740,29 @@ var APIAreaMapper = APIAreaMapper || (function() {
     };
     
     
-    var complexPolygon = function() {
-        polygon.call(this);
-        this._type.push('complexPolygon');
+    var simplePath = function() {
+        path.call(this);
+        this._type.push('simplePath');
     };
     
-    inheritPrototype(complexPolygon, polygon);
+    inheritPrototype(simplePath, path);
+  
     
-    //it's illogical to return a segment's index, because it might have been broken into pieces:
-    //it's also inconvient to do early detection of the segment being new, because of segment breaking:
-    //returns whether or not there were intersections, because this is useful information for certain algorithms:
-    complexPolygon.prototype.addSegment = function(s) {
-
-        //don't add the segment if it's of 0 length:
-        if(s.a.equals(s.b)) {
-            return;
-        }
-        
-        var newSegments = [];
-        var brokenSegments = [];
-        var intersectingSegments = [];
-        
-        newSegments.push(s);
-        
-        //find segments that the new segment intersects:
-        this.segments.forEach(function(seg) {
-            if(segmentsIntersect(s, seg)) {
-                intersectingSegments.push(seg);
-            }
-        }, this);
-        
-        //break segment against all intersecting segments and remove intersecting segments:
-        intersectingSegments.forEach(function(seg) {
-           
-            //loop through new segments to look for intersections:
-            for(var i = 0; i < newSegments.length; i++) {
-               
-                //because we're breaking new segments, we have to retest for intersection:
-                var intersectionPoint = segmentsIntersect(newSegments[i], seg);
-                if(intersectionPoint) {
-                    
-                    //create broken segments out of old segment that was intersected:
-                    brokenSegments.push(new segment(seg.a, intersectionPoint));
-                    brokenSegments.push(new segment(intersectionPoint, seg.b));
-                    
-                    //remove the segment that was intersected from the graph:
-                    this.removeSegment(seg);
-                    
-                    //create new broken segments:
-                    newSegments.unshift(new segment(newSegments[i].a, intersectionPoint));
-                    newSegments.unshift(new segment(intersectionPoint, newSegments[i + 1].b));
-                    
-                    //remove the new segment that was just broken:
-                    newSegments.splice(i + 2, 1);
-                    
-                    //adjust the loop to bypass the broken newSegments that were already tested against seg:
-                    i++;
-                }
-            }
-        }, this);
-        
-        var hadIntersections = false;
-        
-        //add old broken segments:
-        brokenSegments.forEach(function(seg) {
-            if(!seg.a.equals(seg.b)) {
-                hadIntersections = true;
-                var iS = this.segments.push(seg) - 1;
-                var iPa = this.addPoint(seg.a);
-                var iPb = this.addPoint(seg.b);
-                this.points[iPa][1].push(iS);
-                this.points[iPb][1].push(iS);
-            }
-        }, this);
-        
-        //add new segments:
-        newSegments.forEach(function(seg) {
-            if(!seg.a.equals(seg.b)) {
-                var iS = this.segments.push(seg) - 1;
-                var iPa = this.addPoint(seg.a);
-                var iPb = this.addPoint(seg.b);
-                this.points[iPa][1].push(iS);
-                this.points[iPb][1].push(iS);
-            }
-        }, this);
-        
-        //create a return object with specific fields, so that the return values aren't misconstrued to be something more intuitive:
-        var returnObject = [];
-        returnObject.hadIntersections = hadIntersections;
-        return returnObject;
+    var complexPath = function() {
+        path.call(this);
+        this._type.push('complexPath');
     };
     
-    //if isOuterDesired, this finds the most expansive path; otherwise, it finds the most restrictive path:
-    complexPolygon.prototype.convertToSimplePolygon = function(controlPointIndex, controlAngle, isOuterDesired) {
-        
-        //start keeping the points that will be used in the output polygon in the proper order:
-        var cleanPolygonPoints = [];
-        cleanPolygonPoints.push(this.points[controlPointIndex][0]);
-        
-        var iP = controlPointIndex; //index of current point
-        var a = controlAngle; //angle of prior segment
-        var loopLimit = 10000; //limit the loop iterations in case there's a bug or the equality clause ends up needing an epsilon
-        var firstIteration = true;
-        
-        //loop until the outside of the polygon has been traced:
-        while((loopLimit-- > 0) && !(!firstIteration && iP === controlPointIndex)) {
-            
-            firstIteration = false;
-            
-            //if isOuterDesired, find the longest segment originating from the current point that is the most counter-clockwise from the prior segment's angle:
-            //if not isOuterDesired, find the shortest segment originating from the current point that is the least counter-clockwise from the prior segment's angle, without backtracking:
-            
-            //initialize variables:
-            var s;
-            var chosenSegment;
-            var sAngle;
-            var sLength = isOuterDesired ? 0 : 1000000000;
-            var sRelativeAngle = new angle(isOuterDesired ? 0.0001 : (2 * Math.PI) - 0.0001);
-        
-            //loop through the segments of this point:
-            for(var iS = 0; iS < this.points[iP][1].length; iS++) {
-                var seg = this.segments[this.points[iP][1][iS]];
-                var segAngle = seg.angle(this.points[iP][0]);
-                var relativeAngle = segAngle.subtract(a.radians);
-                
-                if((isOuterDesired &&
-                        ((relativeAngle.greaterThan(sRelativeAngle.radians))
-                        || (relativeAngle.equals(sRelativeAngle.radians) && seg.length() > sLength)))
-                    || (!isOuterDesired && relativeAngle.radians > 0.00001 &&
-                        ((relativeAngle.lessThan(sRelativeAngle.radians))
-                        || (relativeAngle.equals(sRelativeAngle.radians) && seg.length() < sLength)))) {
-                    s = iS;
-                    chosenSegment = this.segments[this.points[iP][1][s]];
-                    sAngle = chosenSegment.angle(this.points[iP][0]);
-                    sLength = chosenSegment.length();
-                    sRelativeAngle = relativeAngle;
-                }
-            }
-            
-            //the next point should be the endpoint of the segment that wasn't the prior point:
-            if(chosenSegment.a.equals(this.points[iP][0])) {
-                iP = this.getPointIndex(chosenSegment.b);
-            } else {
-                iP = this.getPointIndex(chosenSegment.a);
-            }
-            
-            //the angle of the current segment will be used as a limit for finding the next segment:
-            a = new angle((sAngle.radians + Math.PI) % (2 * Math.PI));
-            
-            //add the new point to the clean polygon:
-            cleanPolygonPoints.push(this.points[iP][0]);
-        }
-        
-        //create an simplePolygon with the points:
-        var op = new simplePolygon();
-        op.addPointsPath(cleanPolygonPoints);
-        return op;
-    };
-    
-    complexPolygon.prototype.convertToOuterSimplePolygon = function() {
-        
-        //find the smallest x points, and of those, take the greatest y:
-        var iTopLeftPoint = 0;
-        for(var i = 0; i < this.points.length; i++) {
-            if((this.points[i][0].x < this.points[iTopLeftPoint][0].x)
-                    || (this.points[i][0].x == this.points[iTopLeftPoint][0].x && this.points[i][0].y > this.points[iTopLeftPoint][0].y)) {
-                iTopLeftPoint = i;
-            }
-        }
-        
-        return this.convertToSimplePolygon(iTopLeftPoint, new angle(Math.PI / 2), true);
-    };
+    inheritPrototype(complexPath, path);
     
     
     var simplePolygon = function() {
-        polygon.call(this);
+        simplePath.call(this);
+        this._type.push('polygon');
         this._type.push('simplePolygon');
     };
     
-    inheritPrototype(simplePolygon, polygon);
+    inheritPrototype(simplePolygon, simplePath);
     
     //doesn't test for intersections - assumes this is already part of an simple on good faith:
     simplePolygon.prototype.addSegment = function(s) {
@@ -1112,6 +933,180 @@ var APIAreaMapper = APIAreaMapper || (function() {
         op.addPointsPath(invertedPoints);
         
         return op;
+    };
+    
+  
+    var complexPolygon = function() {
+        complexPath.call(this);
+        this._type.push('polygon');
+        this._type.push('complexPolygon');
+    };
+    
+    inheritPrototype(complexPolygon, complexPath);
+    
+    //it's illogical to return a segment's index, because it might have been broken into pieces:
+    //it's also inconvient to do early detection of the segment being new, because of segment breaking:
+    //returns whether or not there were intersections, because this is useful information for certain algorithms:
+    complexPolygon.prototype.addSegment = function(s) {
+
+        //don't add the segment if it's of 0 length:
+        if(s.a.equals(s.b)) {
+            return;
+        }
+        
+        var newSegments = [];
+        var brokenSegments = [];
+        var intersectingSegments = [];
+        
+        newSegments.push(s);
+        
+        //find segments that the new segment intersects:
+        this.segments.forEach(function(seg) {
+            if(segmentsIntersect(s, seg)) {
+                intersectingSegments.push(seg);
+            }
+        }, this);
+        
+        //break segment against all intersecting segments and remove intersecting segments:
+        intersectingSegments.forEach(function(seg) {
+           
+            //loop through new segments to look for intersections:
+            for(var i = 0; i < newSegments.length; i++) {
+               
+                //because we're breaking new segments, we have to retest for intersection:
+                var intersectionPoint = segmentsIntersect(newSegments[i], seg);
+                if(intersectionPoint) {
+                    
+                    //create broken segments out of old segment that was intersected:
+                    brokenSegments.push(new segment(seg.a, intersectionPoint));
+                    brokenSegments.push(new segment(intersectionPoint, seg.b));
+                    
+                    //remove the segment that was intersected from the graph:
+                    this.removeSegment(seg);
+                    
+                    //create new broken segments:
+                    newSegments.unshift(new segment(newSegments[i].a, intersectionPoint));
+                    newSegments.unshift(new segment(intersectionPoint, newSegments[i + 1].b));
+                    
+                    //remove the new segment that was just broken:
+                    newSegments.splice(i + 2, 1);
+                    
+                    //adjust the loop to bypass the broken newSegments that were already tested against seg:
+                    i++;
+                }
+            }
+        }, this);
+        
+        var hadIntersections = false;
+        
+        //add old broken segments:
+        brokenSegments.forEach(function(seg) {
+            if(!seg.a.equals(seg.b)) {
+                hadIntersections = true;
+                var iS = this.segments.push(seg) - 1;
+                var iPa = this.addPoint(seg.a);
+                var iPb = this.addPoint(seg.b);
+                this.points[iPa][1].push(iS);
+                this.points[iPb][1].push(iS);
+            }
+        }, this);
+        
+        //add new segments:
+        newSegments.forEach(function(seg) {
+            if(!seg.a.equals(seg.b)) {
+                var iS = this.segments.push(seg) - 1;
+                var iPa = this.addPoint(seg.a);
+                var iPb = this.addPoint(seg.b);
+                this.points[iPa][1].push(iS);
+                this.points[iPb][1].push(iS);
+            }
+        }, this);
+        
+        //create a return object with specific fields, so that the return values aren't misconstrued to be something more intuitive:
+        var returnObject = [];
+        returnObject.hadIntersections = hadIntersections;
+        return returnObject;
+    };
+    
+    //if isOuterDesired, this finds the most expansive path; otherwise, it finds the most restrictive path:
+    complexPolygon.prototype.convertToSimplePolygon = function(controlPointIndex, controlAngle, isOuterDesired) {
+        
+        //start keeping the points that will be used in the output polygon in the proper order:
+        var cleanPolygonPoints = [];
+        cleanPolygonPoints.push(this.points[controlPointIndex][0]);
+        
+        var iP = controlPointIndex; //index of current point
+        var a = controlAngle; //angle of prior segment
+        var loopLimit = 10000; //limit the loop iterations in case there's a bug or the equality clause ends up needing an epsilon
+        var firstIteration = true;
+        
+        //loop until the outside of the polygon has been traced:
+        while((loopLimit-- > 0) && !(!firstIteration && iP === controlPointIndex)) {
+            
+            firstIteration = false;
+            
+            //if isOuterDesired, find the longest segment originating from the current point that is the most counter-clockwise from the prior segment's angle:
+            //if not isOuterDesired, find the shortest segment originating from the current point that is the least counter-clockwise from the prior segment's angle, without backtracking:
+            
+            //initialize variables:
+            var s;
+            var chosenSegment;
+            var sAngle;
+            var sLength = isOuterDesired ? 0 : 1000000000;
+            var sRelativeAngle = new angle(isOuterDesired ? 0.0001 : (2 * Math.PI) - 0.0001);
+        
+            //loop through the segments of this point:
+            for(var iS = 0; iS < this.points[iP][1].length; iS++) {
+                var seg = this.segments[this.points[iP][1][iS]];
+                var segAngle = seg.angle(this.points[iP][0]);
+                var relativeAngle = segAngle.subtract(a.radians);
+                
+                if((isOuterDesired &&
+                        ((relativeAngle.greaterThan(sRelativeAngle.radians))
+                        || (relativeAngle.equals(sRelativeAngle.radians) && seg.length() > sLength)))
+                    || (!isOuterDesired && relativeAngle.radians > 0.00001 &&
+                        ((relativeAngle.lessThan(sRelativeAngle.radians))
+                        || (relativeAngle.equals(sRelativeAngle.radians) && seg.length() < sLength)))) {
+                    s = iS;
+                    chosenSegment = this.segments[this.points[iP][1][s]];
+                    sAngle = chosenSegment.angle(this.points[iP][0]);
+                    sLength = chosenSegment.length();
+                    sRelativeAngle = relativeAngle;
+                }
+            }
+            
+            //the next point should be the endpoint of the segment that wasn't the prior point:
+            if(chosenSegment.a.equals(this.points[iP][0])) {
+                iP = this.getPointIndex(chosenSegment.b);
+            } else {
+                iP = this.getPointIndex(chosenSegment.a);
+            }
+            
+            //the angle of the current segment will be used as a limit for finding the next segment:
+            a = new angle((sAngle.radians + Math.PI) % (2 * Math.PI));
+            
+            //add the new point to the clean polygon:
+            cleanPolygonPoints.push(this.points[iP][0]);
+        }
+        
+        //create an simplePolygon with the points:
+        var op = new simplePolygon();
+        op.addPointsPath(cleanPolygonPoints);
+        return op;
+    };
+    
+    complexPolygon.prototype.convertToOuterSimplePolygon = function() {
+        
+        //find the smallest x points, and of those, take the greatest y:
+        var iTopLeftPoint = 0;
+        for(var i = 0; i < this.points.length; i++) {
+            if((this.points[i][0].x < this.points[iTopLeftPoint][0].x)
+                    || (this.points[i][0].x == this.points[iTopLeftPoint][0].x && this.points[i][0].y > this.points[iTopLeftPoint][0].y)) {
+                iTopLeftPoint = i;
+            }
+        }
+        
+        return this.convertToSimplePolygon(iTopLeftPoint, new angle(Math.PI / 2), true);
     };
     
     
