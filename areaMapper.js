@@ -3,7 +3,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     /* core - begin */
     
     var version = 0.033,
-        schemaVersion = 0.021,
+        schemaVersion = 0.022,
         buttonBackgroundColor = '#E92862',
         buttonHighlightColor = '#00FF00',
         mainBackgroundColor = '#3D8FE1',
@@ -108,6 +108,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     var area = function() {
         typedObject.call(this);
         this._type.push('area');
+        this.initializeCollectionProperty('edgeWalls');
     };
     
     inheritPrototype(area, typedObject);
@@ -115,13 +116,30 @@ var APIAreaMapper = APIAreaMapper || (function() {
     area.prototype.setProperty = function(property, value) {
         switch(property) {
             case 'id':
-            case 'floorPlan': //path-ready list of coordinates representing a simple polygon
+            case 'floorPlan': //simple polygon
             case 'width':
             case 'height':
                 this['_' + property] = value;
                 break;
+            case 'edgeWalls': //simple paths
+                return this['_' + property].push(value) - 1;
             default:
                 typedObject.prototype.setProperty.call(this, property, value);
+                break;
+        }
+    };
+    
+    area.prototype.initializeCollectionProperty = function(property, value) {
+        switch(property) {
+            case 'edgeWalls':
+                if('undefined' === typeof(value)) {
+                    this['_' + property] = [];
+                } else {
+                    this['_' + property] = value;
+                }
+                break;
+            default:
+                typedObject.prototype.initializeCollectionProperty.call(this, property);
                 break;
         }
     };
@@ -165,6 +183,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 case 'height':
                     this.setProperty(areaState[i][0], areaState[i][1]);
                     break;
+                case 'edgeWalls':
+                    this.initializeCollectionProperty(areaState[i][0], areaState[i][1]);
+                    break;
                 default:
                     log('Unknown property "' + areaState[i][0] + '" in area.load().');
                     break;
@@ -178,6 +199,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         areaState.push(['floorPlan', this.getProperty('floorPlan')]);
         areaState.push(['width', this.getProperty('width')]);
         areaState.push(['height', this.getProperty('height')]);
+        areaState.push(['edgeWalls', this.getProperty('edgeWalls')]);
         
         //remove existing area state:
         var id = this.getProperty('id');
@@ -250,6 +272,35 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }
     };
     
+    area.prototype.edgeWallRemove = function(rawPath, pageId, top, left, isFromEvent) {
+        var g = new graph();
+        g.addComplexPolygon(rawPath, top, left, isFromEvent);
+        var removeSpIndex = g.convertComplexPolygonToSimplePolygon(0);
+        
+        //get instance that appending is relative to:
+        var instance = new areaInstance(this.getProperty('id'), pageId);
+        instance.load();
+        
+        //TODO
+        
+        
+        
+        /*
+        //TODO: factor in instance's rotation & scale:
+        var floorPlanOpIndex = g.addSimplePolygon(this.getProperty('floorPlan'), instance.getProperty('top'), instance.getProperty('left'));
+        var mergedOpIndex = g.removeFromSimplePolygon(floorPlanOpIndex, removeOpIndex);
+        
+        if('undefined' !== typeof(mergedOpIndex)) {
+            var rp = g.getRawPath('simplePolygons', mergedOpIndex);
+            this.setProperty('floorPlan', rp.rawPath);
+            this.setProperty('width', rp.width);
+            this.setProperty('height', rp.height);
+            this.save();
+            this.draw(pageId, rp.top, rp.left);
+        }
+        */
+    };
+    
     area.prototype.undraw = function(pageId) {
         instance = new areaInstance(this.getProperty('id'), pageId);
         instance.undraw();
@@ -278,9 +329,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'area':
             case 'top':
             case 'left':
-            case 'floorPolygonId': //path
+            case 'floorPolygonId': //simple path
             case 'floorTileId': //token
-            case 'floorMaskId': //path
+            case 'floorMaskId': //simple path
                 this['_' + property] = value;
                 break;
             case 'edgeWallIds': //tokens
@@ -1389,7 +1440,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 ['blueprint mode', 'blueprint', state.APIAreaMapper.blueprintMode],
                 ['create new area', 'areaCreate', (state.APIAreaMapper.recordAreaMode == 'areaCreate')],
                 ['add to area', 'areaAppend', (state.APIAreaMapper.recordAreaMode == 'areaAppend')],
-                ['remove from area', 'areaRemove', (state.APIAreaMapper.recordAreaMode == 'areaRemove')]
+                ['remove from area', 'areaRemove', (state.APIAreaMapper.recordAreaMode == 'areaRemove')],
+                ['remove edge walls', 'edgeWallRemove', (state.APIAreaMapper.recordAreaMode == 'edgeWallRemove')]
             ])
         );
     },
@@ -1428,6 +1480,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     case 'areaCreate':
                     case 'areaAppend':
                     case 'areaRemove':
+                    case 'edgeWallRemove':
                         toggleOrSetAreaRecordMode(chatCommand[1]);
                         break;
                     case 'blueprint':
@@ -1468,7 +1521,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     break;
                 case 'areaRemove':
                     if(!state.APIAreaMapper.activeArea) {
-                        log('An area needs to be active before appending.');
+                        log('An area needs to be active before doing removals.');
                         return;
                     }
                     
@@ -1477,6 +1530,19 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     a.load();
                     a.floorPlanRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
              
+                    path.remove();
+                    break;
+                case 'edgeWallRemove':
+                    if(!state.APIAreaMapper.activeArea) {
+                        log('An area needs to be active before doing edge wall removals');
+                        return;
+                    }
+                    
+                    var a = new area();
+                    a.setProperty('id', state.APIAreaMapper.activeArea);
+                    a.load();
+                    a.edgeWallRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                    
                     path.remove();
                     break;
                 default:
