@@ -2,7 +2,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.032,
+    var version = 0.033,
         schemaVersion = 0.021,
         buttonBackgroundColor = '#E92862',
         buttonHighlightColor = '#00FF00',
@@ -575,18 +575,18 @@ var APIAreaMapper = APIAreaMapper || (function() {
      
         return null;
     },
-  
-  
-    polygon = function() {
+    
+    
+    path = function() {
         typedObject.call(this);
-        this._type.push('polygon');
+        this._type.push('path');
         this.points = []; //don't use getter/setter mechanism for the purpose of efficiency
         this.segments = []; //don't use getter/setter mechanism for the purpose of efficiency
     };
     
-    inheritPrototype(polygon, typedObject);
+    inheritPrototype(path, typedObject);
     
-    polygon.prototype.getPointIndex = function(p) {
+    path.prototype.getPointIndex = function(p) {
         for(var i = 0; i < this.points.length; i++) {
             if(p.equals(this.points[i][0])) {
                 return i;
@@ -596,7 +596,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return;
     };
     
-    polygon.prototype.getSegmentIndex = function(s) {
+    path.prototype.getSegmentIndex = function(s) {
         for(var i = 0; i < this.segments.length; i++) {
             if(s.equals(this.segments[i])) {
                 return i;
@@ -606,7 +606,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return;
     };
     
-    polygon.prototype.addPoint = function(p) {
+    path.prototype.addPoint = function(p) {
         var index = this.getPointIndex(p);
         
         if('undefined' === typeof(index)) {
@@ -618,7 +618,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return index;
     };
     
-    polygon.prototype.removeSegment = function(s) {
+    path.prototype.removeSegment = function(s) {
         var iS = this.getSegmentIndex(s);
             
         //remove segment from points:
@@ -643,7 +643,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this.segments.splice(iS, 1);
     };
     
-    polygon.prototype.convertRawPathToPath = function(rawPath, top, left, isFromEvent) {
+    path.prototype.convertRawPathToPath = function(rawPath, top, left, isFromEvent) {
         var pathPoints = [],
             rawPathParsed = JSON.parse(rawPath);
         
@@ -683,47 +683,77 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return pathPoints;
     };
     
-    polygon.prototype.addRawPath = function(rawPath, top, left, isFromEvent) {
+    path.prototype.addRawPath = function(rawPath, top, left, isFromEvent) {
         var pathPoints = this.convertRawPathToPath(rawPath, top, left, isFromEvent);
         return this.addPointsPath(pathPoints);
     };
     
+    path.prototype.addPointsPath = function(pathPoints) {
+        if(!(pathPoints && pathPoints.length > 1)) {
+            return;
+        }
+        
+        var hadIntersections = false;
+        
+        var pStart, //start point
+            pPrior, //prior point
+            iPrior; //index of prior point
+        
+        pathPoints.forEach(function(pCurrent) {
+            var iCurrent = this.addPoint(pCurrent); //index of current point
+            
+            if(pPrior) {
+                var result = this.addSegment(new segment(pPrior, pCurrent));
+                
+                if(result && result.hadIntersections) {
+                    hadIntersections = true;
+                }
+            } else {
+                pStart = pCurrent;
+            }
+            
+            pPrior = pCurrent;
+            iPrior = iCurrent;
+        }, this);
+        
+        var returnObject = [];
+        returnObject.hadIntersections = hadIntersections;
+        returnObject.startPoint = pStart;
+        returnObject.endPoint = pPrior;
+        return returnObject;
+    };
+  
+  
+    //TODO: path -> complexPath -> complexPolygon; path -> simplePath -> simplePolygon
+    polygon = function() {
+        path.call(this);
+        this._type.push('polygon');
+    };
+    
+    inheritPrototype(polygon, path);
+    
     polygon.prototype.addPointsPath = function(pathPoints) {
         var hadIntersections = false;
         
-        if(pathPoints && pathPoints.length > 1) {
-            
-            var pStart, //start point
-                pPrior, //prior point
-                iPrior; //index of prior point
-                
-            pathPoints.forEach(function(pCurrent) {
-                var iCurrent = this.addPoint(pCurrent); //index of current point
-                
-                if(pPrior) {
-                    var result = this.addSegment(new segment(pPrior, pCurrent));
-                    
-                    if(result && result.hadIntersections) {
-                        hadIntersections = true;
-                    }
-                } else {
-                    pStart = pCurrent;
-                }
-                
-                pPrior = pCurrent;
-                iPrior = iCurrent;
-            }, this);
-            
+        var result = path.prototype.addPointsPath.call(this, pathPoints);
+        
+        if(result) {
+            hadIntersections = result.hadIntersections;
+        
             //close the polygon if it isn't closed already:
-            if(!pPrior.equals(pStart)) {
-                this.addSegment(new segment(pPrior, pStart));
+            if(!result.startPoint.equals(result.endPoint)) {
+                result = this.addSegment(new segment(result.endPoint, result.startPoint));
+                
+                if(result) {
+                    hadIntersections = hadIntersections || result.hadIntersections;
+                }
             }
         }
         
         /*
-        If prior to calling this method, only a clean polygon was stored, and then another clean polygon
+        If prior to calling this method, only a simple polygon was stored, and then another simple polygon
         is added, whether or not there were intersections reveals something about the interrelation of 
-        the two polygons that is useful for some algorithms. If two clean polygons don't intersect, then
+        the two polygons that is useful for some algorithms. If two simple polygons don't intersect, then
         either they are siblings, or one is completely contained within the other. This is detected in
         this method because it would lead to redundant processing to do it elsewhere.
         */
