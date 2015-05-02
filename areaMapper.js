@@ -2,7 +2,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.032,
+    var version = 0.033,
         schemaVersion = 0.021,
         buttonBackgroundColor = '#E92862',
         buttonHighlightColor = '#00FF00',
@@ -115,7 +115,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     area.prototype.setProperty = function(property, value) {
         switch(property) {
             case 'id':
-            case 'floorPlan': //path-ready list of coordinates representing a clean polygon
+            case 'floorPlan': //path-ready list of coordinates representing a simple polygon
             case 'width':
             case 'height':
                 this['_' + property] = value;
@@ -129,8 +129,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
     area.prototype.create = function(rawPath, pageId, top, left, isFromEvent) {
         var g = new graph();
         g.addComplexPolygon(rawPath, top, left, isFromEvent);
-        var op = g.convertComplexPolygonToOutlinePolygon(0);
-        var rp = g.getRawPath('outlinePolygons', op);
+        var op = g.convertComplexPolygonToSimplePolygon(0);
+        var rp = g.getRawPath('simplePolygons', op);
         this.setProperty('id', Math.random());
         this.setProperty('floorPlan', rp.rawPath);
         this.setProperty('width', rp.width);
@@ -202,22 +202,23 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     //alters the area's floorPlan using an area instance as a control:
     area.prototype.floorPlanAppend = function(rawPath, pageId, top, left, isFromEvent) {
-        //get an outline polygon from the rawPath:
+        
+        //get a simple polygon from the rawPath:
         var g = new graph();
         g.addComplexPolygon(rawPath, top, left, isFromEvent);
-        var appendOpIndex = g.convertComplexPolygonToOutlinePolygon(0);
+        var appendOpIndex = g.convertComplexPolygonToSimplePolygon(0);
         
         //get instance that appending is relative to:
         var instance = new areaInstance(this.getProperty('id'), pageId);
         instance.load();
         
         //TODO: factor in instance's rotation & scale:
-        var floorPlanOpIndex = g.addOutlinePolygon(this.getProperty('floorPlan'), instance.getProperty('top'), instance.getProperty('left'));
-        var mergedOpIndex = g.mergeOutlinePolygons(floorPlanOpIndex, appendOpIndex);
+        var floorPlanOpIndex = g.addSimplePolygon(this.getProperty('floorPlan'), instance.getProperty('top'), instance.getProperty('left'));
+        var mergedOpIndex = g.mergeSimplePolygons(floorPlanOpIndex, appendOpIndex);
         
         //if the polygons intersect, or if the old one is engulfed in the new one, update the floorPlan:
         if(mergedOpIndex !== null) {
-            var rp = g.getRawPath('outlinePolygons', mergedOpIndex);
+            var rp = g.getRawPath('simplePolygons', mergedOpIndex);
             this.setProperty('floorPlan', rp.rawPath);
             this.setProperty('width', rp.width);
             this.setProperty('height', rp.height);
@@ -229,18 +230,18 @@ var APIAreaMapper = APIAreaMapper || (function() {
     area.prototype.floorPlanRemove = function(rawPath, pageId, top, left, isFromEvent) {
         var g = new graph();
         g.addComplexPolygon(rawPath, top, left, isFromEvent);
-        var removeOpIndex = g.convertComplexPolygonToOutlinePolygon(0);
+        var removeOpIndex = g.convertComplexPolygonToSimplePolygon(0);
         
         //get instance that appending is relative to:
         var instance = new areaInstance(this.getProperty('id'), pageId);
         instance.load();
         
         //TODO: factor in instance's rotation & scale:
-        var floorPlanOpIndex = g.addOutlinePolygon(this.getProperty('floorPlan'), instance.getProperty('top'), instance.getProperty('left'));
-        var mergedOpIndex = g.removeFromOutlinePolygon(floorPlanOpIndex, removeOpIndex);
+        var floorPlanOpIndex = g.addSimplePolygon(this.getProperty('floorPlan'), instance.getProperty('top'), instance.getProperty('left'));
+        var mergedOpIndex = g.removeFromSimplePolygon(floorPlanOpIndex, removeOpIndex);
         
         if('undefined' !== typeof(mergedOpIndex)) {
-            var rp = g.getRawPath('outlinePolygons', mergedOpIndex);
+            var rp = g.getRawPath('simplePolygons', mergedOpIndex);
             this.setProperty('floorPlan', rp.rawPath);
             this.setProperty('width', rp.width);
             this.setProperty('height', rp.height);
@@ -444,14 +445,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var page = getObj('page', this.getProperty('pageId'));
         var maskColor = page.get('background_color');
         var g = new graph();
-        var floorPlanOpIndex = g.addOutlinePolygon(a.getProperty('floorPlan'), top, left);
-        var floorMaskOpIndex = g.invertOutlinePolygon(floorPlanOpIndex);
-        var floorMaskRawPath = g.getRawPath('outlinePolygons', floorMaskOpIndex);
+        var floorPlanOpIndex = g.addSimplePolygon(a.getProperty('floorPlan'), top, left);
+        var floorMaskOpIndex = g.invertSimplePolygon(floorPlanOpIndex);
+        var floorMaskRawPath = g.getRawPath('simplePolygons', floorMaskOpIndex);
         var floorMask = drawPathObject(this.getProperty('pageId'), 'map', maskColor, maskColor, floorMaskRawPath.rawPath, floorMaskRawPath.top, floorMaskRawPath.left);
         this.setProperty('floorMaskId', floorMask.id);
         
         //draw edge walls:
-        g.getProperty('outlinePolygons')[floorPlanOpIndex].segments.forEach(function(s) {
+        g.getProperty('simplePolygons')[floorPlanOpIndex].segments.forEach(function(s) {
             this.setProperty('edgeWallIds', createTokenObjectFromSegment(wallImageUrl, this.getProperty('pageId'), 'objects', s, 30).id);
         }, this);
        
@@ -574,18 +575,18 @@ var APIAreaMapper = APIAreaMapper || (function() {
      
         return null;
     },
-  
-  
-    polygon = function() {
+    
+    
+    path = function() {
         typedObject.call(this);
-        this._type.push('polygon');
+        this._type.push('path');
         this.points = []; //don't use getter/setter mechanism for the purpose of efficiency
         this.segments = []; //don't use getter/setter mechanism for the purpose of efficiency
     };
     
-    inheritPrototype(polygon, typedObject);
+    inheritPrototype(path, typedObject);
     
-    polygon.prototype.getPointIndex = function(p) {
+    path.prototype.getPointIndex = function(p) {
         for(var i = 0; i < this.points.length; i++) {
             if(p.equals(this.points[i][0])) {
                 return i;
@@ -595,7 +596,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return;
     };
     
-    polygon.prototype.getSegmentIndex = function(s) {
+    path.prototype.getSegmentIndex = function(s) {
         for(var i = 0; i < this.segments.length; i++) {
             if(s.equals(this.segments[i])) {
                 return i;
@@ -605,7 +606,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return;
     };
     
-    polygon.prototype.addPoint = function(p) {
+    path.prototype.addPoint = function(p) {
         var index = this.getPointIndex(p);
         
         if('undefined' === typeof(index)) {
@@ -617,7 +618,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return index;
     };
     
-    polygon.prototype.removeSegment = function(s) {
+    path.prototype.removeSegment = function(s) {
         var iS = this.getSegmentIndex(s);
             
         //remove segment from points:
@@ -642,7 +643,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this.segments.splice(iS, 1);
     };
     
-    polygon.prototype.convertRawPathToPath = function(rawPath, top, left, isFromEvent) {
+    path.prototype.convertRawPathToPath = function(rawPath, top, left, isFromEvent) {
         var pathPoints = [],
             rawPathParsed = JSON.parse(rawPath);
         
@@ -682,47 +683,54 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return pathPoints;
     };
     
-    polygon.prototype.addRawPath = function(rawPath, top, left, isFromEvent) {
+    path.prototype.addRawPath = function(rawPath, top, left, isFromEvent) {
         var pathPoints = this.convertRawPathToPath(rawPath, top, left, isFromEvent);
         return this.addPointsPath(pathPoints);
     };
     
-    polygon.prototype.addPointsPath = function(pathPoints) {
+    path.prototype.addPointsPath = function(pathPoints) {
+        if(!(pathPoints && pathPoints.length > 1)) {
+            return;
+        }
+        
         var hadIntersections = false;
         
-        if(pathPoints && pathPoints.length > 1) {
+        var pStart, //start point
+            pPrior, //prior point
+            iPrior; //index of prior point
+        
+        pathPoints.forEach(function(pCurrent) {
+            var iCurrent = this.addPoint(pCurrent); //index of current point
             
-            var pStart, //start point
-                pPrior, //prior point
-                iPrior; //index of prior point
+            if(pPrior) {
+                var result = this.addSegment(new segment(pPrior, pCurrent));
                 
-            pathPoints.forEach(function(pCurrent) {
-                var iCurrent = this.addPoint(pCurrent); //index of current point
-                
-                if(pPrior) {
-                    var result = this.addSegment(new segment(pPrior, pCurrent));
-                    
-                    if(result && result.hadIntersections) {
-                        hadIntersections = true;
-                    }
-                } else {
-                    pStart = pCurrent;
+                if(result) {
+                    hadIntersections = hadIntersections || result.hadIntersections;
                 }
-                
-                pPrior = pCurrent;
-                iPrior = iCurrent;
-            }, this);
+            } else {
+                pStart = pCurrent;
+            }
             
-            //close the polygon if it isn't closed already:
+            pPrior = pCurrent;
+            iPrior = iCurrent;
+        }, this);
+        
+        //if this is a polygon (broken polymorphism because it would be better to do multiple inheritence), close the polygon if it isn't closed already:
+        if(this.isType('polygon')) {
             if(!pPrior.equals(pStart)) {
-                this.addSegment(new segment(pPrior, pStart));
+                var result = this.addSegment(new segment(pPrior, pStart));
+                
+                if(result) {
+                    hadIntersections = hadIntersections || result.hadIntersections;
+                }
             }
         }
         
         /*
-        If prior to calling this method, only a clean polygon was stored, and then another clean polygon
+        If prior to calling this method, only a simple polygon was stored, and then another simple polygon
         is added, whether or not there were intersections reveals something about the interrelation of 
-        the two polygons that is useful for some algorithms. If two clean polygons don't intersect, then
+        the two polygons that is useful for some algorithms. If two simple polygons don't intersect, then
         either they are siblings, or one is completely contained within the other. This is detected in
         this method because it would lead to redundant processing to do it elsewhere.
         */
@@ -732,12 +740,209 @@ var APIAreaMapper = APIAreaMapper || (function() {
     };
     
     
+    var simplePath = function() {
+        path.call(this);
+        this._type.push('simplePath');
+    };
+    
+    inheritPrototype(simplePath, path);
+  
+    
+    var complexPath = function() {
+        path.call(this);
+        this._type.push('complexPath');
+    };
+    
+    inheritPrototype(complexPath, path);
+    
+    
+    var simplePolygon = function() {
+        simplePath.call(this);
+        this._type.push('polygon');
+        this._type.push('simplePolygon');
+    };
+    
+    inheritPrototype(simplePolygon, simplePath);
+    
+    //doesn't test for intersections - assumes this is already part of an simple on good faith:
+    simplePolygon.prototype.addSegment = function(s) {
+        if(!s.a.equals(s.b)) {
+            var iS = this.segments.push(s) - 1;
+            var iPa = this.addPoint(s.a);
+            var iPb = this.addPoint(s.b);
+            this.points[iPa][1].push(iS);
+            this.points[iPb][1].push(iS);
+        }
+    };
+  
+    //tests if the point is inside the polygon:
+    simplePolygon.prototype.hasInside = function(p) {
+        
+        //use an arbitrarily long horizontal segment that goes into negatives (because of relative coordinates):
+        var horizontalSegment = new segment(new point(-1000000000, p.y), new point(1000000000, p.y));
+        
+        //count the intersecting points that appear to the left of the point in question:
+        var pointsOnLeft = 0;
+        
+        //find segments that intersect the point horizontally:
+        this.segments.forEach(function(s) {
+            
+            //find a naturally occurring intersection point:
+            var intersectingPoint = segmentsIntersect(horizontalSegment, s);
+            
+            //if there was no natural intersection point, test for a segment endpoint hitting the horizontal segment:
+            if(!intersectingPoint) {
+                
+                /*
+                If an endpoint on the segment is on the horizontal segment, count it as an intersecting segment if it is angling down from 
+                that point's perspective. This will result in two segments traveling through the horizontal segment to register as odd, and
+                will ignore any horizontal segments that are overlapping the horizontal segment.
+                */
+                if(s.a.y === p.y && s.b.y - s.a.y > 0) {
+                    intersectingPoint = s.a;
+                } else if(s.b.y === p.y && s.a.y - s.b.y > 0) {
+                    intersectingPoint = s.b;
+                }
+            }
+            
+            if(intersectingPoint && intersectingPoint.x < p.x) {
+                pointsOnLeft++;
+            }
+        }, this);
+        
+        //there will be an even number of intersections; if the point in question is between an odd number of intersections, it's inside the polygon:
+        return (pointsOnLeft % 2 === 1);
+    };
+    
+    simplePolygon.prototype.getPointNotContainedIndex = function(op) {
+        for(var i = 0; i < this.points.length; i++) {
+            if(!op.hasInside(this.points[i][0])) {
+                return i;
+            }
+        }
+        
+        return null;
+    };
+    
+    simplePolygon.prototype.getPointsPath = function() {
+        var pointsPath = [];
+        this.points.forEach(function(p) {
+            pointsPath.push(p[0]);
+        }, this);
+        return pointsPath;
+    };
+    
+    //returns a raw path aligned at (0,0) with top/left offsets:
+    simplePolygon.prototype.getRawPath = function() {
+        if(!(this.points && this.points.length > 0)) {
+            return;
+        }
+        
+        var minX = this.points[0][0].x;
+        var minY = this.points[0][0].y;
+        var maxX = this.points[0][0].x;
+        var maxY = this.points[0][0].y;
+        
+        this.points.forEach(function(p) {
+            minX = Math.min(minX, p[0].x);
+            minY = Math.min(minY, p[0].y);
+            maxX = Math.max(maxX, p[0].x);
+            maxY = Math.max(maxY, p[0].y);
+        }, this);
+        
+        var rawPath = '[[\"M\",' + (this.points[0][0].x - minX) + ',' + (this.points[0][0].y - minY) + ']';
+        for(var i = 1; i < this.points.length; i++) {
+            rawPath += ',[\"L\",' + (this.points[i][0].x - minX) + ',' + (this.points[i][0].y - minY) + ']';
+        }
+        rawPath += ',[\"L\",' + (this.points[0][0].x - minX) + ',' + (this.points[0][0].y - minY) + ']';
+        rawPath += ']';
+        
+        var returnObject = [];
+        returnObject.rawPath = rawPath;
+        returnObject.top = minY;
+        returnObject.left = minX;
+        returnObject.width = maxX - minX;
+        returnObject.height = maxY - minY;
+        return returnObject;
+    };
+    
+    //removes intersection with rop (Removed Outline Polygon):
+    simplePolygon.prototype.removeIntersection = function(rop) {
+        var controlPointIndex = this.getPointNotContainedIndex(rop);
+        
+        if(controlPointIndex === null) {
+            return;
+        }
+        
+        //get an angle from the control point to the prior point:
+        var controlSegment = new segment(this.points[controlPointIndex][0], this.points[(controlPointIndex - 1 + this.points.length) % this.points.length][0]);
+        var controlAngle = controlSegment.angle(controlSegment.a);
+        
+        //stuff both polygons into a complex polygon:
+        var cp = new complexPolygon();
+        cp.addPointsPath(this.getPointsPath());
+        cp.addPointsPath(rop.getPointsPath());
+        
+        //get the point index out of cp in case it has changed since we found it in this.points:
+        var controlPointIndex = cp.getPointIndex(this.points[controlPointIndex][0]);
+        
+        return cp.convertToSimplePolygon(controlPointIndex, controlAngle, false);
+    };
+    
+    simplePolygon.prototype.invert = function() {
+        var invertedPoints = this.getPointsPath();
+        
+        var minX = invertedPoints[0].x;
+        var minY = invertedPoints[0].y;
+        var maxX = invertedPoints[0].x;
+        var maxY = invertedPoints[0].y;
+        var controlPointIndex = 0;
+        
+        //find the smallest x points, and of those, take the greatest y:
+        for(var i = 0; i < invertedPoints.length; i++) {
+            if((invertedPoints[i].x < invertedPoints[controlPointIndex].x)
+                    || (invertedPoints[i].x == invertedPoints[controlPointIndex].x && invertedPoints[i].y > invertedPoints[controlPointIndex].y)) {
+                controlPointIndex = i;
+            }
+            
+            minX = Math.min(minX, invertedPoints[i].x);
+            minY = Math.min(minY, invertedPoints[i].y);
+            maxX = Math.max(maxX, invertedPoints[i].x);
+            maxY = Math.max(maxY, invertedPoints[i].y);
+        }
+        
+        //the inverted border needs to be this much larger than the original polygon:
+        var invertedBorderDistance = 1;
+        
+        //insert a point immediately down from the control point to branch off from:
+        invertedPoints.splice(controlPointIndex + 1, 0, new point(invertedPoints[controlPointIndex].x, invertedPoints[controlPointIndex].y + 1));
+        
+        //branch the new point to the edge of the inverted border:
+        invertedPoints.splice(controlPointIndex + 1, 0, new point(minX - invertedBorderDistance, invertedPoints[controlPointIndex].y + 1));
+        
+        //draw the inverted border corners stemming from control point:
+        invertedPoints.splice(controlPointIndex + 1, 0, new point(minX - invertedBorderDistance, maxY + invertedBorderDistance));
+        invertedPoints.splice(controlPointIndex + 1, 0, new point(maxX + invertedBorderDistance, maxY + invertedBorderDistance));
+        invertedPoints.splice(controlPointIndex + 1, 0, new point(maxX + invertedBorderDistance, minY - invertedBorderDistance));
+        invertedPoints.splice(controlPointIndex + 1, 0, new point(minX - invertedBorderDistance, minY - invertedBorderDistance));
+        
+        //insert a point from the control point leading to the edge of the inverted border:
+        invertedPoints.splice(controlPointIndex + 1, 0, new point(minX - invertedBorderDistance, invertedPoints[controlPointIndex].y));
+        
+        var op = new simplePolygon();
+        op.addPointsPath(invertedPoints);
+        
+        return op;
+    };
+    
+  
     var complexPolygon = function() {
-        polygon.call(this);
+        complexPath.call(this);
+        this._type.push('polygon');
         this._type.push('complexPolygon');
     };
     
-    inheritPrototype(complexPolygon, polygon);
+    inheritPrototype(complexPolygon, complexPath);
     
     //it's illogical to return a segment's index, because it might have been broken into pieces:
     //it's also inconvient to do early detection of the segment being new, because of segment breaking:
@@ -824,7 +1029,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     };
     
     //if isOuterDesired, this finds the most expansive path; otherwise, it finds the most restrictive path:
-    complexPolygon.prototype.convertToOutlinePolygon = function(controlPointIndex, controlAngle, isOuterDesired) {
+    complexPolygon.prototype.convertToSimplePolygon = function(controlPointIndex, controlAngle, isOuterDesired) {
         
         //start keeping the points that will be used in the output polygon in the proper order:
         var cleanPolygonPoints = [];
@@ -884,13 +1089,13 @@ var APIAreaMapper = APIAreaMapper || (function() {
             cleanPolygonPoints.push(this.points[iP][0]);
         }
         
-        //create an outlinePolygon with the points:
-        var op = new outlinePolygon();
+        //create an simplePolygon with the points:
+        var op = new simplePolygon();
         op.addPointsPath(cleanPolygonPoints);
         return op;
     };
     
-    complexPolygon.prototype.convertToOuterOutlinePolygon = function() {
+    complexPolygon.prototype.convertToOuterSimplePolygon = function() {
         
         //find the smallest x points, and of those, take the greatest y:
         var iTopLeftPoint = 0;
@@ -901,202 +1106,23 @@ var APIAreaMapper = APIAreaMapper || (function() {
             }
         }
         
-        return this.convertToOutlinePolygon(iTopLeftPoint, new angle(Math.PI / 2), true);
-    };
-    
-    
-    var outlinePolygon = function() {
-        polygon.call(this);
-        this._type.push('outlinePolygon');
-    };
-    
-    inheritPrototype(outlinePolygon, polygon);
-    
-    //doesn't test for intersections - assumes this is already part of an outline on good faith:
-    outlinePolygon.prototype.addSegment = function(s) {
-        if(!s.a.equals(s.b)) {
-            var iS = this.segments.push(s) - 1;
-            var iPa = this.addPoint(s.a);
-            var iPb = this.addPoint(s.b);
-            this.points[iPa][1].push(iS);
-            this.points[iPb][1].push(iS);
-        }
-    };
-  
-    //tests if the point is inside the polygon:
-    outlinePolygon.prototype.hasInside = function(p) {
-        
-        //use an arbitrarily long horizontal segment that goes into negatives (because of relative coordinates):
-        var horizontalSegment = new segment(new point(-1000000000, p.y), new point(1000000000, p.y));
-        
-        //count the intersecting points that appear to the left of the point in question:
-        var pointsOnLeft = 0;
-        
-        //find segments that intersect the point horizontally:
-        this.segments.forEach(function(s) {
-            
-            //find a naturally occurring intersection point:
-            var intersectingPoint = segmentsIntersect(horizontalSegment, s);
-            
-            //if there was no natural intersection point, test for a segment endpoint hitting the horizontal segment:
-            if(!intersectingPoint) {
-                
-                /*
-                If an endpoint on the segment is on the horizontal segment, count it as an intersecting segment if it is angling down from 
-                that point's perspective. This will result in two segments traveling through the horizontal segment to register as odd, and
-                will ignore any horizontal segments that are overlapping the horizontal segment.
-                */
-                if(s.a.y === p.y && s.b.y - s.a.y > 0) {
-                    intersectingPoint = s.a;
-                } else if(s.b.y === p.y && s.a.y - s.b.y > 0) {
-                    intersectingPoint = s.b;
-                }
-            }
-            
-            if(intersectingPoint && intersectingPoint.x < p.x) {
-                pointsOnLeft++;
-            }
-        }, this);
-        
-        //there will be an even number of intersections; if the point in question is between an odd number of intersections, it's inside the polygon:
-        return (pointsOnLeft % 2 === 1);
-    };
-    
-    outlinePolygon.prototype.getPointNotContainedIndex = function(op) {
-        for(var i = 0; i < this.points.length; i++) {
-            if(!op.hasInside(this.points[i][0])) {
-                return i;
-            }
-        }
-        
-        return null;
-    };
-    
-    outlinePolygon.prototype.getPointsPath = function() {
-        var pointsPath = [];
-        this.points.forEach(function(p) {
-            pointsPath.push(p[0]);
-        }, this);
-        return pointsPath;
-    };
-    
-    //returns a raw path aligned at (0,0) with top/left offsets:
-    outlinePolygon.prototype.getRawPath = function() {
-        if(!(this.points && this.points.length > 0)) {
-            return;
-        }
-        
-        var minX = this.points[0][0].x;
-        var minY = this.points[0][0].y;
-        var maxX = this.points[0][0].x;
-        var maxY = this.points[0][0].y;
-        
-        this.points.forEach(function(p) {
-            minX = Math.min(minX, p[0].x);
-            minY = Math.min(minY, p[0].y);
-            maxX = Math.max(maxX, p[0].x);
-            maxY = Math.max(maxY, p[0].y);
-        }, this);
-        
-        var rawPath = '[[\"M\",' + (this.points[0][0].x - minX) + ',' + (this.points[0][0].y - minY) + ']';
-        for(var i = 1; i < this.points.length; i++) {
-            rawPath += ',[\"L\",' + (this.points[i][0].x - minX) + ',' + (this.points[i][0].y - minY) + ']';
-        }
-        rawPath += ',[\"L\",' + (this.points[0][0].x - minX) + ',' + (this.points[0][0].y - minY) + ']';
-        rawPath += ']';
-        
-        var returnObject = [];
-        returnObject.rawPath = rawPath;
-        returnObject.top = minY;
-        returnObject.left = minX;
-        returnObject.width = maxX - minX;
-        returnObject.height = maxY - minY;
-        return returnObject;
-    };
-    
-    //removes intersection with rop (Removed Outline Polygon):
-    outlinePolygon.prototype.removeIntersection = function(rop) {
-        var controlPointIndex = this.getPointNotContainedIndex(rop);
-        
-        if(controlPointIndex === null) {
-            return;
-        }
-        
-        //get an angle from the control point to the prior point:
-        var controlSegment = new segment(this.points[controlPointIndex][0], this.points[(controlPointIndex - 1 + this.points.length) % this.points.length][0]);
-        var controlAngle = controlSegment.angle(controlSegment.a);
-        
-        //stuff both polygons into a complex polygon:
-        var cp = new complexPolygon();
-        cp.addPointsPath(this.getPointsPath());
-        cp.addPointsPath(rop.getPointsPath());
-        
-        //get the point index out of cp in case it has changed since we found it in this.points:
-        var controlPointIndex = cp.getPointIndex(this.points[controlPointIndex][0]);
-        
-        return cp.convertToOutlinePolygon(controlPointIndex, controlAngle, false);
-    };
-    
-    outlinePolygon.prototype.invert = function() {
-        var invertedPoints = this.getPointsPath();
-        
-        var minX = invertedPoints[0].x;
-        var minY = invertedPoints[0].y;
-        var maxX = invertedPoints[0].x;
-        var maxY = invertedPoints[0].y;
-        var controlPointIndex = 0;
-        
-        //find the smallest x points, and of those, take the greatest y:
-        for(var i = 0; i < invertedPoints.length; i++) {
-            if((invertedPoints[i].x < invertedPoints[controlPointIndex].x)
-                    || (invertedPoints[i].x == invertedPoints[controlPointIndex].x && invertedPoints[i].y > invertedPoints[controlPointIndex].y)) {
-                controlPointIndex = i;
-            }
-            
-            minX = Math.min(minX, invertedPoints[i].x);
-            minY = Math.min(minY, invertedPoints[i].y);
-            maxX = Math.max(maxX, invertedPoints[i].x);
-            maxY = Math.max(maxY, invertedPoints[i].y);
-        }
-        
-        //the inverted border needs to be this much larger than the original polygon:
-        var invertedBorderDistance = 1;
-        
-        //insert a point immediately down from the control point to branch off from:
-        invertedPoints.splice(controlPointIndex + 1, 0, new point(invertedPoints[controlPointIndex].x, invertedPoints[controlPointIndex].y + 1));
-        
-        //branch the new point to the edge of the inverted border:
-        invertedPoints.splice(controlPointIndex + 1, 0, new point(minX - invertedBorderDistance, invertedPoints[controlPointIndex].y + 1));
-        
-        //draw the inverted border corners stemming from control point:
-        invertedPoints.splice(controlPointIndex + 1, 0, new point(minX - invertedBorderDistance, maxY + invertedBorderDistance));
-        invertedPoints.splice(controlPointIndex + 1, 0, new point(maxX + invertedBorderDistance, maxY + invertedBorderDistance));
-        invertedPoints.splice(controlPointIndex + 1, 0, new point(maxX + invertedBorderDistance, minY - invertedBorderDistance));
-        invertedPoints.splice(controlPointIndex + 1, 0, new point(minX - invertedBorderDistance, minY - invertedBorderDistance));
-        
-        //insert a point from the control point leading to the edge of the inverted border:
-        invertedPoints.splice(controlPointIndex + 1, 0, new point(minX - invertedBorderDistance, invertedPoints[controlPointIndex].y));
-        
-        var op = new outlinePolygon();
-        op.addPointsPath(invertedPoints);
-        
-        return op;
+        return this.convertToSimplePolygon(iTopLeftPoint, new angle(Math.PI / 2), true);
     };
     
     
     var graph = function() {
         typedObject.call(this);
         this._type.push('graph');
+        this.initializeCollectionProperty('simplePolygons');
         this.initializeCollectionProperty('complexPolygons');
-        this.initializeCollectionProperty('outlinePolygons');
     };
     
     inheritPrototype(graph, typedObject);
     
     graph.prototype.setProperty = function(property, value) {
         switch(property) {
+            case 'simplePolygons':
             case 'complexPolygons':
-            case 'outlinePolygons':
                 return this['_' + property].push(value) - 1;
                 break;
             default:
@@ -1107,8 +1133,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     graph.prototype.initializeCollectionProperty = function(property) {
         switch(property) {
+            case 'simplePolygons':
             case 'complexPolygons':
-            case 'outlinePolygons':
                 this['_' + property] = [];
                 break;
             default:
@@ -1117,43 +1143,43 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }
     };
     
+    graph.prototype.addSimplePolygon = function(rawPath, top, left) {
+        var op = new simplePolygon();
+        op.addRawPath(rawPath, top, left);
+        return this.setProperty('simplePolygons', op);
+    };
+    
     graph.prototype.addComplexPolygon = function(rawPath, top, left, isFromEvent) {
         var cp = new complexPolygon();
         cp.addRawPath(rawPath, top, left, isFromEvent);
         return this.setProperty('complexPolygons', cp);
     };
     
-    graph.prototype.addOutlinePolygon = function(rawPath, top, left) {
-        var op = new outlinePolygon();
-        op.addRawPath(rawPath, top, left);
-        return this.setProperty('outlinePolygons', op);
-    };
-    
-    graph.prototype.convertComplexPolygonToOutlinePolygon = function(index) {
-        var op = this.getProperty('complexPolygons')[index].convertToOuterOutlinePolygon();
+    graph.prototype.convertComplexPolygonToSimplePolygon = function(index) {
+        var op = this.getProperty('complexPolygons')[index].convertToOuterSimplePolygon();
         this.getProperty('complexPolygons').splice(index, 1);
-        return this.setProperty('outlinePolygons', op);
+        return this.setProperty('simplePolygons', op);
     };
     
     graph.prototype.getRawPath = function(pathType, index) {
         return this.getProperty(pathType)[index].getRawPath();
     };
     
-    graph.prototype.mergeOutlinePolygons = function(index1, index2) {
+    graph.prototype.mergeSimplePolygons = function(index1, index2) {
         var cp = new complexPolygon();
-        var op1 = this.getProperty('outlinePolygons')[index1];
+        var op1 = this.getProperty('simplePolygons')[index1];
         
         //stuff points from op1 into cp, rather than re-inserting, for the sake of efficiency:
         cp.points = op1.points;
         cp.segments = op1.segments;
         
-        var op2 = this.getProperty('outlinePolygons')[index2];
+        var op2 = this.getProperty('simplePolygons')[index2];
         var cpResult = cp.addPointsPath(op2.getPointsPath());
         
         //polygons intersect, so return their merge:
         if(cpResult.hadIntersections) {
             var cpIndex = this.setProperty('complexPolygons', cp);
-            return this.convertComplexPolygonToOutlinePolygon(cpIndex);
+            return this.convertComplexPolygonToSimplePolygon(cpIndex);
         } 
         //polygon 2 is fully contained within polygon 1, so return polygon 1:
         else if(op1.hasInside(op2.points[0][0])) {
@@ -1170,22 +1196,22 @@ var APIAreaMapper = APIAreaMapper || (function() {
     };
     
     //removes the intersection between the two polygons from the first:
-    graph.prototype.removeFromOutlinePolygon = function(index1, index2) {
+    graph.prototype.removeFromSimplePolygon = function(index1, index2) {
         var cp = new complexPolygon();
-        var op1 = this.getProperty('outlinePolygons')[index1];
-        var op2 = this.getProperty('outlinePolygons')[index2];
+        var op1 = this.getProperty('simplePolygons')[index1];
+        var op2 = this.getProperty('simplePolygons')[index2];
         var op3 = op1.removeIntersection(op2);
         
         if(!op3) {
             return;
         } 
         
-        return this.setProperty('outlinePolygons', op3);
+        return this.setProperty('simplePolygons', op3);
     };
     
-    graph.prototype.invertOutlinePolygon = function(index) {
-        var invertedOp = this.getProperty('outlinePolygons')[index].invert();
-        return this.setProperty('outlinePolygons', invertedOp);
+    graph.prototype.invertSimplePolygon = function(index) {
+        var invertedOp = this.getProperty('simplePolygons')[index].invert();
+        return this.setProperty('simplePolygons', invertedOp);
     };
      
     /* polygon logic - end */
