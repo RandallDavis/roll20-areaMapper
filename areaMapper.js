@@ -629,16 +629,20 @@ var APIAreaMapper = APIAreaMapper || (function() {
         };
             
         this.length = function() {
-            var xDist = b.x - a.x;
-            var yDist = b.y - a.y;
+            var xDist = this.b.x - this.a.x;
+            var yDist = this.b.y - this.a.y;
             return Math.sqrt((xDist * xDist) + (yDist * yDist));
+        };
+        
+        this.midpoint = function() {
+            return new point(this.a.x + ((this.b.x - this.a.x) / 2), this.a.y + ((this.b.y - this.a.y) / 2))
         };
         
         //return an angle with respect to a specfic endpoint:
         this.angle = function(p) {
-            var radians = (Math.atan2(b.y - a.y, b.x - a.x) + (2 * Math.PI)) % (2 * Math.PI);
+            var radians = (Math.atan2(this.b.y - this.a.y, this.b.x - this.a.x) + (2 * Math.PI)) % (2 * Math.PI);
             
-            if(b.x === p.x && b.y === p.y) {
+            if(this.b.x === p.x && this.b.y === p.y) {
                 
                 //use angle with respect to b:
                 radians = (radians + (Math.PI)) % (2 * Math.PI);
@@ -848,13 +852,29 @@ var APIAreaMapper = APIAreaMapper || (function() {
     inheritPrototype(simplePath, path);
     
     //doesn't test for intersections - assumes this is already part of an simple on good faith:
-    simplePath.prototype.addSegment = function(s) {
+    simplePath.prototype.addSegment = function(s, index) {
         if(!s.a.equals(s.b)) {
-            var iS = this.segments.push(s) - 1;
+            if('undefined' === typeof(index)) {
+                index = this.segments.length;
+            }
+            
+            //add the segment:
+            this.segments.splice(index, 0, s);
+            
+            //increment all segment index references that have been altered:
+            this.points.forEach(function(p) {
+                for(var i = 0; i < p[1].length; i++) {
+                    if(p[1][i] >= index) {
+                        p[1][i]++;
+                    }
+                }
+            }, this);
+            
+            //register the segment in this.points:
             var iPa = this.addPoint(s.a);
             var iPb = this.addPoint(s.b);
-            this.points[iPa][1].push(iS);
-            this.points[iPb][1].push(iS);
+            this.points[iPa][1].push(index);
+            this.points[iPb][1].push(index);
         }
     };
     
@@ -1073,6 +1093,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return cp.convertToSimplePolygon(controlPointIndex, controlAngle, false);
     };
     
+    //returns intersecting paths for a simple path or simple polygon:
     simplePolygon.prototype.getIntersectingPaths = function(sp) {
         
         //find all intersecting segments and their points of intersection:
@@ -1090,35 +1111,114 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     
                     //release reference to the broken segment if it exists and hold references to the new pieces:
                     for(var i3 = 0; i3 < intersectingSegments.length; i3++) {
-                        if(intersectingSegments[i3].equals(sp.segments[i])) {
+                        if(intersectingSegments[i3][0].equals(sp.segments[i])) {
                             intersectingSegments.splice(i3, 1);
                         }
                     }
-                    intersectingSegments.push(brokenSegment1);
-                    intersectingSegments.push(brokenSegment2);
+                    intersectingSegments.push([brokenSegment1, false]);
+                    intersectingSegments.push([brokenSegment2, false]);
                     
                     //remove the broken segment and add its broken pieces:
-                    sp.addSegment(brokenSegment1);
-                    sp.addSegment(brokenSegment2);
+                    sp.addSegment(brokenSegment1, i + 1);
+                    sp.addSegment(brokenSegment2, i + 2);
                     sp.removeSegment(sp.segments[i]);
                     
                     //break the segments in this so that we don't get repeated intersections in further tests:
-                    this.addSegment(new segment(this.segments[i2].a, intersectionPoint));
-                    this.addSegment(new segment(intersectionPoint, this.segments[i2].b));
+                    this.addSegment(new segment(this.segments[i2].a, intersectionPoint), i2 + 1);
+                    this.addSegment(new segment(intersectionPoint, this.segments[i2].b), i2 + 2);
                     this.removeSegment(this.segments[i2]);
-                    
-                    //decrement i because sp.segments[i] was removed:
-                    i--;
-                    
-                    //break out of the inner loop and retest the broken segments:
-                    break;
                 }
             }
         }
         
-        log('intersectingSegments:');
-        log(intersectingSegments);
+        var intersectingPaths = [];
         
+        //handle cases where there are no intersectingSegments:
+        if(!intersectingSegments.length) {
+            
+            //sp is fully contained in this:
+            if(this.hasInside(sp.points[0][0])) {
+                intersectingPaths.push(sp.getPointsPath());
+            }
+        } else {
+        
+            //intersectingSegments is now a stable array; loop through until all have been processed:
+            intersectingSegments.forEach(function(s) {
+                
+                //intersectingSegments can be processed inherently through processing others:
+                if(!s[1]) {
+                    
+                    //test the midpoint of the segment to see if it's contained in this polygon:
+                    if(this.hasInside(s[0].midpoint())) {
+                        var intersectingPath = [];
+                        
+                        intersectingPath.push(s[0].a);
+                        intersectingPath.push(s[0].b);
+                        
+                        //find the index of the segment in sp:
+                        var sIndex = sp.getSegmentIndex(s[0]);
+                        
+                        //walk the path forward until finding a segment that's not contained:
+                        var sWalkingIndex = sIndex + 1;
+                        
+                        if(sp.isType('polygon')) {
+                            sWalkingIndex %= sp.segments.length;
+                        }
+                        
+                        while(sWalkingIndex !== sIndex && sWalkingIndex < sp.segments.length && this.hasInside(sp.segments[sWalkingIndex].midpoint())) {
+                            var seg = sp.segments[sWalkingIndex];
+                            intersectingPath.push(seg.b);
+                            
+                            //if the segment is in intersectingSegments, mark it as processed:
+                            intersectingSegments.forEach(function(iSeg) {
+                                if(iSeg[0].equals(seg)) {
+                                    iSeg[1] = true;
+                                }
+                            }, this);
+                            
+                            sWalkingIndex++;
+                            
+                            if(sp.isType('polygon')) {
+                                sWalkingIndex %= sp.segments.length;
+                            }
+                        }
+                        
+                        //if the forward walk didn't complete the circuit, walk the path backward until finding a segment that's not contained:
+                        if(sWalkingIndex !== sIndex) {
+                            sWalkingIndex = sIndex - 1;
+                            
+                            if(sp.isType('polygon')) {
+                                sWalkingIndex = (sWalkingIndex + sp.segments.length) % sp.segments.length;
+                            }
+                            
+                            while(sWalkingIndex !== sIndex && sWalkingIndex >= 0 && this.hasInside(sp.segments[sWalkingIndex].midpoint())) {
+                                var seg = sp.segments[sWalkingIndex];
+                                intersectingPath.unshift(seg.a);
+                                    
+                                //if the segment is in intersectingSegments, mark it as processed:
+                                intersectingSegments.forEach(function(iSeg) {
+                                    if(iSeg[0].equals(seg)) {
+                                        iSeg[1] = true;
+                                    }
+                                }, this);
+                                
+                                sWalkingIndex--;
+                            
+                                if(sp.isType('polygon')) {
+                                    sWalkingIndex = (sWalkingIndex + sp.segments.length) % sp.segments.length;
+                                }
+                            }
+                        }
+                        
+                        intersectingPaths.push(intersectingPath);
+                    }
+                }
+            }, this);
+        }
+        
+        log('intersectingPaths:');
+        log(intersectingPaths);
+        return intersectingPaths;
     };
     
     simplePolygon.prototype.invert = function() {
