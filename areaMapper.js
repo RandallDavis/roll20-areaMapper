@@ -275,7 +275,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         g.addComplexPolygon(rawPath, top, left, isFromEvent);
         var removeOpIndex = g.convertComplexPolygonToSimplePolygon(0);
         
-        //get instance that appending is relative to:
+        //get instance that removal is relative to:
         var instance = new areaInstance(this.getProperty('id'), pageId);
         instance.load();
         
@@ -309,11 +309,22 @@ var APIAreaMapper = APIAreaMapper || (function() {
         g.addComplexPolygon(rawPath, top, left, isFromEvent);
         var removeSpIndex = g.convertComplexPolygonToSimplePolygon(0);
         
-        //get instance that appending is relative to:
+        //get instance that removal is relative to:
         var instance = new areaInstance(this.getProperty('id'), pageId);
         instance.load();
         
+        //find removal's intersections with the floorPlan edge:
+        var floorPlanSpIndex = g.addSimplePolygon(this.getProperty('floorPlan'), instance.getProperty('top'), instance.getProperty('left'));
+        var containedPaths = g.getProperty('simplePolygons')[removeSpIndex].getIntersectingPaths(g.getProperty('simplePolygons')[floorPlanSpIndex]);
+        
+        
+        
+        
         //TODO
+        
+        
+        
+        //TODO: union new gaps with existing gaps (might cause multiples to be merged into one)
         
         
         
@@ -534,13 +545,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var floorMask = drawPathObject(this.getProperty('pageId'), 'map', maskColor, maskColor, floorMaskRawPath.rawPath, floorMaskRawPath.top, floorMaskRawPath.left);
         this.setProperty('floorMaskId', floorMask.id);
         
-        /*
-        //draw edge walls:
-        g.getProperty('simplePolygons')[floorPlanOpIndex].segments.forEach(function(s) {
-            this.setProperty('edgeWallIds', createTokenObjectFromSegment(wallImageUrl, this.getProperty('pageId'), 'objects', s, 30).id);
-        }, this);
-        */
-        
         //draw edge walls:
         a.getProperty('edgeWalls').forEach(function(ew) {
             var ewIndex = g.addSimplePath(ew, top, left);
@@ -566,6 +570,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         //create floorPolygon:
         var floorPolygon = drawPathObject(this.getProperty('pageId'), 'map', state.APIAreaMapper.blueprintFloorPolygonColor, state.APIAreaMapper.blueprintFloorPolygonColor, a.getProperty('floorPlan'), top, left);
         this.setProperty('floorPolygonId', floorPolygon.id);
+        
+        //TODO: draw edge wall gaps:
         
         this.save();
     };
@@ -712,8 +718,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
     };
     
     path.prototype.removeSegment = function(s) {
+        
         var iS = this.getSegmentIndex(s);
-            
+        
         //remove segment from points:
         for(var pI = this.points.length - 1; pI >= 0; pI--) {
             for(var i = 0; i < this.points[pI][1].length; i++) {
@@ -1064,6 +1071,54 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var controlPointIndex = cp.getPointIndex(this.points[controlPointIndex][0]);
         
         return cp.convertToSimplePolygon(controlPointIndex, controlAngle, false);
+    };
+    
+    simplePolygon.prototype.getIntersectingPaths = function(sp) {
+        
+        //find all intersecting segments and their points of intersection:
+        var intersectingSegments = [];
+       
+        //break all intersecting segments, but keep references to them and check for further intersections:
+        for(var i = 0; i < sp.segments.length; i++) {
+            for(var i2 = 0; i2 < this.segments.length; i2++) {
+                
+                //because we're breaking new segments, we have to retest for intersection:
+                var intersectionPoint = segmentsIntersect(sp.segments[i], this.segments[i2]);
+                if(intersectionPoint) {
+                    var brokenSegment1 = new segment(sp.segments[i].a, intersectionPoint);
+                    var brokenSegment2 = new segment(intersectionPoint, sp.segments[i].b);
+                    
+                    //release reference to the broken segment if it exists and hold references to the new pieces:
+                    for(var i3 = 0; i3 < intersectingSegments.length; i3++) {
+                        if(intersectingSegments[i3].equals(sp.segments[i])) {
+                            intersectingSegments.splice(i3, 1);
+                        }
+                    }
+                    intersectingSegments.push(brokenSegment1);
+                    intersectingSegments.push(brokenSegment2);
+                    
+                    //remove the broken segment and add its broken pieces:
+                    sp.addSegment(brokenSegment1);
+                    sp.addSegment(brokenSegment2);
+                    sp.removeSegment(sp.segments[i]);
+                    
+                    //break the segments in this so that we don't get repeated intersections in further tests:
+                    this.addSegment(new segment(this.segments[i2].a, intersectionPoint));
+                    this.addSegment(new segment(intersectionPoint, this.segments[i2].b));
+                    this.removeSegment(this.segments[i2]);
+                    
+                    //decrement i because sp.segments[i] was removed:
+                    i--;
+                    
+                    //break out of the inner loop and retest the broken segments:
+                    break;
+                }
+            }
+        }
+        
+        log('intersectingSegments:');
+        log(intersectingSegments);
+        
     };
     
     simplePolygon.prototype.invert = function() {
