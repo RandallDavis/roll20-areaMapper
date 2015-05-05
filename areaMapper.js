@@ -3,7 +3,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     /* core - begin */
     
     var version = 0.033,
-        schemaVersion = 0.022,
+        schemaVersion = 0.023,
         buttonBackgroundColor = '#E92862',
         buttonHighlightColor = '#00FF00',
         mainBackgroundColor = '#3D8FE1',
@@ -25,7 +25,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 areaInstances: [],
                 activeArea: null,
                 activePage: null,
-                blueprintFloorPolygonColor: '#A3E1E4'
+                blueprintFloorPolygonColor: '#A3E1E4',
+                edgeWallGapsPolygonColor: '#D13583'
             };
         } 
         
@@ -153,7 +154,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this.setProperty('floorPlan', rp.rawPath);
         
         //initially, edge walls will be identical to the floorPlan, because no gaps have been declared:
-        this.setProperty('edgeWalls', rp.rawPath);
+        this.setProperty('edgeWalls', [rp.rawPath, 0, 0]);
         
         this.setProperty('width', rp.width);
         this.setProperty('height', rp.height);
@@ -260,7 +261,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             //if there are no edge wall gaps, just use the new floorPlan for edge walls:
             if(!oldEdgeWallGaps || !oldEdgeWallGaps.length) {
                 this.initializeCollectionProperty('edgeWalls');
-                this.setProperty('edgeWalls', rp.rawPath);
+                this.setProperty('edgeWalls', [rp.rawPath, 0, 0]);
             } else {
                 //TODO
             }
@@ -294,7 +295,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             //if there are no edge wall gaps, just use the new floorPlan for edge walls:
             if(!oldEdgeWallGaps || !oldEdgeWallGaps.length) {
                 this.initializeCollectionProperty('edgeWalls');
-                this.setProperty('edgeWalls', rp.rawPath);
+                this.setProperty('edgeWalls', [rp.rawPath, 0, 0]);
             } else {
                 //TODO
             }
@@ -317,16 +318,23 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var floorPlanSpIndex = g.addSimplePolygon(this.getProperty('floorPlan'), instance.getProperty('top'), instance.getProperty('left'));
         var containedPaths = g.getProperty('simplePolygons')[removeSpIndex].getIntersectingPaths(g.getProperty('simplePolygons')[floorPlanSpIndex]);
         
+        //TODO: append containedPaths with existing gaps (might result in multiples being merged):
         
+        //TODO: reuse this logic in the method that gets existing gaps:
+        var edgeWallPaths = g.getProperty('simplePolygons')[floorPlanSpIndex].removePathIntersections(containedPaths);
         
+        //convert edgeWallPaths into raw paths:
+        this.initializeCollectionProperty('edgeWalls');
+        edgeWallPaths.forEach(function(ew) {
+            var sp = new simplePath();
+            sp.addPointsPath(ew);
+            var rp = sp.getRawPath();
+            this.setProperty('edgeWalls', [rp.rawPath, rp.top - instance.getProperty('top'), rp.left - instance.getProperty('left')]);
+        }, this);
         
-        //TODO
+        this.save();
         
-        
-        
-        //TODO: union new gaps with existing gaps (might cause multiples to be merged into one)
-        
-        
+        this.draw(pageId, instance.getProperty('top'), instance.getProperty('left'));
         
         /*
         //TODO: factor in instance's rotation & scale:
@@ -361,6 +369,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this._areaId = areaId;
         this._pageId = pageId;
         this.initializeCollectionProperty('edgeWallIds');
+        this.initializeCollectionProperty('edgeWallGapIds');
     };
     
     inheritPrototype(areaInstance, typedObject);
@@ -378,6 +387,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 this['_' + property] = value;
                 break;
             case 'edgeWallIds': //tokens
+            case 'edgeWallGapIds': //simple paths
                 return this['_' + property].push(value) - 1;
             default:
                 typedObject.prototype.setProperty.call(this, property, value);
@@ -388,6 +398,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     areaInstance.prototype.initializeCollectionProperty = function(property, value) {
         switch(property) {
             case 'edgeWallIds':
+            case 'edgeWallGapIds':
                 if('undefined' === typeof(value)) {
                     this['_' + property] = [];
                 } else {
@@ -434,6 +445,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     this.setProperty(areaInstanceState[i][0], areaInstanceState[i][1]);
                     break;
                 case 'edgeWallIds':
+                case 'edgeWallGapIds':
                     this.initializeCollectionProperty(areaInstanceState[i][0], areaInstanceState[i][1]);
                     break;
                 default:
@@ -453,6 +465,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         areaInstanceState.push(['floorTileId', this.getProperty('floorTileId')]);
         areaInstanceState.push(['floorMaskId', this.getProperty('floorMaskId')]);
         areaInstanceState.push(['edgeWallIds', this.getProperty('edgeWallIds')]);
+        areaInstanceState.push(['edgeWallGapIds', this.getProperty('edgeWallGapIds')]);
         
         //remove existing area instance state:
         var areaInstances = state.APIAreaMapper.areaInstances;
@@ -494,6 +507,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
             deleteObject('graphic', wId);
         }, this);
         this.initializeCollectionProperty('edgeWallIds');
+        
+        //delete edge walls:
+        this.getProperty('edgeWallGapIds').forEach(function(wId) {
+            deleteObject('path', wId);
+        }, this);
+        this.initializeCollectionProperty('edgeWallGapIds');
         
         this.save();
     };
@@ -547,7 +566,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         //draw edge walls:
         a.getProperty('edgeWalls').forEach(function(ew) {
-            var ewIndex = g.addSimplePath(ew, top, left);
+            var ewIndex = g.addSimplePath(ew[0], top + ew[1], left + ew[2]);
             g.getProperty('simplePaths')[ewIndex].segments.forEach(function(s) {
                 this.setProperty('edgeWallIds', createTokenObjectFromSegment(wallImageUrl, this.getProperty('pageId'), 'objects', s, 30).id);
             }, this);
@@ -571,7 +590,13 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var floorPolygon = drawPathObject(this.getProperty('pageId'), 'map', state.APIAreaMapper.blueprintFloorPolygonColor, state.APIAreaMapper.blueprintFloorPolygonColor, a.getProperty('floorPlan'), top, left);
         this.setProperty('floorPolygonId', floorPolygon.id);
         
-        //TODO: draw edge wall gaps:
+        //draw edge wall gaps:
+        //TODO: use edge wall gaps instead of edge walls:
+        a.getProperty('edgeWalls').forEach(function(ew) {
+            log(ew);
+            var edgeWallGap = drawPathObject(this.getProperty('pageId'), 'map', state.APIAreaMapper.edgeWallGapsPolygonColor, 'transparent', ew[0], top + ew[1], left + ew[2], 5);
+            this.setProperty('edgeWallGapIds', edgeWallGap.id);
+        }, this);
         
         this.save();
     };
@@ -820,6 +845,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
             iPrior = iCurrent;
         }, this);
         
+        log('isPolygon: ' + this.isType('polygon'));
+        
         //if this is a polygon (broken polymorphism because it would be better to do multiple inheritence), close the polygon if it isn't closed already:
         if(this.isType('polygon')) {
             if(!pPrior.equals(pStart)) {
@@ -918,6 +945,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
         returnObject.width = maxX - minX;
         returnObject.height = maxY - minY;
         return returnObject;
+    };
+    
+    //takes paths that are gauranteed to intersect this path and returns paths that weren't intersected:
+    //note: this handles simple polygon logic as well
+    simplePath.prototype.removePathIntersections = function(intersectingPaths) {
+        
+        //TODO: real result:
+        return intersectingPaths;
     };
   
     
@@ -1491,8 +1526,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }
     },
     
-    drawPathObject = function(pageId, layer, stroke, fill, path, top, left) {
+    drawPathObject = function(pageId, layer, stroke, fill, path, top, left, strokeWidth) {
         state.APIAreaMapper.tempIgnoreAddPath = true;
+        
+        if('undefined' === typeof(strokeWidth)) {
+            strokeWidth = 1;
+        }
         
         var obj = createObj('path', {
             layer: layer,
@@ -1500,7 +1539,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             top: top,
             left: left,
             stroke: stroke,
-            stroke_width: 1,
+            stroke_width: strokeWidth,
             fill: fill,
             _path: path
         });
