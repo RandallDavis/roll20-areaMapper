@@ -329,6 +329,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             var sp = new simplePath();
             sp.addPointsPath(ew);
             var rp = sp.getRawPath();
+            log(rp.rawPath);
             this.setProperty('edgeWalls', [rp.rawPath, rp.top - instance.getProperty('top'), rp.left - instance.getProperty('left')]);
         }, this);
         
@@ -593,7 +594,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
         //draw edge wall gaps:
         //TODO: use edge wall gaps instead of edge walls:
         a.getProperty('edgeWalls').forEach(function(ew) {
-            log(ew);
             var edgeWallGap = drawPathObject(this.getProperty('pageId'), 'map', state.APIAreaMapper.edgeWallGapsPolygonColor, 'transparent', ew[0], top + ew[1], left + ew[2], 5);
             this.setProperty('edgeWallGapIds', edgeWallGap.id);
         }, this);
@@ -845,8 +845,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
             iPrior = iCurrent;
         }, this);
         
-        log('isPolygon: ' + this.isType('polygon'));
-        
         //if this is a polygon (broken polymorphism because it would be better to do multiple inheritence), close the polygon if it isn't closed already:
         if(this.isType('polygon')) {
             if(!pPrior.equals(pStart)) {
@@ -935,7 +933,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
         for(var i = 1; i < this.points.length; i++) {
             rawPath += ',[\"L\",' + (this.points[i][0].x - minX) + ',' + (this.points[i][0].y - minY) + ']';
         }
-        rawPath += ',[\"L\",' + (this.points[0][0].x - minX) + ',' + (this.points[0][0].y - minY) + ']';
+        
+        if(this.isType('polygon')) {
+            rawPath += ',[\"L\",' + (this.points[0][0].x - minX) + ',' + (this.points[0][0].y - minY) + ']';
+        }
+        
         rawPath += ']';
         
         var returnObject = [];
@@ -1251,8 +1253,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
             }, this);
         }
         
-        log('intersectingPaths:');
-        log(intersectingPaths);
         return intersectingPaths;
     };
     
