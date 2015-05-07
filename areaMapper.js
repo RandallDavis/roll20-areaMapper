@@ -310,31 +310,13 @@ var APIAreaMapper = APIAreaMapper || (function() {
         g.addComplexPolygon(rawPath, top, left, isFromEvent);
         var removeSpIndex = g.convertComplexPolygonToSimplePolygon(0);
         
-        log('removal polygon:');
-        log(g.getProperty('simplePolygons')[removeSpIndex]);
-        
         //get instance that removal is relative to:
         var instance = new areaInstance(this.getProperty('id'), pageId);
         instance.load();
         
-        log('area floorplan:');
-        log(this.getProperty('floorPlan'));
-        
-        //TODO: addSimplePolygon is broken!
         //find removal's intersections with the floorPlan edge:
         var floorPlanSpIndex = g.addSimplePolygon(this.getProperty('floorPlan'), instance.getProperty('top'), instance.getProperty('left'));
-        
-         log('area floorplan after addSimplePolygon:');
-        log(this.getProperty('floorPlan'));
-        
         var containedPaths = g.getProperty('simplePolygons')[removeSpIndex].getIntersectingPaths(g.getProperty('simplePolygons')[floorPlanSpIndex]);
-        
-        log('floorPlan had bad ordering');
-        log('floorPlan at instance:');
-        log(g.getProperty('simplePolygons')[floorPlanSpIndex]);
-        
-        log('containedPaths:');
-        log(containedPaths);
         
         //TODO: append containedPaths with existing gaps (might result in multiples being merged):
         
@@ -868,15 +850,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     };
     
     path.prototype.addRawPath = function(rawPath, top, left, isFromEvent) {
-        log('in path.addRawPath()');
-        log('rawPath:');
-        log(rawPath);
-        
         var pathPoints = this.convertRawPathToPath(rawPath, top, left, isFromEvent);
-        
-        log('pathPoints:');
-        log(pathPoints);
-        
         return this.addPointsPath(pathPoints);
     };
     
@@ -885,36 +859,16 @@ var APIAreaMapper = APIAreaMapper || (function() {
             return;
         }
         
-        //TODO: this is broken somehow!
-        log('in path.addPointsPath()');
-        
         var hadIntersections = false;
         
         var pStart, //start point
             pPrior; //prior point
-            //iPrior; //index of prior point
         
         pathPoints.forEach(function(pCurrent) {
-            
-            log('pCurrent:');
-            log(pCurrent);
-            
-            log('this.points before add: ');
-            log(this.points);
-            
             var iCurrent = this.addPoint(pCurrent); //index of current point
-            
-            log('this.points after add with iCurrent of: ' + iCurrent);
-            log(this.points);
-            
-            log('pPrior:');
-            log(pPrior);
             
             if(pPrior) {
                 var result = this.addSegment(new segment(pPrior, pCurrent));
-                
-                log('this.points after addSegment(): ' + iCurrent);
-                log(this.points);
                 
                 if(result) {
                     hadIntersections = hadIntersections || result.hadIntersections;
@@ -924,7 +878,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
             }
             
             pPrior = pCurrent;
-            //iPrior = iCurrent;
         }, this);
         
         //if this is a polygon (broken polymorphism because it would be better to do multiple inheritence), close the polygon if it isn't closed already:
@@ -937,9 +890,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 }
             }
         }
-        
-        log('this.points after polygon closing: ');
-        log(this.points);
         
         /*
         If prior to calling this method, only a simple polygon was stored, and then another simple polygon
@@ -1004,46 +954,20 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var loopLimit = this.points.length; //limit the loop iterations in case there's a bug or the equality clause ends up needing an epsilon
         var firstIteration = true;
         var chosenSegment;
-        
-        log('in simplePath.getPointsPath():');
-        log(this.points);
-        log(this.segments);
-        
         var pointsPath = [];
         
-        log('this.points[iP]:');
-        log(this.points[iP]);
-        
-        var controlAngle = new angle((Math.PI / 2) + 0.0001);
-        //var controlAngle = new angle((Math.Pi / 2));
-        
-        log('controlAngle.radians: ' + controlAngle.radians);
-        
-        //Math.PI / 2
-        //0.0001
-        //segAngle.subtract(a.radians);
-        //log('(Math.Pi / 2) + 0.0001: ' + ((Math.Pi / 2) + 0.0001));
-        log('this.points[iP][1][0]].angle(this.points[iP][0]): ' + (this.segments[this.points[iP][1][0]].angle(this.points[iP][0])).radians);
-        log('relative angle for [0]: ' + this.segments[this.points[iP][1][0]].angle(this.points[iP][0]).subtract(controlAngle.radians).radians);
-        
-        
         //choose the segment with the greater relative angle to set the walking orientation:
+        var controlAngle = new angle((Math.PI / 2) + 0.0001);
         chosenSegment = 
             (this.segments[this.points[iP][1][0]].angle(this.points[iP][0]).subtract(controlAngle.radians).radians > this.segments[this.points[iP][1][1]].angle(this.points[iP][0]).subtract(controlAngle.radians).radians) 
             ? this.segments[this.points[iP][1][0]]
             : this.segments[this.points[iP][1][1]];
         
-        log('initial chosenSegment:');
-        log(chosenSegment);
-        
         //loop until the path has been traced:
         //TODO: test loopLimit for 'off by one':
         while((loopLimit-- > 0) && !(!firstIteration && iP === controlPointIndex)) {
-            log('iP: ' + iP);
-            
             firstIteration = false;
             pointsPath.push(this.points[iP][0]);
-            
             var iPOld = iP;
 
             //the next point should be the endpoint of the segment that wasn't the prior point:
@@ -1058,30 +982,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 (this.points[iP][1][0] === this.points[iPOld][1][0] || this.points[iP][1][0] === this.points[iPOld][1][1])
                 ? this.segments[this.points[iP][1][1]]
                 : this.segments[this.points[iP][1][0]];
-            
-            
-            log('chosenSegment.a.equals(this.points[iP][0]): ' + chosenSegment.a.equals(this.points[iP][0]));
-            
-            log('changed Ip to: ' + iP);
         }
-        
-        
-        log(pointsPath);
-        
-        
-        
-        /*this.points.forEach(function(p) {
-            pointsPath.push(p[0]);
-        }, this);*/
-        
-        //traverse the path and add points:
-        /*var loopLimit = this.points.length;
-        var i = iTopLeftPoint;
-        while(loopLimit--) {
-            
-        }*/
-        
-        //TODO: this doesn't return a dupe point; remove the pop() in edge wall removal
         
         return pointsPath;
     };
@@ -1092,7 +993,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             return;
         }
         
-        //TODO: leverage getPointsPath()
+        //TODO: leverage getPointsPath() for proper ordering
         
         var minX = this.points[0][0].x;
         var minY = this.points[0][0].y;
@@ -1135,27 +1036,13 @@ var APIAreaMapper = APIAreaMapper || (function() {
         route. Otherwise, the intersecting path is ignored.
         */
         
-        //TODO: they are right now coming in reverse orientation; actually it might be pointsPath that is wrong
         //note: intersecting paths are always oriented in the same direction of progression as this path
-        
-        //TODO: this has bad ordering!
-        log('this.getPointsPath():');
-        log(this.getPointsPath());
-        
-        log('this.getRawPath():');
-        log(this.getRawPath().rawPath);
         
         //Stuff this path's points into a data structure that has proper path order, but allows for tagging. Don't do tagging on this.points because it could get persisted when the points are saved.
         var pointsPath = [];
         this.getPointsPath().forEach(function(p) {
             pointsPath.push([p]);
         }, this);
-        
-        log('intersectingPaths:');
-        log(intersectingPaths);
-        
-        log('initial pointsPath:');
-        log(pointsPath);
         
         //helper function for segment breaking:
         var getSegmentIntersectionPointIndex = function(pointsPath, p, beginningIndex) {
@@ -1170,9 +1057,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
             return null;
         };
         
-        log('pointsPath after segment breaking:');
-        log(pointsPath);
-        
         //apply intersecting paths' endpoints to this path:
         intersectingPaths.forEach(function(ip) {
             if(ip.length > 1) {
@@ -1180,8 +1064,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 var startPointIndex,
                     endPointIndex;
                     
-                log('beginning tagging');
-                
                 //tag start point if a match can be found:
                 for(var i = 0; i < pointsPath.length; i++) {
                     if(pointsPath[i][0].equals(ip[0])) {
@@ -1194,16 +1076,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     }
                 }
                 
-                log('startPointIndex after point search: ' + startPointIndex);
-                log(pointsPath);
-                
                 //if no point matched for start point, see if the start point intersects a segment:
                 if('undefined' === startPointIndex) {
                     startPointIndex = getSegmentIntersectionPointIndex(pointsPath, ip[0], 0);
                 }
-                
-                log('startPointIndex after segment search: ' + startPointIndex);
-                log(pointsPath);
                 
                 if(startPointIndex !== null) {
                     
@@ -1223,16 +1099,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         }
                     }
                     
-                    log('endPointIndex after point search: ' + endPointIndex);
-                    log(pointsPath);
-                    
                     //if no point matched for end point, see if the end point intersects a segment:
                     if('undefined' === endPointIndex) {
                         endPointIndex = getSegmentIntersectionPointIndex(pointsPath, ip[ip.length - 1], this.isType('polygon') ? 0 : startPointIndex);
                     }
-                    
-                    log('endPointIndex after segment search: ' + endPointIndex);
-                    log(pointsPath);
                     
                     if(endPointIndex !== null) {
                         
@@ -1247,9 +1117,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
             }
         }, this);
         
-        log('pointsPath after tagging:');
-        log(pointsPath);
-        
         var survivingPaths = [];
         
         //identify a starting point that is not intersected; because of polygon wrapping, a complete circuit has to be made:
@@ -1259,43 +1126,28 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var detectedFloor = 0; //relative to index 0
         for(var i = 0; i < pointsPath.length; i++) {
             
-            log('i: ' + i + '; indexIntersectionOverlap: ' + indexIntersectionOverlap);
-            
             //raise the ceiling of this index:
             if(pointsPath[i].start) {
                 indexIntersectionOverlap += pointsPath[i].start;
-                
-                log('start found; new indexIntersectionOverlap: ' + indexIntersectionOverlap);
             }
             
             //adjust beginning index if this is the lowest point detected so far:
             if(indexIntersectionOverlap < beginningIndexIntersectionOverlap) {
                 beginningIndex = i;
                 beginningIndexIntersectionOverlap = indexIntersectionOverlap;
-                
-                log('new low found of ' + indexIntersectionOverlap);
             }
             
             //lower the index if anything has ended here (this will affect later points):
             if(pointsPath[i].end) {
                 indexIntersectionOverlap -= pointsPath[i].end;
+                
                 //TODO: there might cases this doesn't cover, where a deeper floor can be detected but there happens to be intersections distancing it from the current point:
                 detectedFloor = Math.min(detectedFloor, indexIntersectionOverlap)
-                
-                log('end found; new indexIntersectionOverlap: ' + indexIntersectionOverlap + '; new floor: ' + detectedFloor);
             }
         }
         
-        log('pointsPath:');
-        log(pointsPath);
-        
-        log('beginningIndexIntersectionOverlap: ' + beginningIndexIntersectionOverlap);
-        log('detectedFloor: ' + detectedFloor);
-        
         //abort if no points evaded the intersection:
         if(beginningIndexIntersectionOverlap > detectedFloor) {
-            log('no points evaded intersection');
-            
             return [];
         }
         
@@ -1304,23 +1156,13 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var currentPath = initialPath;
         var intersectionCount = 0;
         
-        log('beginningIndex: ' + beginningIndex);
-        
         for(var i = beginningIndex; i < pointsPath.length; i++) {
-            
-            log('i: ' + i + '; height: ' + intersectionCount);
-            
             if(pointsPath[i].start) {
                 intersectionCount += pointsPath[i].start;
-                
-                log('height increase to: ' + intersectionCount);
             }
             
             if(intersectionCount === 0) {
                 currentPath.push(pointsPath[i][0]);
-                
-                log('appending point: ');
-                log(currentPath);
             } else if(currentPath.length > 0) {
                 
                 //close off the current path, push it:
@@ -1329,22 +1171,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 
                 //clear the current path out:
                 currentPath = [];
-                
-                log('pushing path:');
-                log(survivingPaths);
             }
             
             if(pointsPath[i].end) {
                 intersectionCount -= pointsPath[i].end;
                 
-                log('height decrease to: ' + intersectionCount);
-                
                 //start a new path if the interections have ended:
                 if(intersectionCount === 0) {
                     currentPath.push(pointsPath[i][0]);
-                
-                    log('appending point after intersections hit 0 again: ');
-                    log(currentPath);
                 }
             }
         }
@@ -1354,35 +1188,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
         It will be prepended if: this path is a polygon, the initial path begins at point index 0, the initial path doesn't 
         complete the circuit without intersections, and the final point of this path is not intersected.
         */
-        
-        log('this.isType(): ' + this.isType('polygon'));
-        log('beginningIndex === 0: ' + (beginningIndex === 0));
-        log('currentPath !== initialPath: ' + (currentPath !== initialPath));
-        log('currentPath.length > 0: ' + (currentPath.length > 0));
-        
         //prepend to initialPath if necessary:
         if(this.isType('polygon')
                 && beginningIndex === 0
                 && currentPath !== initialPath
                 && currentPath.length > 0) {
-            
-            //drop the last point off the prepending path because it is a redundant first point:
-            //currentPath.pop();
-            
-            //prepend:
-            
-            log('currentPath:');
-            log(currentPath);
-            log('survivingPaths[0]:');
-            log(survivingPaths[0]);
-            
-            
             survivingPaths[0] = currentPath.concat(survivingPaths[0]);
-            
-            log('currentPath after append:');
-            log(currentPath);
-            
-            //survivingPaths[0] = currentPath;
         }
         //include currentPath:
         else {
@@ -1391,14 +1202,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             }
         }
         
-        
-        log('survivingPaths:');
-        log(survivingPaths);
-        
         return survivingPaths;
-        
-        //TODO: real result:
-        //return intersectingPaths;
     };
   
     
@@ -1578,39 +1382,18 @@ var APIAreaMapper = APIAreaMapper || (function() {
     //returns intersecting paths (as an array of path points) for a simple path or simple polygon:
     simplePolygon.prototype.getIntersectingPaths = function(sp) {
         
-        //TODO: sp is getting misordered in here somewhere!!!!
-        log('.');
-        log('.');
-        log('in getIntersectingPaths()');
-        
         //find all intersecting segments and their points of intersection:
         var intersectingSegments = [];
        
         //break all intersecting segments, but keep references to them and check for further intersections:
         for(var i = 0; i < sp.segments.length; i++) {
-            
-            log('i: ' + i);
-            
             for(var i2 = 0; i2 < this.segments.length; i2++) {
-                
-                log('i2: ' + i2);
-                log('comparing sp.segments[i]:');
-                log(sp.segments[i]);
-                log('to this.segments[i2]:');
-                log(this.segments[i2]);
-                
+     
                 //because we're breaking new segments, we have to retest for intersection:
                 var intersectionPoint = segmentsIntersect(sp.segments[i], this.segments[i2]);
                 if(intersectionPoint) {
-                    
-                    //log('there was an intersection');
-                    
                     var brokenSegment1 = new segment(sp.segments[i].a, intersectionPoint);
                     var brokenSegment2 = new segment(intersectionPoint, sp.segments[i].b);
-                    
-                    //log('brokenSegments (from sp.segments[i]):');
-                    //log(brokenSegment1);
-                    //log(brokenSegment2);
                     
                     //release reference to the broken segment if it exists and hold references to the new pieces:
                     for(var i3 = 0; i3 < intersectingSegments.length; i3++) {
@@ -1622,16 +1405,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     intersectingSegments.push([brokenSegment2, false]);
                     
                     //remove the broken segment and add its broken pieces:
-                    //log('sp.points:');
-                    //log(sp.points);
-                    //log('splicing brokenSegment1 at i + 1: ' + (i + 1));
                     sp.addSegment(brokenSegment1, i + 1);
-                    //log('sp.points after splice:');
-                    //log(sp.points);
                     sp.addSegment(brokenSegment2, i + 2);
                     sp.removeSegment(sp.segments[i]);
-                    //log('sp.points after removal:');
-                    //log(sp.points);
                     
                     //break the segments in this so that we don't get repeated intersections in further tests:
                     this.addSegment(new segment(this.segments[i2].a, intersectionPoint), i2 + 1);
@@ -1725,9 +1501,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 }
             }, this);
         }
-        
-        //TODO: I think this is returning paths in random order:
-        
         
         return intersectingPaths;
     };
@@ -2308,6 +2081,4 @@ on('ready', function() {
 
     APIAreaMapper.checkInstall();
     APIAreaMapper.registerEventHandlers();
-    
-    log(state);
 });
