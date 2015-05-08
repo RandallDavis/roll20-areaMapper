@@ -227,8 +227,37 @@ var APIAreaMapper = APIAreaMapper || (function() {
         state.APIAreaMapper.areas.push(areaState);
     };
     
-    area.prototype.getEdgeWallGaps = function() {
+    area.prototype.getEdgeWallGaps = function(pageId) {
         //TODO
+        
+        /*
+        var g = new graph();
+        g.addComplexPolygon(rawPath, top, left, isFromEvent);
+        var removeSpIndex = g.convertComplexPolygonToSimplePolygon(0);
+        
+        //get instance that removal is relative to:
+        var instance = new areaInstance(this.getProperty('id'), pageId);
+        instance.load();
+        
+        //find removal's intersections with the floorPlan edge:
+        var floorPlanSpIndex = g.addSimplePolygon(this.getProperty('floorPlan'), instance.getProperty('top'), instance.getProperty('left'));
+        var containedPaths = g.getProperty('simplePolygons')[removeSpIndex].getIntersectingPaths(g.getProperty('simplePolygons')[floorPlanSpIndex]);
+        
+        //TODO: append containedPaths with existing gaps (might result in multiples being merged):
+        
+        //TODO: reuse this logic in the method that gets existing gaps:
+        var edgeWallPaths = g.getProperty('simplePolygons')[floorPlanSpIndex].removePathIntersections(containedPaths);
+        
+        //TODO: factor in instance's rotation & scale:
+        //convert edgeWallPaths into raw paths:
+        this.initializeCollectionProperty('edgeWalls');
+        edgeWallPaths.forEach(function(ew) {
+            var sp = new simplePath();
+            sp.addPointsPath(ew);
+            var rp = sp.getRawPath();
+            this.setProperty('edgeWalls', [rp.rawPath, rp.top - instance.getProperty('top'), rp.left - instance.getProperty('left')]);
+        }, this);
+        */
         
         return null;
     };
@@ -251,7 +280,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         //if the polygons intersect, or if the old one is engulfed in the new one, update the floorPlan:
         if(mergedOpIndex !== null) {
-            var oldEdgeWallGaps = this.getEdgeWallGaps();
+            var oldEdgeWallGaps = this.getEdgeWallGaps(pageId);
             
             var rp = g.getRawPath('simplePolygons', mergedOpIndex);
             this.setProperty('floorPlan', rp.rawPath);
@@ -285,7 +314,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var mergedOpIndex = g.removeFromSimplePolygon(floorPlanOpIndex, removeOpIndex);
         
         if('undefined' !== typeof(mergedOpIndex)) {
-            var oldEdgeWallGaps = this.getEdgeWallGaps();
+            var oldEdgeWallGaps = this.getEdgeWallGaps(pageId);
             
             var rp = g.getRawPath('simplePolygons', mergedOpIndex);
             this.setProperty('floorPlan', rp.rawPath);
@@ -323,6 +352,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         //TODO: reuse this logic in the method that gets existing gaps:
         var edgeWallPaths = g.getProperty('simplePolygons')[floorPlanSpIndex].removePathIntersections(containedPaths);
         
+        //TODO: factor in instance's rotation & scale:
         //convert edgeWallPaths into raw paths:
         this.initializeCollectionProperty('edgeWalls');
         edgeWallPaths.forEach(function(ew) {
@@ -335,21 +365,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this.save();
         
         this.draw(pageId, instance.getProperty('top'), instance.getProperty('left'));
-        
-        /*
-        //TODO: factor in instance's rotation & scale:
-        var floorPlanOpIndex = g.addSimplePolygon(this.getProperty('floorPlan'), instance.getProperty('top'), instance.getProperty('left'));
-        var mergedOpIndex = g.removeFromSimplePolygon(floorPlanOpIndex, removeOpIndex);
-        
-        if('undefined' !== typeof(mergedOpIndex)) {
-            var rp = g.getRawPath('simplePolygons', mergedOpIndex);
-            this.setProperty('floorPlan', rp.rawPath);
-            this.setProperty('width', rp.width);
-            this.setProperty('height', rp.height);
-            this.save();
-            this.draw(pageId, rp.top, rp.left);
-        }
-        */
     };
     
     area.prototype.undraw = function(pageId) {
@@ -938,8 +953,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }
     };
     
+    //TODO: this is broken and getting stupid; replace it with a simple mechanism that returns points, and require that SimplePath stays in good state at all times
     //returns points in walking order:
     simplePath.prototype.getPointsPath = function() {
+        
+        
+        //TODO: use the control point as it is to figure out orientation. Walk forward until you hit the endpoint that has no other segments, then walk backward and prepend until you hit the same type of endpoint.
         
         //find the smallest x points, and of those, take the greatest y:
         var controlPointIndex = 0;
@@ -951,24 +970,48 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }
         
         var iP = controlPointIndex;
-        var loopLimit = this.points.length; //limit the loop iterations in case there's a bug or the equality clause ends up needing an epsilon
+        var loopLimit = this.points.length * 2; //limit the loop iterations in case there's a bug or the equality clause ends up needing an epsilon
         var firstIteration = true;
-        var chosenSegment;
         var pointsPath = [];
         
         //choose the segment with the greater relative angle to set the walking orientation:
         var controlAngle = new angle((Math.PI / 2) + 0.0001);
-        chosenSegment = 
-            (this.segments[this.points[iP][1][0]].angle(this.points[iP][0]).subtract(controlAngle.radians).radians > this.segments[this.points[iP][1][1]].angle(this.points[iP][0]).subtract(controlAngle.radians).radians) 
-            ? this.segments[this.points[iP][1][0]]
-            : this.segments[this.points[iP][1][1]];
+        var controlSegmentIndex = 0;
         
-        //loop until the path has been traced:
-        //TODO: test loopLimit for 'off by one':
-        while((loopLimit-- > 0) && !(!firstIteration && iP === controlPointIndex)) {
+        if(this.points[iP][1].length > 1) {
+            controlSegmentIndex =
+                (this.segments[this.points[iP][1][0]].angle(this.points[iP][0]).subtract(controlAngle.radians).radians > this.segments[this.points[iP][1][1]].angle(this.points[iP][0]).subtract(controlAngle.radians).radians) 
+                ? this.points[iP][1][0]
+                : this.points[iP][1][1];
+        }
+        
+        //TODO: remove:
+        if(this.points[iP][1].length === 0) {
+            log('CONTROL POINT ONLY ONE SEGMENT');
+        }
+        
+        var chosenSegment = this.segments[controlSegmentIndex];
+            
+        log('chosenSegment:');
+        log(chosenSegment);
+        
+        log('this.points:');
+        log(this.points);
+        
+        pointsPath.push(this.points[iP][0]);
+        
+        log('beginning pointsPath:');
+        log(pointsPath);
+        
+        //loop forward until the path has been traced to its end:
+        //TODO: test loopLimit for 'off by one' errors:
+        //note: the path should not ever loop back to the controlPointIndex, but check for that just in case this is a simple polygon that is being treated as a simple path:
+        //note: when a point is reached that has no further segment, chosenSegment will be undefined.
+        while((loopLimit-- > 0) && !(!firstIteration && iP === controlPointIndex) && 'undefined' !== typeof(chosenSegment) && chosenSegment !== null) {
             firstIteration = false;
-            pointsPath.push(this.points[iP][0]);
             var iPOld = iP;
+            
+            log('iP: ' + iP + ', loopLimit: ' + loopLimit);
 
             //the next point should be the endpoint of the segment that wasn't the prior point:
             if(chosenSegment.a.equals(this.points[iP][0])) {
@@ -977,12 +1020,82 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 iP = this.getPointIndex(chosenSegment.a);
             }
             
-            //the next segment should be the one that isn't shared by iPOld:
-            chosenSegment =
-                (this.points[iP][1][0] === this.points[iPOld][1][0] || this.points[iP][1][0] === this.points[iPOld][1][1])
-                ? this.segments[this.points[iP][1][1]]
-                : this.segments[this.points[iP][1][0]];
+            log('iP: ' + iP + ', loopLimit: ' + loopLimit);
+            log(this.points);
+            
+            if(this.points[iP][1].length === 1) {
+                chosenSegment = null;
+            } else {
+                //the next segment should be the one that isn't shared by iPOld:
+                chosenSegment =
+                    (this.points[iP][1][0] === this.points[iPOld][1][0] || this.points[iP][1][0] === this.points[iPOld][1][1])
+                    ? this.segments[this.points[iP][1][1]]
+                    : this.segments[this.points[iP][1][0]];
+            }
+                
+            log('chosenSegment:');
+            log(chosenSegment);
+            
+            pointsPath.push(this.points[iP][0]);
+            
+            log('updated points Path:');
+            log(pointsPath);
         }
+        
+        
+        log('finished forward traversal');
+        log('controlPointIndex: ' + controlPointIndex + ', controlSegmentIndex: ' + controlSegmentIndex);
+        
+        
+        //reset the chosen segment and reverse traversal orientation:
+        firstIteration = true;
+        iP = controlPointIndex;
+        
+        log('this.points[iP][1][0]: ' + this.points[iP][1][0]);
+        
+        chosenSegment =
+            (this.points[iP][1][0] === controlSegmentIndex)
+            ? this.segments[this.points[iP][1][1]]
+            : this.segments[this.points[iP][1][0]];
+        
+        while((loopLimit-- > 0) && !(!firstIteration && iP === controlPointIndex) && 'undefined' !== typeof(chosenSegment) && chosenSegment !== null) {
+            firstIteration = false;
+            
+            var iPOld = iP;
+            
+            log('iP: ' + iP + ', loopLimit: ' + loopLimit);
+
+            //the next point should be the endpoint of the segment that wasn't the prior point:
+            if(chosenSegment.a.equals(this.points[iP][0])) {
+                iP = this.getPointIndex(chosenSegment.b);
+            } else {
+                iP = this.getPointIndex(chosenSegment.a);
+            }
+            
+            log('iP: ' + iP + ', loopLimit: ' + loopLimit);
+            log(this.points);
+            
+            if(this.points[iP][1].length === 1) {
+                chosenSegment = null;
+            } else {
+                //the next segment should be the one that isn't shared by iPOld:
+                chosenSegment =
+                    (this.points[iP][1][0] === this.points[iPOld][1][0] || this.points[iP][1][0] === this.points[iPOld][1][1])
+                    ? this.segments[this.points[iP][1][1]]
+                    : this.segments[this.points[iP][1][0]];
+            }
+                
+            log('chosenSegment:');
+            log(chosenSegment);
+            
+            pointsPath.unshift(this.points[iP][0]);
+            
+            log('updated points Path:');
+            log(pointsPath);
+        }
+        
+        log('final points Path:');
+        log(pointsPath);
         
         return pointsPath;
     };
@@ -993,27 +1106,29 @@ var APIAreaMapper = APIAreaMapper || (function() {
             return;
         }
         
-        //TODO: leverage getPointsPath() for proper ordering
+        //get a walkable path in the proper orientation:
+        var pointsPath = this.getPointsPath();
         
-        var minX = this.points[0][0].x;
-        var minY = this.points[0][0].y;
-        var maxX = this.points[0][0].x;
-        var maxY = this.points[0][0].y;
+        var minX = pointsPath[0].x;
+        var minY = pointsPath[0].y;
+        var maxX = pointsPath[0].x;
+        var maxY = pointsPath[0].y;
         
-        this.points.forEach(function(p) {
-            minX = Math.min(minX, p[0].x);
-            minY = Math.min(minY, p[0].y);
-            maxX = Math.max(maxX, p[0].x);
-            maxY = Math.max(maxY, p[0].y);
+        pointsPath.forEach(function(p) {
+            minX = Math.min(minX, p.x);
+            minY = Math.min(minY, p.y);
+            maxX = Math.max(maxX, p.x);
+            maxY = Math.max(maxY, p.y);
         }, this);
         
-        var rawPath = '[[\"M\",' + (this.points[0][0].x - minX) + ',' + (this.points[0][0].y - minY) + ']';
-        for(var i = 1; i < this.points.length; i++) {
-            rawPath += ',[\"L\",' + (this.points[i][0].x - minX) + ',' + (this.points[i][0].y - minY) + ']';
+        var rawPath = '[[\"M\",' + (pointsPath[0].x - minX) + ',' + (pointsPath[0].y - minY) + ']';
+        for(var i = 1; i < pointsPath.length; i++) {
+            rawPath += ',[\"L\",' + (pointsPath[i].x - minX) + ',' + (pointsPath[i].y - minY) + ']';
         }
         
+        //if this is a polygon, close the path:
         if(this.isType('polygon')) {
-            rawPath += ',[\"L\",' + (this.points[0][0].x - minX) + ',' + (this.points[0][0].y - minY) + ']';
+            rawPath += ',[\"L\",' + (pointsPath[0].x - minX) + ',' + (pointsPath[0].y - minY) + ']';
         }
         
         rawPath += ']';
@@ -1036,7 +1151,23 @@ var APIAreaMapper = APIAreaMapper || (function() {
         route. Otherwise, the intersecting path is ignored.
         */
         
-        //note: intersecting paths are always oriented in the same direction of progression as this path
+        /* 
+        It might be possible in the future that orientations are NOT in line with what is being compared.
+        This could happen when paths are not stemming from the same source, or the source has changed - 
+        orientation can be reversed depending on the control point and the angles of its segments. For this
+        to work, the algorithm would require fewer assumptions about the relationship between the two
+        paths being compared. The sure-fire way to accomplish this would be to control things from the perspective
+        of the intersecting path: 
+        1) find the intersecting path's beginning point on this path
+        2) dynamically orient from the perspective of the intersecting path, figuring out which direction to traverse
+        this path
+        3) traverse to the end of the intersecting path, tagging each point as having a +1 intersection (no need for
+        start or end tags); this has to be done because if you have start and end tags and try to analyze later, you
+        still won't know which way the intersection is oriented
+        4) wrap the traversal if this is a polygon
+        */
+        
+        //note: intersecting paths are supposed to always be oriented in the same direction of progression as this path (see note above though)
         
         //Stuff this path's points into a data structure that has proper path order, but allows for tagging. Don't do tagging on this.points because it could get persisted when the points are saved.
         var pointsPath = [];
@@ -1503,6 +1634,55 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }
         
         return intersectingPaths;
+    };
+    
+    //returns points in walking order:
+    simplePolygon.prototype.getPointsPath = function() {
+        
+        //find the smallest x points, and of those, take the greatest y:
+        var controlPointIndex = 0;
+        for(var i = 0; i < this.points.length; i++) {
+            if((this.points[i][0].x < this.points[controlPointIndex][0].x)
+                    || (this.points[i][0].x == this.points[controlPointIndex][0].x && this.points[i][0].y > this.points[controlPointIndex][0].y)) {
+                controlPointIndex = i;
+            }
+        }
+        
+        var iP = controlPointIndex;
+        var loopLimit = this.points.length; //limit the loop iterations in case there's a bug or the equality clause ends up needing an epsilon
+        var firstIteration = true;
+        var chosenSegment;
+        var pointsPath = [];
+        
+        //choose the segment with the greater relative angle to set the walking orientation:
+        var controlAngle = new angle((Math.PI / 2) + 0.0001);
+        chosenSegment = 
+            (this.segments[this.points[iP][1][0]].angle(this.points[iP][0]).subtract(controlAngle.radians).radians > this.segments[this.points[iP][1][1]].angle(this.points[iP][0]).subtract(controlAngle.radians).radians) 
+            ? this.segments[this.points[iP][1][0]]
+            : this.segments[this.points[iP][1][1]];
+        
+        //loop until the path has been traced:
+        //TODO: test loopLimit for 'off by one' errors:
+        while((loopLimit-- > 0) && !(!firstIteration && iP === controlPointIndex)) {
+            firstIteration = false;
+            pointsPath.push(this.points[iP][0]);
+            var iPOld = iP;
+            
+            //the next point should be the endpoint of the segment that wasn't the prior point:
+            if(chosenSegment.a.equals(this.points[iP][0])) {
+                iP = this.getPointIndex(chosenSegment.b);
+            } else {
+                iP = this.getPointIndex(chosenSegment.a);
+            }
+            
+            //the next segment should be the one that isn't shared by iPOld:
+            chosenSegment =
+                (this.points[iP][1][0] === this.points[iPOld][1][0] || this.points[iP][1][0] === this.points[iPOld][1][1])
+                ? this.segments[this.points[iP][1][1]]
+                : this.segments[this.points[iP][1][0]];
+        }
+        
+        return pointsPath;
     };
     
     simplePolygon.prototype.invert = function() {
