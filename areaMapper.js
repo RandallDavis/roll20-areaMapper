@@ -1140,7 +1140,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             
             //if orientation is 1, the paths have the same orientation; otherwise, the orientation will be -1, if the orientation is anything else, the first and second points are not adjacent:
             var orientation;
-            if(taggedPointsPath[0][0].equals(taggedPointsPath[taggedPointsPath.length - 1][0])) {
+            if(this.isType('polygon')) {
                 if(iFirst === 0 && iSecond === taggedPointsPath.length - 2) {
                     orientation = -1;
                 } else if(iSecond === 0 && iFirst === taggedPointsPath.length - 2) {
@@ -1149,13 +1149,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     orientation = iSecond - iFirst;
                 }
             } else {
-                if(iFirst === 0 && iSecond === taggedPointsPath.length - 1) {
-                    orientation = -1;
-                } else if(iSecond === 0 && iFirst === taggedPointsPath.length - 1) {
-                    orientation = 1;
-                } else {
-                    orientation = iSecond - iFirst;
-                }
+                orientation = iSecond - iFirst;
             }
             
             if(iFirst === null || iSecond === null || iLast === null
