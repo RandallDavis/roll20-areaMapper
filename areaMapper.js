@@ -691,7 +691,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         };
         
         this.midpoint = function() {
-            return new point(this.a.x + ((this.b.x - this.a.x) / 2), this.a.y + ((this.b.y - this.a.y) / 2))
+            return new point(this.a.x + ((this.b.x - this.a.x) / 2), this.a.y + ((this.b.y - this.a.y) / 2));
         };
         
         //return an angle with respect to a specfic endpoint:
@@ -919,6 +919,15 @@ var APIAreaMapper = APIAreaMapper || (function() {
     };
     
     
+    /*
+    A simple path has gauranteed properties. Each point can have one or an even number of segments. Only a point
+    at the beginning or end of the path can have one segment, and if one of them has one, then both must. If a point 
+    has more than two segments, then it is an intersection point. Segments are ordered such that they can be
+    traversed to find a walkable points path.
+    
+    If all points have an even number of segments, it is a simple polygon, and the first and last points 
+    have a shared segment.
+    */
     var simplePath = function() {
         path.call(this);
         this._type.push('simplePath');
@@ -926,32 +935,73 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     inheritPrototype(simplePath, path);
     
-    //doesn't test for intersections - assumes this is already part of an simple on good faith:
-    simplePath.prototype.addSegment = function(s, index) {
+    //adds the segment to the tail of the path:
+    simplePath.prototype.addSegment = function(s) {
         if(!s.a.equals(s.b)) {
-            if('undefined' === typeof(index)) {
-                index = this.segments.length;
-            }
+            if(this.segments.length == 0) {
             
-            //increment all segment index references that are about to be altered:
-            this.points.forEach(function(p) {
-                for(var i = 0; i < p[1].length; i++) {
-                    if(p[1][i] >= index) {
-                        p[1][i]++;
+                //there are no segments, so insert this and establish orientation from s.a -> s.b:
+                var sI = this.segments.push(s) - 1;
+                var pAI = this.addPoint(s.a);
+                var pBI = this.addPoint(s.b);
+                this.points[pAI][1].push(sI);
+                this.points[pBI][1].push(sI);
+            } else {
+                
+                //fix the segment's orientation:
+                var sFixed = 
+                    new segment(
+                        this.segments[this.segments.length - 1].b,
+                        this.segments[this.segments.length - 1].b.equals(s.a)
+                            ? s.b
+                            : s.a
+                    );
+                
+                var sI = this.segments.push(sFixed) - 1;
+                var pAI = this.getPointIndex(sFixed.a);
+                var pBI = this.addPoint(sFixed.b);
+                this.points[pAI][1].push(sI);
+                this.points[pBI][1].push(sI);
+            }
+        }
+    };
+    
+    //breaks a segment at the specified point:
+    simplePath.prototype.breakSegment = function(s, p) {
+        if(!s.a.equals(p) && !s.b.equals(p)) {
+        
+            //get current indexes:
+            var sI = this.getSegmentIndex(s);
+            var pAI = this.getPointIndex(s.a);
+            var pBI = this.getPointIndex(s.b);
+            
+            //increment the references to all segments that are about to be shifted to the right:
+            this.points.forEach(function(p2) {
+                for(var i = 0; i < p2[1].length; i++) {
+                    if(p2[1][i] > sI) {
+                        p2[1][i]++;
                     }
                 }
             }, this);
             
-            //add the segment:
-            this.segments.splice(index, 0, s);
+            //add the new point:
+            var pI = this.addPoint(p);
             
-            //register the segment in this.points:
-            var iPa = this.addPoint(s.a);
-            var iPb = this.addPoint(s.b);
-            this.points[iPa][1].push(index);
-            this.points[iPb][1].push(index);
+            //splice in the right side of the broken segment:
+            this.segments.splice(sI + 1, 0, new segment(p, this.segments[sI].b));
+            
+            //modify the left side of the broken segment:
+            this.segments[sI].b = p;
+            
+            //increment point s.b's segment reference:
+            this.points[pBI][1][this.points[pBI][1].indexOf(sI)]++;
+            
+            //register the broken segments in point p:
+            this.points[pI][1].push(sI);
+            this.points[pI][1].push(sI + 1);
         }
     };
+    
     
     //TODO: this is broken and getting stupid; replace it with a simple mechanism that returns points, and require that SimplePath stays in good state at all times
     //returns points in walking order:
@@ -1106,6 +1156,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             return;
         }
         
+        //TODO: this should be unncessary once simplePath keeps its points in order:
         //get a walkable path in the proper orientation:
         var pointsPath = this.getPointsPath();
         
@@ -1510,6 +1561,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return cp.convertToSimplePolygon(controlPointIndex, controlAngle, false);
     };
     
+    //TODO: maintain simplePath state:
     //returns intersecting paths (as an array of path points) for a simple path or simple polygon:
     simplePolygon.prototype.getIntersectingPaths = function(sp) {
         
@@ -1523,27 +1575,23 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 //because we're breaking new segments, we have to retest for intersection:
                 var intersectionPoint = segmentsIntersect(sp.segments[i], this.segments[i2]);
                 if(intersectionPoint) {
-                    var brokenSegment1 = new segment(sp.segments[i].a, intersectionPoint);
-                    var brokenSegment2 = new segment(intersectionPoint, sp.segments[i].b);
                     
-                    //release reference to the broken segment if it exists and hold references to the new pieces:
+                    //release reference to the broken segment if it exists:
                     for(var i3 = 0; i3 < intersectingSegments.length; i3++) {
                         if(intersectingSegments[i3][0].equals(sp.segments[i])) {
                             intersectingSegments.splice(i3, 1);
                         }
                     }
-                    intersectingSegments.push([brokenSegment1, false]);
-                    intersectingSegments.push([brokenSegment2, false]);
                     
-                    //remove the broken segment and add its broken pieces:
-                    sp.addSegment(brokenSegment1, i + 1);
-                    sp.addSegment(brokenSegment2, i + 2);
-                    sp.removeSegment(sp.segments[i]);
+                    //break the segment in sp:
+                    sp.breakSegment(sp.segments[i], intersectionPoint);
+                    
+                    //store references to the broken segment pieces:
+                    intersectingSegments.push([sp.segments[i], false]);
+                    intersectingSegments.push([sp.segments[i + 1], false]);
                     
                     //break the segments in this so that we don't get repeated intersections in further tests:
-                    this.addSegment(new segment(this.segments[i2].a, intersectionPoint), i2 + 1);
-                    this.addSegment(new segment(intersectionPoint, this.segments[i2].b), i2 + 2);
-                    this.removeSegment(this.segments[i2]);
+                    this.breakSegment(this.segments[i2], intersectionPoint);
                 }
             }
         }
@@ -1636,6 +1684,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return intersectingPaths;
     };
     
+    //TODO: make this simple - it should be able to call simplePath.getPointsPath and just close the path:
     //returns points in walking order:
     simplePolygon.prototype.getPointsPath = function() {
         
