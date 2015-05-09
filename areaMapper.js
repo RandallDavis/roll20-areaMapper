@@ -1064,41 +1064,15 @@ var APIAreaMapper = APIAreaMapper || (function() {
     //note: this handles simple polygon logic as well
     simplePath.prototype.removePathIntersections = function(intersectingPaths) {
         
-        /*
-        If an intersecting path has both endpoints on this path, it is assumed that it follows this path's 
-        route. Otherwise, the intersecting path is ignored.
-        */
-        
-        /* 
-        It might be possible in the future that orientations are NOT in line with what is being compared.
-        This could happen when paths are not stemming from the same source, or the source has changed - 
-        orientation can be reversed depending on the control point and the angles of its segments. For this
-        to work, the algorithm would require fewer assumptions about the relationship between the two
-        paths being compared. The sure-fire way to accomplish this would be to control things from the perspective
-        of the intersecting path: 
-        1) find the intersecting path's beginning point on this path
-        2) dynamically orient from the perspective of the intersecting path, figuring out which direction to traverse
-        this path
-        3) traverse to the end of the intersecting path, tagging each point as having a +1 intersection (no need for
-        start or end tags); this has to be done because if you have start and end tags and try to analyze later, you
-        still won't know which way the intersection is oriented
-        4) wrap the traversal if this is a polygon
-        */
-        
-        //note: intersecting paths are supposed to always be oriented in the same direction of progression as this path (see note above though)
-        
         //Stuff this path's points into a data structure that has proper path order, but allows for tagging. Don't do tagging on this.points because it could get persisted when the points are saved.
-        var pointsPath = [];
+        var taggedPointsPath = [];
         this.getPointsPath().forEach(function(p) {
-            pointsPath.push([p]);
+            taggedPointsPath.push([p, false]); //this consists of the point and whether or not there are intersections on it
         }, this);
         
-        //helper function for segment breaking:
-        var getSegmentIntersectionPointIndex = function(pointsPath, p, beginningIndex) {
-            for(var i = beginningIndex + 1; i < pointsPath.length; i++) {
-                var s = new segment(pointsPath[i - 1][0], pointsPath[i][0]);
-                if(pointIntersectsSegment(s, p)) {
-                    pointsPath.splice(i, 0, [p]);
+        var getTaggedPointsPathPointIndex = function(taggedPointsPath, p) {
+            for(var i = 0; i < taggedPointsPath.length; i++) {
+                if(taggedPointsPath[i][0].equals(p)) {
                     return i;
                 }
             }
@@ -1106,129 +1080,74 @@ var APIAreaMapper = APIAreaMapper || (function() {
             return null;
         };
         
-        //apply intersecting paths' endpoints to this path:
+        //apply intersection tags to this path:
         intersectingPaths.forEach(function(ip) {
-            if(ip.length > 1) {
+            
+            //test that ip is long enough to be used:
+            if(ip.length < 2) {
+                return;
+            }
                 
-                var startPointIndex,
-                    endPointIndex;
-                    
-                //tag start point if a match can be found:
-                for(var i = 0; i < pointsPath.length; i++) {
-                    if(pointsPath[i][0].equals(ip[0])) {
-                        
-                        //increment the start tag for this point:
-                        pointsPath[i].start = pointsPath[i].start ? pointsPath[i].start + 1 : 1;
-                        
-                        startPointIndex = i;
-                        break;
-                    }
+            //test that the first, second, and last points from ip are all on this path, and the first and second are adjacent:
+            var iFirst = getTaggedPointsPathPointIndex(taggedPointsPath, ip[0]);
+            var iSecond = getTaggedPointsPathPointIndex(taggedPointsPath, ip[1]);
+            var iLast = getTaggedPointsPathPointIndex(taggedPointsPath, ip[ip.length - 1]);
+            if(iFirst === null || iSecond === null || iLast === null
+                    || Math.abs(iSecond - iFirst) !== 1) {
+                return;
+            }
+            
+            //if orientation is 1, the paths have the same orientation; otherwise, the orientation will be -1:
+            var orientation = iSecond - iFirst;
+            
+            //as a special case, mark all as intersected if ip is a polygon (we already know it's of > 0 length):
+            if(iFirst === iLast) {
+                for(var i = 0; i < taggedPointsPath.length; i++) {
+                    taggedPointsPath[i][1] = true;
                 }
                 
-                //if no point matched for start point, see if the start point intersects a segment:
-                if('undefined' === startPointIndex) {
-                    startPointIndex = getSegmentIntersectionPointIndex(pointsPath, ip[0], 0);
-                }
-                
-                if(startPointIndex !== null) {
-                    
-                    //increment the start tag for this point:
-                    pointsPath[startPointIndex].start = 1;
-                
-                    //tag end point if a match can be found:
-                    //if this path is not a polygon, the end point can only be after the start point:
-                    for(var i = this.isType('polygon') ? 0 : startPointIndex; i < pointsPath.length; i++) {
-                        if(pointsPath[i][0].equals(ip[ip.length - 1])) {
-                            
-                            //increment the end tag for this point:
-                            pointsPath[i].end = pointsPath[i].end ? pointsPath[i].end + 1 : 1;
-                            
-                            endPointIndex = i;
-                            break;
-                        }
-                    }
-                    
-                    //if no point matched for end point, see if the end point intersects a segment:
-                    if('undefined' === endPointIndex) {
-                        endPointIndex = getSegmentIntersectionPointIndex(pointsPath, ip[ip.length - 1], this.isType('polygon') ? 0 : startPointIndex);
-                    }
-                    
-                    if(endPointIndex !== null) {
-                        
-                        //increment the end tag for this point:
-                        pointsPath[endPointIndex].end = 1;
-                    } else {
-                        
-                        //undo start and ignore segment:
-                        pointsPath[startPointIndex].start--;
-                    }
-                }
+                return;
+            }
+            
+            //tag the points on this path as intersected that span between the first and last points:
+            taggedPointsPath[iFirst][1] = true;
+            for(var i = iFirst; i !== iLast; i += orientation) {
+                taggedPointsPath[i + orientation][1] = true;
             }
         }, this);
         
         var survivingPaths = [];
-        
-        //identify a starting point that is not intersected; because of polygon wrapping, a complete circuit has to be made:
-        var beginningIndex = 0; //relative to index 0
-        var beginningIndexIntersectionOverlap = 10000; //relative to index 0
-        var indexIntersectionOverlap = 0;
-        var detectedFloor = 0; //relative to index 0
-        for(var i = 0; i < pointsPath.length; i++) {
-            
-            //raise the ceiling of this index:
-            if(pointsPath[i].start) {
-                indexIntersectionOverlap += pointsPath[i].start;
-            }
-            
-            //adjust beginning index if this is the lowest point detected so far:
-            if(indexIntersectionOverlap < beginningIndexIntersectionOverlap) {
-                beginningIndex = i;
-                beginningIndexIntersectionOverlap = indexIntersectionOverlap;
-            }
-            
-            //lower the index if anything has ended here (this will affect later points):
-            if(pointsPath[i].end) {
-                indexIntersectionOverlap -= pointsPath[i].end;
-                
-                //TODO: there might cases this doesn't cover, where a deeper floor can be detected but there happens to be intersections distancing it from the current point:
-                detectedFloor = Math.min(detectedFloor, indexIntersectionOverlap)
-            }
-        }
-        
-        //abort if no points evaded the intersection:
-        if(beginningIndexIntersectionOverlap > detectedFloor) {
-            return [];
-        }
-        
-        //loop through this path identifying paths that evaded intersection:
-        var initialPath = []; //this path is special because we might wrap back into it and need to prepend
+        var initialPath = [];
         var currentPath = initialPath;
-        var intersectionCount = 0;
+        var queuedPoint;
         
-        for(var i = beginningIndex; i < pointsPath.length; i++) {
-            if(pointsPath[i].start) {
-                intersectionCount += pointsPath[i].start;
-            }
-            
-            if(intersectionCount === 0) {
-                currentPath.push(pointsPath[i][0]);
-            } else if(currentPath.length > 0) {
+        //determine the surviving paths that evaded intersection:
+        for(var i = 0; i < taggedPointsPath.length; i++) {
+            if(!taggedPointsPath[i][1]) {
                 
-                //close off the current path, push it:
-                currentPath.push(pointsPath[i][0]);
-                survivingPaths.push(currentPath);
-                
-                //clear the current path out:
-                currentPath = [];
-            }
-            
-            if(pointsPath[i].end) {
-                intersectionCount -= pointsPath[i].end;
-                
-                //start a new path if the interections have ended:
-                if(intersectionCount === 0) {
-                    currentPath.push(pointsPath[i][0]);
+                //start the path off with the previous intersected point if there was one:
+                if(queuedPoint) {
+                    currentPath.push(queuedPoint);
+                    queuedPoint = null;
                 }
+                
+                //add the current point:
+                currentPath.push(taggedPointsPath[i][0]);
+            } else {
+                
+                //close off the current path if there is one:
+                if(currentPath.length) {
+                    
+                    //add the current point:
+                    currentPath.push(taggedPointsPath[i][0]);
+                    
+                    //push the current path into survivingPaths and clear it:
+                    survivingPaths.push(currentPath);
+                    currentPath = [];
+                }
+                
+                //queue up a path beginning point:
+                queuedPoint = taggedPointsPath[i][0];
             }
         }
         
@@ -1239,7 +1158,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         */
         //prepend to initialPath if necessary:
         if(this.isType('polygon')
-                && beginningIndex === 0
+                && !taggedPointsPath[0][1]
                 && currentPath !== initialPath
                 && currentPath.length > 0) {
             survivingPaths[0] = currentPath.concat(survivingPaths[0]);
@@ -1252,8 +1171,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }
         
         return survivingPaths;
-    };
-  
+    }
+    
     
     var complexPath = function() {
         path.call(this);
