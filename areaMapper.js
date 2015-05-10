@@ -370,8 +370,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var floorPlanSpIndex = g.addSimplePolygon(this.getProperty('floorPlan'), instance.getProperty('top'), instance.getProperty('left'));
         var containedPaths = g.getProperty('simplePolygons')[removeSpIndex].getIntersectingPaths(g.getProperty('simplePolygons')[floorPlanSpIndex]);
         
-        //TODO: append containedPaths with existing gaps (might result in multiples being merged):
-        //var oldEdgeWallGaps = this.getEdgeWallGaps(); <--not converted to instance top / left
+        //append containedPaths with existing gaps (might result in multiples being merged):
+        var oldEdgeWallGaps = this.getEdgeWallGaps(pageId);
+        containedPaths = containedPaths.concat(oldEdgeWallGaps);
         
         var edgeWallPaths = g.getProperty('simplePolygons')[floorPlanSpIndex].removePathIntersections(containedPaths);
         
@@ -1122,7 +1123,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             
             return null;
         };
- 
+      
         var breakSegmentIfPointNotFound = function(taggedPointsPath, p) {
             if(getTaggedPointsPathPointIndex(taggedPointsPath, p) === null) {
                 for(var i = 0 + 1; i < taggedPointsPath.length; i++) {
@@ -1173,10 +1174,15 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 orientation = iSecond - iFirst;
             }
             
+            //abs(orientation) will normally be 1, as iFirst should be ajacent to iSecond. Give it an additional threshold in case there is a merge occurring where intersecting paths overlap.
             if(iFirst === null || iSecond === null || iLast === null
-                    || Math.abs(orientation) !== 1) {
+                    || Math.abs(orientation) === 0
+                    || Math.abs(orientation) > 2) {
                 return;
             }
+            
+            //remove the grace from orientation so that it can be used for stepping:
+            orientation = (orientation > 0) ? 1 : -1;
             
             //as a special case, mark all as intersected if ip is a polygon (we already know it's of > 0 length):
             if(iFirst === iLast) {
