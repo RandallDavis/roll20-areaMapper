@@ -328,7 +328,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var mergedOpIndex = g.removeFromSimplePolygon(floorPlanOpIndex, removeOpIndex);
         
         if('undefined' !== typeof(mergedOpIndex)) {
-            var oldEdgeWallGaps = this.getEdgeWallGaps();
+            var oldEdgeWallGaps = this.getEdgeWallGaps(pageId);
             
             var rp = g.getRawPath('simplePolygons', mergedOpIndex);
             this.setProperty('floorPlan', rp.rawPath);
@@ -340,7 +340,16 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 this.initializeCollectionProperty('edgeWalls');
                 this.setProperty('edgeWalls', [rp.rawPath, 0, 0]);
             } else {
-                //TODO
+                this.initializeCollectionProperty('edgeWalls');
+                var edgeWallPaths = g.getProperty('simplePolygons')[mergedOpIndex].removePathIntersections(oldEdgeWallGaps);
+                
+                //convert edgeWallPaths into raw paths:
+                edgeWallPaths.forEach(function(ew) {
+                    var sp = new simplePath();
+                    sp.addPointsPath(ew);
+                    var rp = sp.getRawPath();
+                    this.setProperty('edgeWalls', [rp.rawPath, rp.top - instance.getProperty('top'), rp.left - instance.getProperty('left')]);
+                }, this);
             }
             
             this.save();
