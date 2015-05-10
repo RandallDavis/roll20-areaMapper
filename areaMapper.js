@@ -225,23 +225,16 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         //save the updated area state:
         state.APIAreaMapper.areas.push(areaState);
+        
+        log('in area.save():');
+        log(areaState);
     };
     
     area.prototype.getEdgeWallGaps = function(pageId) {
-        //TODO
-        
         var g = new graph();
-        
-        //get instance that removal is relative to:
-        //var instance = new areaInstance(this.getProperty('id'), pageId);
-        //instance.load();
         
         var floorPlan = this.getProperty('floorPlan');
         var floorPlanIndex = g.addSimplePolygon(floorPlan);
-        
-        log('floorPlan');
-        log(floorPlan);
-        
         var edgeWallPaths = this.getProperty('edgeWalls');
         
         var edgeWallPointPaths = [];
@@ -251,16 +244,25 @@ var APIAreaMapper = APIAreaMapper || (function() {
             edgeWallPointPaths.push(g.getProperty('simplePaths')[spI].getPointsPath());
         }, this);
         
-        log('edgeWallPaths');
-        log(edgeWallPaths);
-        
-        log('edgeWallPointPaths');
-        log(edgeWallPointPaths);
-        
         var edgeWallGaps = g.getProperty('simplePolygons')[floorPlanIndex].removePathIntersections(edgeWallPointPaths);
         
-        log('edgeWallGaps');
-        log(edgeWallGaps);
+        //if pageId is not null, it is expected to offset the gaps based on the area instance:
+        if('undefined' !== typeof(pageId)) {
+            
+            //get instance that removal is relative to:
+            var instance = new areaInstance(this.getProperty('id'), pageId);
+            instance.load();
+            var topOffset = instance.getProperty('top');
+            var leftOffset = instance.getProperty('left');
+            
+            //apply offsets:
+            edgeWallGaps.forEach(function(ewg) {
+                ewg.forEach(function(p) {
+                    p.x += leftOffset;
+                    p.y += topOffset;
+                }, this);
+            }, this);
+        }
         
         return edgeWallGaps;
     };
@@ -295,7 +297,16 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 this.initializeCollectionProperty('edgeWalls');
                 this.setProperty('edgeWalls', [rp.rawPath, 0, 0]);
             } else {
-                //TODO
+                this.initializeCollectionProperty('edgeWalls');
+                var edgeWallPaths = g.getProperty('simplePolygons')[mergedOpIndex].removePathIntersections(oldEdgeWallGaps);
+                
+                //convert edgeWallPaths into raw paths:
+                edgeWallPaths.forEach(function(ew) {
+                    var sp = new simplePath();
+                    sp.addPointsPath(ew);
+                    var rp = sp.getRawPath();
+                    this.setProperty('edgeWalls', [rp.rawPath, rp.top - instance.getProperty('top'), rp.left - instance.getProperty('left')]);
+                }, this);
             }
             
             this.save();
@@ -317,7 +328,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var mergedOpIndex = g.removeFromSimplePolygon(floorPlanOpIndex, removeOpIndex);
         
         if('undefined' !== typeof(mergedOpIndex)) {
-            var oldEdgeWallGaps = this.getEdgeWallGaps(pageId);
+            var oldEdgeWallGaps = this.getEdgeWallGaps();
             
             var rp = g.getRawPath('simplePolygons', mergedOpIndex);
             this.setProperty('floorPlan', rp.rawPath);
@@ -351,9 +362,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var containedPaths = g.getProperty('simplePolygons')[removeSpIndex].getIntersectingPaths(g.getProperty('simplePolygons')[floorPlanSpIndex]);
         
         //TODO: append containedPaths with existing gaps (might result in multiples being merged):
-        //var oldEdgeWallGaps = this.getEdgeWallGaps(pageId); <--not converted to instance top / left
+        //var oldEdgeWallGaps = this.getEdgeWallGaps(); <--not converted to instance top / left
         
-        //TODO: reuse this logic in the method that gets existing gaps:
         var edgeWallPaths = g.getProperty('simplePolygons')[floorPlanSpIndex].removePathIntersections(containedPaths);
         
         //TODO: factor in instance's rotation & scale:
@@ -628,11 +638,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var floorPolygon = drawPathObject(this.getProperty('pageId'), 'map', state.APIAreaMapper.blueprintFloorPolygonColor, state.APIAreaMapper.blueprintFloorPolygonColor, a.getProperty('floorPlan'), top, left);
         this.setProperty('floorPolygonId', floorPolygon.id);
         
-        log('a.getEdgeWallGaps(this.getProperty(...');
-        log(a.getEdgeWallGaps(this.getProperty('pageId')));
+        log('a.getEdgeWallGaps()');
+        log(a.getEdgeWallGaps());
         
         //draw edge wall gaps:
-        a.getEdgeWallGaps(this.getProperty('pageId')).forEach(function(ew) {
+        a.getEdgeWallGaps().forEach(function(ew) {
             var ewI = g.addSimplePathFromPoints(ew);
             var ewRaw = g.getRawPath('simplePaths', ewI);
             
@@ -1069,7 +1079,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }
         
         //if this is a polygon, close the path:
-        if(this.isType('polygon')) {
+        if(this.isType('polygon' && !pointsPath[0].equals(pointsPath[pointsPath.length - 1]))) {
             rawPath += ',[\"L\",' + (pointsPath[0].x - minX) + ',' + (pointsPath[0].y - minY) + ']';
         }
         
@@ -1140,6 +1150,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
             
             //if orientation is 1, the paths have the same orientation; otherwise, the orientation will be -1, if the orientation is anything else, the first and second points are not adjacent:
             var orientation;
+            
+            //if this is a polygon and one of the points is at index 0, handle edge cases where the adjacent point is wrapped around; skip the last point in the polygon because it's redundant to the first point:
             if(this.isType('polygon')) {
                 if(iFirst === 0 && iSecond === taggedPointsPath.length - 2) {
                     orientation = -1;
