@@ -244,6 +244,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
             edgeWallPointPaths.push(g.getProperty('simplePaths')[spI].getPointsPath());
         }, this);
         
+        log('calling removePathIntersections() from getEdgeWallGaps() to get gaps between walls on the floorplan edge');
+        
         var edgeWallGaps = g.getProperty('simplePolygons')[floorPlanIndex].removePathIntersections(edgeWallPointPaths);
         
         //if pageId is not null, it is expected to offset the gaps based on the area instance:
@@ -373,6 +375,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         //append containedPaths with existing gaps (might result in multiples being merged):
         var oldEdgeWallGaps = this.getEdgeWallGaps(pageId);
         containedPaths = containedPaths.concat(oldEdgeWallGaps);
+        
+        log('calling removePathIntersections() from edgeWallRemove() to get edge walls that are not eliminated by old or new gaps');
         
         var edgeWallPaths = g.getProperty('simplePolygons')[floorPlanSpIndex].removePathIntersections(containedPaths);
         
@@ -648,30 +652,13 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var floorPolygon = drawPathObject(this.getProperty('pageId'), 'map', state.APIAreaMapper.blueprintFloorPolygonColor, state.APIAreaMapper.blueprintFloorPolygonColor, a.getProperty('floorPlan'), top, left);
         this.setProperty('floorPolygonId', floorPolygon.id);
         
-        log('a.getEdgeWallGaps()');
-        log(a.getEdgeWallGaps());
-        
         //draw edge wall gaps:
         a.getEdgeWallGaps().forEach(function(ew) {
             var ewI = g.addSimplePathFromPoints(ew);
             var ewRaw = g.getRawPath('simplePaths', ewI);
-            
-            log('ewI: ' + ewI);
-            log('ew');
-            log(ew);
-            log('ewRaw.rawPath');
-            log(ewRaw.rawPath);
-            
             var edgeWallGap = drawPathObject(this.getProperty('pageId'), 'map', state.APIAreaMapper.edgeWallGapsPolygonColor, 'transparent', ewRaw.rawPath, top + ewRaw.top, left + ewRaw.left, 5);
             this.setProperty('edgeWallGapIds', edgeWallGap.id);
         }, this);
-        
-        //TODO: use edge wall gaps instead of edge walls:
-        /*a.getProperty('edgeWalls').forEach(function(ew) {
-            var edgeWallGap = drawPathObject(this.getProperty('pageId'), 'map', state.APIAreaMapper.edgeWallGapsPolygonColor, 'transparent', ew[0], top + ew[1], left + ew[2], 5);
-            this.setProperty('edgeWallGapIds', edgeWallGap.id);
-        }, this);
-        */
         
         this.save();
     };
@@ -1108,11 +1095,17 @@ var APIAreaMapper = APIAreaMapper || (function() {
     //note: this handles simple polygon logic as well
     simplePath.prototype.removePathIntersections = function(intersectingPaths) {
         
+        log('intersectingPaths from parameters');
+        log(intersectingPaths);
+        
         //Stuff this path's points into a data structure that has proper path order, but allows for tagging. Don't do tagging on this.points because it could get persisted when the points are saved.
         var taggedPointsPath = [];
         this.getPointsPath().forEach(function(p) {
             taggedPointsPath.push([p, [false, false, false]]); //this consists of the point, whether or not there are intersections on it, if it's the start of an intersection, and if it's the end of an intersection
         }, this);
+        
+        log('taggedPointsPath initial');
+        log(taggedPointsPath);
         
         var getTaggedPointsPathPointIndex = function(taggedPointsPath, p) {
             for(var i = 0; i < taggedPointsPath.length; i++) {
@@ -1143,10 +1136,16 @@ var APIAreaMapper = APIAreaMapper || (function() {
             breakSegmentIfPointNotFound(taggedPointsPath, ip[ip.length - 1]);
         }, this);
         
+        log('taggedPointsPath after breaking');
+        log(taggedPointsPath);
+        
         var fullyIntersected = false;
         
         //apply intersection tags to this path:
         intersectingPaths.forEach(function(ip) {
+            
+            log('processing intersecting path');
+            log(ip);
             
             //test that ip is long enough to be used:
             if(ip.length < 2) {
@@ -1174,15 +1173,19 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 orientation = iSecond - iFirst;
             }
             
+            log('iFirst: ' + iFirst + ', iSecond: ' + iSecond + ', iLast: ' + iLast + ', orientation: ' + orientation);
+            
             //abs(orientation) will normally be 1, as iFirst should be ajacent to iSecond. Give it an additional threshold in case there is a merge occurring where intersecting paths overlap.
             if(iFirst === null || iSecond === null || iLast === null
                     || Math.abs(orientation) === 0
-                    || Math.abs(orientation) > 2) {
+                    || Math.abs(orientation) > 3) {
                 return;
             }
             
             //remove the grace from orientation so that it can be used for stepping:
             orientation = (orientation > 0) ? 1 : -1;
+            
+            log('fixed orientation: ' + orientation);
             
             //as a special case, mark all as intersected if ip is a polygon (we already know it's of > 0 length):
             if(iFirst === iLast) {
@@ -1224,7 +1227,16 @@ var APIAreaMapper = APIAreaMapper || (function() {
             //tag the endpoints:
             taggedPointsPath[iFirst][1][0] = true;
             taggedPointsPath[iLast][1][0] = true;
+            
+            log('taggedPointsPath after processing this intersection');
+            log(taggedPointsPath);
+            
         }, this);
+        
+        log('taggedPointsPath fully tagged');
+        log(taggedPointsPath);
+        
+        log('fullyIntersected: ' + fullyIntersected);
         
         if(fullyIntersected) {
             return [];
