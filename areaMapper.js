@@ -2,8 +2,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.035,
-        schemaVersion = 0.024,
+    var version = 0.036,
+        schemaVersion = 0.025,
         buttonBackgroundColor = '#E92862',
         buttonHighlightColor = '#00FF00',
         mainBackgroundColor = '#3D8FE1',
@@ -111,6 +111,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this._type.push('area');
         this.initializeCollectionProperty('edgeWalls');
         this.initializeCollectionProperty('edgeWallGaps');
+        this.initializeCollectionProperty('innerWalls');
     };
     
     inheritPrototype(area, typedObject);
@@ -125,6 +126,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 break;
             case 'edgeWalls': //simple paths
             case 'edgeWallGaps': //simple paths
+            case 'innerWalls': //simple paths
                 return this['_' + property].push(value) - 1;
             default:
                 typedObject.prototype.setProperty.call(this, property, value);
@@ -136,6 +138,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         switch(property) {
             case 'edgeWalls':
             case 'edgeWallGaps':
+            case 'innerWalls':
                 if('undefined' === typeof(value)) {
                     this['_' + property] = [];
                 } else {
@@ -193,6 +196,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     break;
                 case 'edgeWalls':
                 case 'edgeWallGaps':
+                case 'innerWalls':
                     this.initializeCollectionProperty(areaState[i][0], areaState[i][1]);
                     break;
                 default:
@@ -210,6 +214,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         areaState.push(['height', this.getProperty('height')]);
         areaState.push(['edgeWalls', this.getProperty('edgeWalls')]);
         areaState.push(['edgeWallGaps', this.getProperty('edgeWallGaps')]);
+        areaState.push(['innerWalls', this.getProperty('innerWalls')]);
         
         //remove existing area state:
         var id = this.getProperty('id');
@@ -436,7 +441,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }, this);
         
         this.save();
-        
         this.draw(pageId, instance.getProperty('top'), instance.getProperty('left'));
     };
     
@@ -480,9 +484,33 @@ var APIAreaMapper = APIAreaMapper || (function() {
             }, this);
             
             this.save();
-        
             this.draw(pageId, instance.getProperty('top'), instance.getProperty('left'));
         }
+    };
+    
+    area.prototype.innerWallAdd = function(rawPath, pageId, top, left, isFromEvent) {
+        var g = new graph();
+        
+        //get instance that addition is relative to:
+        var instance = new areaInstance(this.getProperty('id'), pageId);
+        instance.load();
+        
+        //get the added path:
+        var innerWallAddSpIndex = g.addSimplePath(rawPath, top - instance.getProperty('top'), left - instance.getProperty('left'), isFromEvent);
+        
+        //make sure that the inner wall is fully contained in the floorPlan:
+        var floorPlanSpIndex = g.addSimplePolygon(this.getProperty('floorPlan'));
+        if(!g.getProperty('simplePolygons')[floorPlanSpIndex].hasInsideEntirePath(g.getProperty('simplePaths')[innerWallAddSpIndex])) {
+            log('Attempt to add inner walls that exceed the floorPlan.');
+            return;
+        }
+        
+        //add the inner wall:
+        var rp = g.getRawPath('simplePaths', innerWallAddSpIndex);
+        this.setProperty('innerWalls', [rp.rawPath, rp.top, rp.left]);
+        
+        this.save();
+        this.draw(pageId, instance.getProperty('top'), instance.getProperty('left'));
     };
     
     area.prototype.undraw = function(pageId) {
@@ -501,7 +529,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this._type.push('areaInstance');
         this._areaId = areaId;
         this._pageId = pageId;
-        this.initializeCollectionProperty('edgeWallIds');
+        this.initializeCollectionProperty('wallIds');
         this.initializeCollectionProperty('edgeWallGapIds');
         this.initializeCollectionProperty('losWallIds');
     };
@@ -520,7 +548,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'floorMaskId': //simple path
                 this['_' + property] = value;
                 break;
-            case 'edgeWallIds': //tokens
+            case 'wallIds': //tokens
             case 'edgeWallGapIds': //simple paths
             case 'losWallIds': //simple paths
                 return this['_' + property].push(value) - 1;
@@ -532,7 +560,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     areaInstance.prototype.initializeCollectionProperty = function(property, value) {
         switch(property) {
-            case 'edgeWallIds':
+            case 'wallIds':
             case 'edgeWallGapIds':
             case 'losWallIds':
                 if('undefined' === typeof(value)) {
@@ -580,7 +608,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 case 'floorMaskId':
                     this.setProperty(areaInstanceState[i][0], areaInstanceState[i][1]);
                     break;
-                case 'edgeWallIds':
+                case 'wallIds':
                 case 'edgeWallGapIds':
                 case 'losWallIds':
                     this.initializeCollectionProperty(areaInstanceState[i][0], areaInstanceState[i][1]);
@@ -601,7 +629,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         areaInstanceState.push(['floorPolygonId', this.getProperty('floorPolygonId')]);
         areaInstanceState.push(['floorTileId', this.getProperty('floorTileId')]);
         areaInstanceState.push(['floorMaskId', this.getProperty('floorMaskId')]);
-        areaInstanceState.push(['edgeWallIds', this.getProperty('edgeWallIds')]);
+        areaInstanceState.push(['wallIds', this.getProperty('wallIds')]);
         areaInstanceState.push(['losWallIds', this.getProperty('losWallIds')]);
         areaInstanceState.push(['edgeWallGapIds', this.getProperty('edgeWallGapIds')]);
         
@@ -641,12 +669,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this.setProperty('floorMaskId', '');
         
         //delete edge walls:
-        this.getProperty('edgeWallIds').forEach(function(wId) {
+        this.getProperty('wallIds').forEach(function(wId) {
             deleteObject('graphic', wId);
         }, this);
-        this.initializeCollectionProperty('edgeWallIds');
+        this.initializeCollectionProperty('wallIds');
         
-        //delete edge walls:
+        //delete edge wall gaps:
         this.getProperty('edgeWallGapIds').forEach(function(wId) {
             deleteObject('path', wId);
         }, this);
@@ -710,17 +738,32 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         //draw edge walls:
         a.getProperty('edgeWalls').forEach(function(ew) {
+            
+            //draw wall tokens:
             var ewIndex = g.addSimplePath(ew[0], top + ew[1], left + ew[2]);
             g.getProperty('simplePaths')[ewIndex].segments.forEach(function(s) {
-                this.setProperty('edgeWallIds', createTokenObjectFromSegment(wallImageUrl, this.getProperty('pageId'), 'objects', s, 30).id);
+                this.setProperty('wallIds', createTokenObjectFromSegment(wallImageUrl, this.getProperty('pageId'), 'objects', s, 30).id);
             }, this);
-        }, this);
-        
-        //draw line of sight blocking walls:
-        a.getProperty('edgeWalls').forEach(function(ew) {
+            
+            //draw line of sight blocking wall:
             var losWall = drawPathObject(this.getProperty('pageId'), 'walls', '#ff0000', 'transparent', ew[0], top + ew[1], left + ew[2], 1);
             this.setProperty('losWallIds', losWall.id);
         }, this);
+        
+        //draw inner walls:
+        a.getProperty('innerWalls').forEach(function(iw) {
+            
+            //draw wall tokens:
+            var iwIndex = g.addSimplePath(iw[0], top + iw[1], left + iw[2]);
+            g.getProperty('simplePaths')[iwIndex].segments.forEach(function(s) {
+                this.setProperty('wallIds', createTokenObjectFromSegment(wallImageUrl, this.getProperty('pageId'), 'objects', s, 30).id);
+            }, this);
+            
+            //draw line of sight blocking wall:
+            var losWall = drawPathObject(this.getProperty('pageId'), 'walls', '#ff0000', 'transparent', iw[0], top + iw[1], left + iw[2], 1);
+            this.setProperty('losWallIds', losWall.id);
+        }, this);
+        
        
         this.save();
     };
@@ -1845,7 +1888,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }
     };
     
-    graph.prototype.addSimplePath = function(rawPath, top, left) {
+    graph.prototype.addSimplePath = function(rawPath, top, left, isFromEvent) {
         if('undefined' === typeof(top)) {
             top = 0;
         }
@@ -1855,7 +1898,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }
         
         var sp = new simplePath();
-        sp.addRawPath(rawPath, top, left);
+        sp.addRawPath(rawPath, top, left, isFromEvent);
         return this.setProperty('simplePaths', sp);
     };
     
@@ -1871,7 +1914,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return this.setProperty('complexPaths', cp);
     };
     
-    graph.prototype.addSimplePolygon = function(rawPath, top, left) {
+    graph.prototype.addSimplePolygon = function(rawPath, top, left, isFromEvent) {
         if('undefined' === typeof(top)) {
             top = 0;
         }
@@ -1881,7 +1924,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }
         
         var sp = new simplePolygon();
-        sp.addRawPath(rawPath, top, left);
+        sp.addRawPath(rawPath, top, left, isFromEvent);
         return this.setProperty('simplePolygons', sp);
     };
     
@@ -2131,7 +2174,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 ['add to area', 'areaAppend', (state.APIAreaMapper.recordAreaMode == 'areaAppend')],
                 ['remove from area', 'areaRemove', (state.APIAreaMapper.recordAreaMode == 'areaRemove')],
                 ['remove edge walls', 'edgeWallRemove', (state.APIAreaMapper.recordAreaMode == 'edgeWallRemove')],
-                ['add edge walls', 'edgeWallGapRemove', (state.APIAreaMapper.recordAreaMode == 'edgeWallGapRemove')]
+                ['add edge walls', 'edgeWallGapRemove', (state.APIAreaMapper.recordAreaMode == 'edgeWallGapRemove')],
+                ['add inner walls', 'innerWallAdd', (state.APIAreaMapper.recordAreaMode == 'innerWallAdd')]
             ])
         );
     },
@@ -2172,6 +2216,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     case 'areaRemove':
                     case 'edgeWallRemove':
                     case 'edgeWallGapRemove':
+                    case 'innerWallAdd':
                         toggleOrSetAreaRecordMode(chatCommand[1]);
                         break;
                     case 'blueprint':
@@ -2246,6 +2291,19 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     a.setProperty('id', state.APIAreaMapper.activeArea);
                     a.load();
                     a.edgeWallGapRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                    
+                    path.remove();
+                    break;
+                case 'innerWallAdd':
+                    if(!state.APIAreaMapper.activeArea) {
+                        log('An area needs to be active before doing edge wall additions');
+                        return;
+                    }
+                    
+                    var a = new area();
+                    a.setProperty('id', state.APIAreaMapper.activeArea);
+                    a.load();
+                    a.innerWallAdd(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
                     
                     path.remove();
                     break;
