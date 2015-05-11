@@ -2,7 +2,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.034,
+    var version = 0.035,
         schemaVersion = 0.024,
         buttonBackgroundColor = '#E92862',
         buttonHighlightColor = '#00FF00',
@@ -320,6 +320,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 this.initializeCollectionProperty('edgeWalls');
                 this.setProperty('edgeWalls', [rp.rawPath, 0, 0]);
             } else {
+                //TODO: move all of this to "calculateEdgeWalls()":
+                
                 this.initializeCollectionProperty('edgeWalls');
                 var edgeWallPaths = g.getProperty('simplePolygons')[mergedOpIndex].removePathIntersections(oldEdgeWallGaps);
                 
@@ -365,6 +367,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 this.initializeCollectionProperty('edgeWalls');
                 this.setProperty('edgeWalls', [rp.rawPath, 0, 0]);
             } else {
+                //TODO: move all of this to "calculateEdgeWalls()":
+                
                 this.initializeCollectionProperty('edgeWalls');
                 var edgeWallPaths = g.getProperty('simplePolygons')[mergedOpIndex].removePathIntersections(oldEdgeWallGaps);
                 
@@ -434,6 +438,51 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this.save();
         
         this.draw(pageId, instance.getProperty('top'), instance.getProperty('left'));
+    };
+    
+    area.prototype.edgeWallGapRemove = function(rawPath, pageId, top, left, isFromEvent) {
+        var g = new graph();
+        g.addComplexPolygon(rawPath, top, left, isFromEvent);
+        var removeSpIndex = g.convertComplexPolygonToSimplePolygon(0);
+        
+        //get instance that removal is relative to:
+        var instance = new areaInstance(this.getProperty('id'), pageId);
+        instance.load();
+        
+        //TODO: factor in instance's rotation & scale:
+        var oldEdgeWallGaps = this.getProperty('edgeWallGaps');
+        var edgeWallGaps = [];
+        for(var i = 0; i < oldEdgeWallGaps.length; i++) {
+            var ewg = oldEdgeWallGaps[i];
+            ewgI = g.addSimplePath(ewg[0], ewg[1] + instance.getProperty('top'), ewg[2] + instance.getProperty('left'));
+            
+            if(!g.getProperty('simplePolygons')[removeSpIndex].hasInsideEntirePath(g.getProperty('simplePaths')[ewgI])) {
+                edgeWallGaps.push(oldEdgeWallGaps[i]);
+            }
+        }
+        
+        if(edgeWallGaps.length < oldEdgeWallGaps.length) {
+            
+            //update edge wall gaps property:
+            this.initializeCollectionProperty('edgeWallGaps', edgeWallGaps);
+            
+            //update edge walls property:
+            this.initializeCollectionProperty('edgeWalls');
+            var floorPlanOpIndex = g.addSimplePolygon(this.getProperty('floorPlan'), instance.getProperty('top'), instance.getProperty('left'));
+            var edgeWallPaths = g.getProperty('simplePolygons')[floorPlanOpIndex].removePathIntersections(this.getEdgeWallGapPointsPath(pageId));
+            
+            //convert edgeWallPaths into raw paths:
+            edgeWallPaths.forEach(function(ew) {
+                var sp = new simplePath();
+                sp.addPointsPath(ew);
+                var rp = sp.getRawPath();
+                this.setProperty('edgeWalls', [rp.rawPath, rp.top - instance.getProperty('top'), rp.left - instance.getProperty('left')]);
+            }, this);
+            
+            this.save();
+        
+            this.draw(pageId, instance.getProperty('top'), instance.getProperty('left'));
+        }
     };
     
     area.prototype.undraw = function(pageId) {
@@ -1451,6 +1500,18 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return (pointsOnLeft % 2 === 1);
     };
     
+    simplePolygon.prototype.hasInsideEntirePath = function(sp) {
+        var pointsPath = sp.getPointsPath();
+        
+        for(var i = 0; i < pointsPath.length; i++) {
+            if(!this.hasInside(pointsPath[i])) {
+                return false;
+            }
+        }
+        
+        return true;
+    };
+    
     simplePolygon.prototype.getPointNotContainedIndex = function(op) {
         for(var i = 0; i < this.points.length; i++) {
             if(!op.hasInside(this.points[i][0])) {
@@ -2069,7 +2130,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 ['create new area', 'areaCreate', (state.APIAreaMapper.recordAreaMode == 'areaCreate')],
                 ['add to area', 'areaAppend', (state.APIAreaMapper.recordAreaMode == 'areaAppend')],
                 ['remove from area', 'areaRemove', (state.APIAreaMapper.recordAreaMode == 'areaRemove')],
-                ['remove edge walls', 'edgeWallRemove', (state.APIAreaMapper.recordAreaMode == 'edgeWallRemove')]
+                ['remove edge walls', 'edgeWallRemove', (state.APIAreaMapper.recordAreaMode == 'edgeWallRemove')],
+                ['add edge walls', 'edgeWallGapRemove', (state.APIAreaMapper.recordAreaMode == 'edgeWallGapRemove')]
             ])
         );
     },
@@ -2109,6 +2171,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     case 'areaAppend':
                     case 'areaRemove':
                     case 'edgeWallRemove':
+                    case 'edgeWallGapRemove':
                         toggleOrSetAreaRecordMode(chatCommand[1]);
                         break;
                     case 'blueprint':
@@ -2170,6 +2233,19 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     a.setProperty('id', state.APIAreaMapper.activeArea);
                     a.load();
                     a.edgeWallRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                    
+                    path.remove();
+                    break;
+                case 'edgeWallGapRemove':
+                    if(!state.APIAreaMapper.activeArea) {
+                        log('An area needs to be active before doing edge wall additions');
+                        return;
+                    }
+                    
+                    var a = new area();
+                    a.setProperty('id', state.APIAreaMapper.activeArea);
+                    a.load();
+                    a.edgeWallGapRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
                     
                     path.remove();
                     break;
