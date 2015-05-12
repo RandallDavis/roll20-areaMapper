@@ -2,7 +2,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.036,
+    var version = 0.037,
         schemaVersion = 0.025,
         buttonBackgroundColor = '#E92862',
         buttonHighlightColor = '#00FF00',
@@ -508,6 +508,48 @@ var APIAreaMapper = APIAreaMapper || (function() {
         //add the inner wall:
         var rp = g.getRawPath('simplePaths', innerWallAddSpIndex);
         this.setProperty('innerWalls', [rp.rawPath, rp.top, rp.left]);
+        
+        this.save();
+        this.draw(pageId, instance.getProperty('top'), instance.getProperty('left'));
+    };
+    
+    area.prototype.innerWallRemove = function(rawPath, pageId, top, left, isFromEvent) {
+        var g = new graph();
+        
+        //get instance that addition is relative to:
+        var instance = new areaInstance(this.getProperty('id'), pageId);
+        instance.load();
+        
+        //get the removal polygon:
+        g.addComplexPolygon(rawPath, top, left, isFromEvent);
+        var removeSpIndex = g.convertComplexPolygonToSimplePolygon(0);
+        
+        var newInnerWalls = [];
+        
+        //remove intersections from inner walls:
+        this.getProperty('innerWalls').forEach(function(iw) {
+            
+            //add the inner wall to the graph:
+            var iwSpIndex = g.addSimplePath(iw[0], iw[1] + instance.getProperty('top'), iw[2] + instance.getProperty('left'));
+            
+            //find intersections between the removal polygon and the inner wall:
+            var removalIntersections = g.getProperty('simplePolygons')[removeSpIndex].getIntersectingPaths(g.getProperty('simplePaths')[iwSpIndex]);
+  
+            //record new inner walls that avoid intersections:
+            if(removalIntersections.length) {
+                var newInnerWallPointPaths = g.getProperty('simplePaths')[iwSpIndex].removePathIntersections(removalIntersections);
+                newInnerWallPointPaths.forEach(function(iwPP) {
+                    var sp = new simplePath();
+                    sp.addPointsPath(iwPP);
+                    var rp = sp.getRawPath();
+                    newInnerWalls.push([rp.rawPath, rp.top - instance.getProperty('top'), rp.left - instance.getProperty('left')]);
+                }, this);
+            } else {
+                newInnerWalls.push(iw);
+            }
+        }, this);
+        
+        this.initializeCollectionProperty('innerWalls', newInnerWalls);
         
         this.save();
         this.draw(pageId, instance.getProperty('top'), instance.getProperty('left'));
@@ -1366,9 +1408,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 if(taggedPointsPath[i][1][1]) {
                     
                     //close off the current path:
-                    currentPath.push(taggedPointsPath[i][0]);
-                    survivingPaths.push(currentPath);
-                    currentPath = [];
+                    if(currentPath.length) {
+                        currentPath.push(taggedPointsPath[i][0]);
+                        survivingPaths.push(currentPath);
+                        currentPath = [];
+                    }
                 }
                 
                 //handle end of intersections:
@@ -2175,7 +2219,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 ['remove from area', 'areaRemove', (state.APIAreaMapper.recordAreaMode == 'areaRemove')],
                 ['remove edge walls', 'edgeWallRemove', (state.APIAreaMapper.recordAreaMode == 'edgeWallRemove')],
                 ['add edge walls', 'edgeWallGapRemove', (state.APIAreaMapper.recordAreaMode == 'edgeWallGapRemove')],
-                ['add inner walls', 'innerWallAdd', (state.APIAreaMapper.recordAreaMode == 'innerWallAdd')]
+                ['add inner walls', 'innerWallAdd', (state.APIAreaMapper.recordAreaMode == 'innerWallAdd')],
+                ['remove inner walls', 'innerWallRemove', (state.APIAreaMapper.recordAreaMode == 'innerWallRemove')]
             ])
         );
     },
@@ -2217,6 +2262,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     case 'edgeWallRemove':
                     case 'edgeWallGapRemove':
                     case 'innerWallAdd':
+                    case 'innerWallRemove':
                         toggleOrSetAreaRecordMode(chatCommand[1]);
                         break;
                     case 'blueprint':
@@ -2304,6 +2350,19 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     a.setProperty('id', state.APIAreaMapper.activeArea);
                     a.load();
                     a.innerWallAdd(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                    
+                    path.remove();
+                    break;
+                case 'innerWallRemove':
+                    if(!state.APIAreaMapper.activeArea) {
+                        log('An area needs to be active before doing edge wall additions');
+                        return;
+                    }
+                    
+                    var a = new area();
+                    a.setProperty('id', state.APIAreaMapper.activeArea);
+                    a.load();
+                    a.innerWallRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
                     
                     path.remove();
                     break;
