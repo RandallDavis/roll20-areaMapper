@@ -2,8 +2,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.038,
-        schemaVersion = 0.026,
+    var version = 0.039,
+        schemaVersion = 0.027,
         buttonBackgroundColor = '#E92862',
         buttonHighlightColor = '#00FF00',
         mainBackgroundColor = '#3D8FE1',
@@ -26,7 +26,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 activeArea: null,
                 activePage: null,
                 blueprintFloorPolygonColor: '#A3E1E4',
-                edgeWallGapsPolygonColor: '#D13583',
+                blueprintEdgeWallGapsPathColor: '#D13583',
                 blueprintInnerWallsPathColor: '#3535D1'
             };
         } 
@@ -557,6 +557,209 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this.draw(pageId, instance.getProperty('top'), instance.getProperty('left'));
     };
     
+    area.prototype.doorAdd = function(rawPath, pageId, top, left, isFromEvent) {
+        var g = new graph();
+        
+        //get instance that addition is relative to:
+        var instance = new areaInstance(this.getProperty('id'), pageId);
+        instance.load();
+        
+        //get the addition polygon:
+        g.addComplexPolygon(rawPath, top, left, isFromEvent);
+        var addSpIndex = g.convertComplexPolygonToSimplePolygon(0);
+        
+        var pointCount = 0;
+        var innerWallPoints = []; //array of [inner wall simplePath index, [intersecting points]]
+        var edgeWallPoints = []; //array of [inner wall simplePath index, [intersecting points]]
+        var innerWallSpIndexes = [];
+        var edgeWallSpIndexes = [];
+        
+        //look for point intersections with inner walls:
+        this.getProperty('innerWalls').forEach(function(iw) {
+            
+            //push iw into a simplePath:
+            var iwI = g.addSimplePath(iw[0], iw[1] + instance.getProperty('top'), iw[2] + instance.getProperty('left'));
+            innerWallSpIndexes.push(iwI);
+            
+            //find intersected points:
+            var iwIntersectedPoints = g.getProperty('simplePolygons')[addSpIndex].getContainedPoints(g.getProperty('simplePaths')[iwI]);
+            
+            //if there were matches, save them:
+            if(iwIntersectedPoints && iwIntersectedPoints.length) {
+                pointCount += iwIntersectedPoints.length;
+                innerWallPoints.push([iwI, iwIntersectedPoints]);
+            }
+        }, this);
+        
+        //if we failed to find 2 points, look for inner wall segment intersections (excluding segments where point intersections succeeded) and derive points from the centers of the intersected sections:
+        if(pointCount < 2) {
+            innerWallSpIndexes.forEach(function(iwI) {
+                
+                //find intersecting paths:
+                var iwIntersectedPaths = g.getProperty('simplePolygons')[addSpIndex].getIntersectingPaths(g.getProperty('simplePaths')[iwI]);
+      
+                if(iwIntersectedPaths && iwIntersectedPaths.length) {
+                    iwIntersectedPaths.forEach(function(iwip) {
+                        
+                        //ignore paths that have anything other than a single segment:
+                        if(iwip.length === 2) {
+                            
+                            //ignore paths that contain an intersected point, to prevent double-counting:
+                            var found = false;
+                            for(var i = 0; i < iwip.length; i++) {
+                                innerWallPoints.forEach(function(iwP) {
+                                    if(iwP[0] === iwI) {
+                                        iwP[1].forEach(function(p) {
+                                            if(iwip[i].equals(p)) {
+                                                found = true;
+                                            }
+                                        }, this);
+                                    }
+                                }, this);
+                            }
+                            
+                            if(!found) {
+                                
+                                //push the midpoint of the intersected segment:
+                                var newPoint = new segment(iwip[0], iwip[1]).midpoint();
+                                
+                                //push it into an existing array if one exists for iwI:
+                                var pushed = false;
+                                innerWallPoints.forEach(function(iwP) {
+                                    if(iwP[0] === iwI) {
+                                        iwP[1].push(newPoint);
+                                        pushed = true;
+                                    }
+                                }, this);
+                                
+                                if(!pushed) {
+                                    var pushObj = [iwI, []];
+                                    pushObj[1].push(newPoint);
+                                    innerWallPoints.push(pushObj);
+                                }
+                                
+                                pointCount++;
+                            }
+                        }
+                    }, this);
+                }
+            }, this);
+        }
+        
+        //if we don't have 2 points yet, look to edge walls for point intersections:
+        if(pointCount < 2) {
+            
+            //look for point intersections with edge walls:
+            this.getProperty('edgeWalls').forEach(function(ew) {
+                
+                //push ew into a simplePath:
+                var ewI = g.addSimplePath(ew[0], ew[1] + instance.getProperty('top'), ew[2] + instance.getProperty('left'));
+                edgeWallSpIndexes.push(ewI);
+                
+                //find intersected points:
+                var ewIntersectedPoints = g.getProperty('simplePolygons')[addSpIndex].getContainedPoints(g.getProperty('simplePaths')[ewI]);
+                
+                //if there were matches, save them:
+                if(ewIntersectedPoints && ewIntersectedPoints.length) {
+                    pointCount += ewIntersectedPoints.length;
+                    edgeWallPoints.push([ewI, ewIntersectedPoints]);
+                }
+            }, this);
+        }
+        
+        //if we still don't have 2 points, look for edge wall segment intersections (excluding segments where point intersections succeeded) and derive points from the centers of the intersected sections:
+        if(pointCount < 2) {
+            edgeWallSpIndexes.forEach(function(ewI) {
+                
+                //find intersecting paths:
+                var ewIntersectedPaths = g.getProperty('simplePolygons')[addSpIndex].getIntersectingPaths(g.getProperty('simplePaths')[ewI]);
+                
+                if(ewIntersectedPaths && ewIntersectedPaths.length) {
+                    ewIntersectedPaths.forEach(function(ewip) {
+                        
+                        //ignore paths that have anything other than a single segment:
+                        if(ewip.length === 2) {
+                            
+                            //ignore paths that contain an intersected point, to prevent double-counting:
+                            var found = false;
+                            for(var i = 0; i < ewip.length; i++) {
+                                edgeWallPoints.forEach(function(ewP) {
+                                    if(ewP[0] === ewI) {
+                                        ewP[1].forEach(function(p) {
+                                            if(ewip[i].equals(p)) {
+                                                found = true;
+                                            }
+                                        }, this);
+                                    }
+                                }, this);
+                            }
+                            
+                            if(!found) {
+                                
+                                //push the midpoint of the intersected segment:
+                                var newPoint = new segment(ewip[0], ewip[1]).midpoint();
+                                
+                                //push it into an existing array if one exists for iwI:
+                                var pushed = false;
+                                edgeWallPoints.forEach(function(ewP) {
+                                    if(ewP[0] === ewI) {
+                                        ewP[1].push(newPoint);
+                                        pushed = true;
+                                    }
+                                }, this);
+                                
+                                if(!pushed) {
+                                    var pushObj = [ewI, []];
+                                    pushObj[1].push(newPoint);
+                                    edgeWallPoints.push(pushObj);
+                                }
+                                
+                                pointCount++;
+                            }
+                        }
+                    }, this);
+                }
+            }, this);
+        }
+        
+        if(pointCount < 2) {
+            log('Attempt to add door failed because fewer than 2 points were identified.');
+            return;
+        } 
+        
+        if(pointCount > 2) {
+            log('Attempt to add door failed because more than 2 points were identified.');
+            return;
+        }
+        
+        //ensure that the two points are not a wall segment:
+        if((innerWallPoints.length === 1 && innerWallPoints[0][1].length === 2)
+                || (edgeWallPoints.length === 1 && edgeWallPoints[0][1].length === 2)){
+            log('Attempt to add door failed because the 2 identified points are a wall segment.');
+            return;
+        }
+        
+        //extract the points:
+        var wallSegmentPoints = [];
+        innerWallPoints.forEach(function(iwp) {
+            iwp[1].forEach(function(p) {
+                wallSegmentPoints.push(p);
+            }, this);
+        }, this);
+        edgeWallPoints.forEach(function(ewp) {
+            ewp[1].forEach(function(p) {
+                wallSegmentPoints.push(p);
+            }, this);
+        }, this);
+        
+        //place the new wall as a segment connecting the two points:
+        var wallSegment = new segment(wallSegmentPoints[0], wallSegmentPoints[1]);
+        
+        
+        //TODO
+        
+    };
+    
     area.prototype.undraw = function(pageId) {
         instance = new areaInstance(this.getProperty('id'), pageId);
         instance.undraw();
@@ -843,7 +1046,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         a.calculateEdgeWallGaps().forEach(function(ew) {
             var ewI = g.addSimplePathFromPoints(ew);
             var ewRaw = g.getRawPath('simplePaths', ewI);
-            var edgeWallGap = drawPathObject(this.getProperty('pageId'), 'objects', state.APIAreaMapper.edgeWallGapsPolygonColor, 'transparent', ewRaw.rawPath, top + ewRaw.top, left + ewRaw.left, 5);
+            var edgeWallGap = drawPathObject(this.getProperty('pageId'), 'objects', state.APIAreaMapper.blueprintEdgeWallGapsPathColor, 'transparent', ewRaw.rawPath, top + ewRaw.top, left + ewRaw.left, 5);
             this.setProperty('edgeWallGapIds', edgeWallGap.id);
         }, this);
         
@@ -1149,7 +1352,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     has more than two segments, then it is an intersection point. Segments are ordered such that they can be
     traversed to find a walkable points path.
     
-    If all points have an even number of segments, it is a simple polygon, and the first and last points 
+    If all points have an even number of segments, then it is a simple polygon and the first and last points 
     have a shared segment.
     */
     var simplePath = function() {
@@ -1617,9 +1820,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return true;
     };
     
-    simplePolygon.prototype.getPointNotContainedIndex = function(op) {
+    //TODO: reverse this? it's non-intuitive that it's a point in this that's not in sp:
+    //returns a point in this that is not contained in sp:
+    simplePolygon.prototype.getPointNotContainedIndex = function(sp) {
+        //TODO: these points may be orphaned; use this.getPointsPath():
         for(var i = 0; i < this.points.length; i++) {
-            if(!op.hasInside(this.points[i][0])) {
+            if(!sp.hasInside(this.points[i][0])) {
                 return i;
             }
         }
@@ -1627,27 +1833,17 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return null;
     };
     
-    //removes intersection with rop (Removed Outline Polygon):
-    simplePolygon.prototype.removeIntersection = function(rop) {
-        var controlPointIndex = this.getPointNotContainedIndex(rop);
+    //returns all points in sp that are not contained in this:
+    simplePolygon.prototype.getContainedPoints = function(sp) {
+        var containedPoints = [];
         
-        if(controlPointIndex === null) {
-            return;
-        }
+        sp.getPointsPath().forEach(function(p) {
+            if(this.hasInside(p)) {
+                containedPoints.push(p);
+            }
+        }, this);
         
-        //get an angle from the control point to the prior point:
-        var controlSegment = new segment(this.points[controlPointIndex][0], this.points[(controlPointIndex - 1 + this.points.length) % this.points.length][0]);
-        var controlAngle = controlSegment.angle(controlSegment.a);
-        
-        //stuff both polygons into a complex polygon:
-        var cp = new complexPolygon();
-        cp.addPointsPath(this.getPointsPath());
-        cp.addPointsPath(rop.getPointsPath());
-        
-        //get the point index out of cp in case it has changed since we found it in this.points:
-        var controlPointIndex = cp.getPointIndex(this.points[controlPointIndex][0]);
-        
-        return cp.convertToSimplePolygon(controlPointIndex, controlAngle, false);
+        return containedPoints;
     };
     
     //returns intersecting paths (as an array of path points) for a simple path or simple polygon:
@@ -1770,6 +1966,29 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }
         
         return intersectingPaths;
+    };
+    
+    //removes intersection with rsp (Removed Simple Polygon):
+    simplePolygon.prototype.removeIntersection = function(rsp) {
+        var controlPointIndex = this.getPointNotContainedIndex(rsp);
+        
+        if(controlPointIndex === null) {
+            return;
+        }
+        
+        //get an angle from the control point to the prior point:
+        var controlSegment = new segment(this.points[controlPointIndex][0], this.points[(controlPointIndex - 1 + this.points.length) % this.points.length][0]);
+        var controlAngle = controlSegment.angle(controlSegment.a);
+        
+        //stuff both polygons into a complex polygon:
+        var cp = new complexPolygon();
+        cp.addPointsPath(this.getPointsPath());
+        cp.addPointsPath(rsp.getPointsPath());
+        
+        //get the point index out of cp in case it has changed since we found it in this.points:
+        var controlPointIndex = cp.getPointIndex(this.points[controlPointIndex][0]);
+        
+        return cp.convertToSimplePolygon(controlPointIndex, controlAngle, false);
     };
     
     simplePolygon.prototype.invert = function() {
@@ -2238,7 +2457,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 ['remove edge walls', 'edgeWallRemove', (state.APIAreaMapper.recordAreaMode == 'edgeWallRemove')],
                 ['add edge walls', 'edgeWallGapRemove', (state.APIAreaMapper.recordAreaMode == 'edgeWallGapRemove')],
                 ['add inner walls', 'innerWallAdd', (state.APIAreaMapper.recordAreaMode == 'innerWallAdd')],
-                ['remove inner walls', 'innerWallRemove', (state.APIAreaMapper.recordAreaMode == 'innerWallRemove')]
+                ['remove inner walls', 'innerWallRemove', (state.APIAreaMapper.recordAreaMode == 'innerWallRemove')],
+                ['add door', 'doorAdd', (state.APIAreaMapper.recordAreaMode == 'doorAdd')]
             ])
         );
     },
@@ -2281,6 +2501,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     case 'edgeWallGapRemove':
                     case 'innerWallAdd':
                     case 'innerWallRemove':
+                    case 'doorAdd':
                         toggleOrSetAreaRecordMode(chatCommand[1]);
                         break;
                     case 'blueprint':
@@ -2334,7 +2555,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     break;
                 case 'edgeWallRemove':
                     if(!state.APIAreaMapper.activeArea) {
-                        log('An area needs to be active before doing edge wall removals');
+                        log('An area needs to be active before doing edge wall removals.');
                         return;
                     }
                     
@@ -2347,7 +2568,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     break;
                 case 'edgeWallGapRemove':
                     if(!state.APIAreaMapper.activeArea) {
-                        log('An area needs to be active before doing edge wall additions');
+                        log('An area needs to be active before doing edge wall additions.');
                         return;
                     }
                     
@@ -2360,7 +2581,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     break;
                 case 'innerWallAdd':
                     if(!state.APIAreaMapper.activeArea) {
-                        log('An area needs to be active before doing edge wall additions');
+                        log('An area needs to be active before adding inner walls.');
                         return;
                     }
                     
@@ -2373,7 +2594,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     break;
                 case 'innerWallRemove':
                     if(!state.APIAreaMapper.activeArea) {
-                        log('An area needs to be active before doing edge wall additions');
+                        log('An area needs to be active before removing inner walls.');
                         return;
                     }
                     
@@ -2381,6 +2602,19 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     a.setProperty('id', state.APIAreaMapper.activeArea);
                     a.load();
                     a.innerWallRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                    
+                    path.remove();
+                    break;
+                case 'doorAdd':
+                    if(!state.APIAreaMapper.activeArea) {
+                        log('An area needs to be active before adding doors.');
+                        return;
+                    }
+                    
+                    var a = new area();
+                    a.setProperty('id', state.APIAreaMapper.activeArea);
+                    a.load();
+                    a.doorAdd(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
                     
                     path.remove();
                     break;
