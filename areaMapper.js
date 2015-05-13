@@ -2,8 +2,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.040,
-        schemaVersion = 0.028,
+    var version = 0.041,
+        schemaVersion = 0.029,
         buttonBackgroundColor = '#E92862',
         buttonHighlightColor = '#00FF00',
         mainBackgroundColor = '#3D8FE1',
@@ -129,10 +129,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'height':
                 this['_' + property] = value;
                 break;
-            case 'edgeWalls': //simple paths
-            case 'edgeWallGaps': //simple paths
-            case 'innerWalls': //simple paths
-            case 'doors': //segments
+            case 'edgeWalls': //[simple path, top, left]
+            case 'edgeWallGaps': //[simple path, top, left]
+            case 'innerWalls': //[simple path, top, left]
+            case 'doors': //[segment position, isOpen, isLocked, isTrapped, isHidden]
                 return this['_' + property].push(value) - 1;
             default:
                 typedObject.prototype.setProperty.call(this, property, value);
@@ -334,13 +334,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 this.initializeCollectionProperty('edgeWalls');
                 this.setProperty('edgeWalls', [rp.rawPath, 0, 0]);
             } else {
-                //TODO: move all of this to "calculateEdgeWalls()":
+                //TODO: move all of this to "calculateEdgeWalls()?":
                 
                 this.initializeCollectionProperty('edgeWalls');
                 var edgeWallPaths = g.getProperty('simplePolygons')[mergedOpIndex].removePathIntersections(oldEdgeWallGaps);
                 
                 //convert edgeWallPaths into raw paths:
                 edgeWallPaths.forEach(function(ew) {
+                    //TODO: abstract through graph object:
                     var sp = new simplePath();
                     sp.addPointsPath(ew);
                     var rp = sp.getRawPath();
@@ -381,13 +382,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 this.initializeCollectionProperty('edgeWalls');
                 this.setProperty('edgeWalls', [rp.rawPath, 0, 0]);
             } else {
-                //TODO: move all of this to "calculateEdgeWalls()":
+                //TODO: move all of this to "calculateEdgeWalls()?":
                 
                 this.initializeCollectionProperty('edgeWalls');
                 var edgeWallPaths = g.getProperty('simplePolygons')[mergedOpIndex].removePathIntersections(oldEdgeWallGaps);
                 
                 //convert edgeWallPaths into raw paths:
                 edgeWallPaths.forEach(function(ew) {
+                    //TODO: abstract through graph object:
                     var sp = new simplePath();
                     sp.addPointsPath(ew);
                     var rp = sp.getRawPath();
@@ -765,7 +767,13 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }, this);
         
         //place the new door as a segment connecting the two points:
-        this.setProperty('doors', new segment(doorSegmentPoints[0], doorSegmentPoints[1]));
+        this.setProperty('doors', [
+            new segment(doorSegmentPoints[0], doorSegmentPoints[1]), //door position
+            0, //is open
+            0, //is locked
+            0, //is trapped
+            0 //is hidden
+            ]);
         
         this.save();
         this.draw(pageId, instance.getProperty('top'), instance.getProperty('left'));
@@ -1060,7 +1068,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         a.getProperty('doors').forEach(function(d) {
             
             //draw closed door tokens:
-            var dIndex = g.addSimplePathFromSegment(d, top, left);
+            var dIndex = g.addSimplePathFromSegment(d[0], top, left);
             g.getProperty('simplePaths')[dIndex].segments.forEach(function(s) {
                 this.setProperty('doorIds', createTokenObjectFromSegment(closedDoorImageUrl, this.getProperty('pageId'), 'objects', s, 30, true).id);
             }, this);
@@ -1107,7 +1115,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         //draw blueprint doors:
         a.getProperty('doors').forEach(function(s) {
-            var dI = g.addSimplePathFromSegment(s, top, left);
+            var dI = g.addSimplePathFromSegment(s[0], top, left);
             var rp = g.getRawPath('simplePaths', dI);
             var door = drawPathObject(this.getProperty('pageId'), 'objects', state.APIAreaMapper.blueprintDoorPathColor, 'transparent', rp.rawPath, rp.top, rp.left, 2);
             this.setProperty('blueprintWallIds', door.id);
