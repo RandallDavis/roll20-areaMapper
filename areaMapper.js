@@ -2,8 +2,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.039,
-        schemaVersion = 0.027,
+    var version = 0.040,
+        schemaVersion = 0.028,
         buttonBackgroundColor = '#E92862',
         buttonHighlightColor = '#00FF00',
         mainBackgroundColor = '#3D8FE1',
@@ -11,6 +11,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         notificationBackgroundColor = '#64EED7',
         wallImageUrl = 'https://s3.amazonaws.com/files.d20.io/images/9136034/foLUiyrb1qQyK-pkkLKpTg/thumb.png?1430357960',
         floorImageUrl = 'https://s3.amazonaws.com/files.d20.io/images/48971/thumb.jpg?1340229647',
+        closedDoorImageUrl = 'https://s3.amazonaws.com/files.d20.io/images/6951/thumb.png?1336359665',
+        openDoorImageUrl = 'https://s3.amazonaws.com/files.d20.io/images/7068/thumb.png?1336366825'
         
     checkInstall = function() {
         
@@ -27,7 +29,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 activePage: null,
                 blueprintFloorPolygonColor: '#A3E1E4',
                 blueprintEdgeWallGapsPathColor: '#D13583',
-                blueprintInnerWallsPathColor: '#3535D1'
+                blueprintInnerWallsPathColor: '#3535D1',
+                blueprintDoorPathColor: '#EC9B10'
             };
         } 
         
@@ -113,6 +116,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this.initializeCollectionProperty('edgeWalls');
         this.initializeCollectionProperty('edgeWallGaps');
         this.initializeCollectionProperty('innerWalls');
+        this.initializeCollectionProperty('doors');
     };
     
     inheritPrototype(area, typedObject);
@@ -128,6 +132,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'edgeWalls': //simple paths
             case 'edgeWallGaps': //simple paths
             case 'innerWalls': //simple paths
+            case 'doors': //segments
                 return this['_' + property].push(value) - 1;
             default:
                 typedObject.prototype.setProperty.call(this, property, value);
@@ -140,6 +145,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'edgeWalls':
             case 'edgeWallGaps':
             case 'innerWalls':
+            case 'doors':
                 if('undefined' === typeof(value)) {
                     this['_' + property] = [];
                 } else {
@@ -198,6 +204,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 case 'edgeWalls':
                 case 'edgeWallGaps':
                 case 'innerWalls':
+                case 'doors':
                     this.initializeCollectionProperty(areaState[i][0], areaState[i][1]);
                     break;
                 default:
@@ -216,6 +223,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         areaState.push(['edgeWalls', this.getProperty('edgeWalls')]);
         areaState.push(['edgeWallGaps', this.getProperty('edgeWallGaps')]);
         areaState.push(['innerWalls', this.getProperty('innerWalls')]);
+        areaState.push(['doors', this.getProperty('doors')]);
         
         //remove existing area state:
         var id = this.getProperty('id');
@@ -740,24 +748,27 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }
         
         //extract the points:
-        var wallSegmentPoints = [];
+        var doorSegmentPoints = [];
         innerWallPoints.forEach(function(iwp) {
             iwp[1].forEach(function(p) {
-                wallSegmentPoints.push(p);
+                p.x -= instance.getProperty('left');
+                p.y -= instance.getProperty('top');
+                doorSegmentPoints.push(p);
             }, this);
         }, this);
         edgeWallPoints.forEach(function(ewp) {
             ewp[1].forEach(function(p) {
-                wallSegmentPoints.push(p);
+                p.x -= instance.getProperty('left');
+                p.y -= instance.getProperty('top');
+                doorSegmentPoints.push(p);
             }, this);
         }, this);
         
-        //place the new wall as a segment connecting the two points:
-        var wallSegment = new segment(wallSegmentPoints[0], wallSegmentPoints[1]);
+        //place the new door as a segment connecting the two points:
+        this.setProperty('doors', new segment(doorSegmentPoints[0], doorSegmentPoints[1]));
         
-        
-        //TODO
-        
+        this.save();
+        this.draw(pageId, instance.getProperty('top'), instance.getProperty('left'));
     };
     
     area.prototype.undraw = function(pageId) {
@@ -780,6 +791,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this.initializeCollectionProperty('edgeWallGapIds');
         this.initializeCollectionProperty('losWallIds');
         this.initializeCollectionProperty('blueprintWallIds');
+        this.initializeCollectionProperty('doorIds');
+        this.initializeCollectionProperty('blueprintDoorIds');
     };
     
     inheritPrototype(areaInstance, typedObject);
@@ -800,6 +813,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'edgeWallGapIds': //simple paths
             case 'losWallIds': //simple paths
             case 'blueprintWallIds': //simple paths
+            case 'doorIds': //tokens
+            case 'blueprintDoorIds': //simple paths
                 return this['_' + property].push(value) - 1;
             default:
                 typedObject.prototype.setProperty.call(this, property, value);
@@ -813,6 +828,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'edgeWallGapIds':
             case 'losWallIds':
             case 'blueprintWallIds':
+            case 'doorIds':
+            case 'blueprintDoorIds':
                 if('undefined' === typeof(value)) {
                     this['_' + property] = [];
                 } else {
@@ -862,6 +879,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 case 'edgeWallGapIds':
                 case 'losWallIds':
                 case 'blueprintWallIds':
+                case 'doorIds':
+                case 'blueprintDoorIds':
                     this.initializeCollectionProperty(areaInstanceState[i][0], areaInstanceState[i][1]);
                     break;
                 default:
@@ -884,6 +903,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         areaInstanceState.push(['losWallIds', this.getProperty('losWallIds')]);
         areaInstanceState.push(['edgeWallGapIds', this.getProperty('edgeWallGapIds')]);
         areaInstanceState.push(['blueprintWallIds', this.getProperty('blueprintWallIds')]);
+        areaInstanceState.push(['doorIds', this.getProperty('doorIds')]);
+        areaInstanceState.push(['blueprintDoorIds', this.getProperty('blueprintDoorIds')]);
         
         //remove existing area instance state:
         var areaInstances = state.APIAreaMapper.areaInstances;
@@ -943,6 +964,18 @@ var APIAreaMapper = APIAreaMapper || (function() {
             deleteObject('path', wId);
         }, this);
         this.initializeCollectionProperty('losWallIds');
+        
+        //delete doors:
+        this.getProperty('doorIds').forEach(function(wId) {
+            deleteObject('graphic', wId);
+        }, this);
+        this.initializeCollectionProperty('doorIds');
+        
+        //delete blueprint doors:
+        this.getProperty('blueprintDoorIds').forEach(function(wId) {
+            deleteObject('path', wId);
+        }, this);
+        this.initializeCollectionProperty('blueprintDoorIds');
         
         this.save();
     };
@@ -1021,6 +1054,22 @@ var APIAreaMapper = APIAreaMapper || (function() {
             var losWall = drawPathObject(this.getProperty('pageId'), 'walls', '#ff0000', 'transparent', iw[0], top + iw[1], left + iw[2], 1);
             this.setProperty('losWallIds', losWall.id);
         }, this);
+        
+        //TODO: implement logic for door toggle state / open door images with no LoS:
+        //draw closed doors:
+        a.getProperty('doors').forEach(function(d) {
+            
+            //draw closed door tokens:
+            var dIndex = g.addSimplePathFromSegment(d, top, left);
+            g.getProperty('simplePaths')[dIndex].segments.forEach(function(s) {
+                this.setProperty('doorIds', createTokenObjectFromSegment(closedDoorImageUrl, this.getProperty('pageId'), 'objects', s, 30, true).id);
+            }, this);
+            
+            //draw line of sight blocking wall:
+            var rp = g.getRawPath('simplePaths', dIndex);
+            var losWall = drawPathObject(this.getProperty('pageId'), 'walls', '#ff0000', 'transparent', rp.rawPath, rp.top, rp.left, 1);
+            this.setProperty('losWallIds', losWall.id);
+        }, this);
        
         this.save();
     };
@@ -1054,6 +1103,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
         a.getProperty('innerWalls').forEach(function(iw) {
             var wall = drawPathObject(this.getProperty('pageId'), 'objects', state.APIAreaMapper.blueprintInnerWallsPathColor, 'transparent', iw[0], top + iw[1], left + iw[2], 2);
             this.setProperty('blueprintWallIds', wall.id);
+        }, this);
+        
+        //draw blueprint doors:
+        a.getProperty('doors').forEach(function(s) {
+            var dI = g.addSimplePathFromSegment(s, top, left);
+            var rp = g.getRawPath('simplePaths', dI);
+            var door = drawPathObject(this.getProperty('pageId'), 'objects', state.APIAreaMapper.blueprintDoorPathColor, 'transparent', rp.rawPath, rp.top, rp.left, 2);
+            this.setProperty('blueprintWallIds', door.id);
         }, this);
         
         this.save();
@@ -2189,6 +2246,24 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return this.setProperty('simplePaths', sp);
     };
     
+    graph.prototype.addSimplePathFromSegment = function(s, top, left) {
+        if('undefined' === typeof(top)) {
+            top = 0;
+        }
+        
+        if('undefined' === typeof(left)) {
+            left = 0;
+        }
+        
+        var sp = new simplePath();
+        
+        //convert s into a segment because it may have been loaded and lost that property:
+        //TODO: figure out a way to cast objects instead of doing this:
+        sp.addSegment(new segment(new point(s.a.x + left, s.a.y + top), new point(s.b.x + left, s.b.y + top)));
+        
+        return this.setProperty('simplePaths', sp);
+    };
+    
     graph.prototype.addComplexPath = function(rawPath, top, left, isFromEvent) {
         var cp = new complexPath();
         cp.addRawPath(rawPath, top, left, isFromEvent);
@@ -2308,16 +2383,18 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return obj;
     },
     
-    createTokenObjectFromSegment = function(imgsrc, pageId, layer, segment, width) {
+    createTokenObjectFromSegment = function(imgsrc, pageId, layer, segment, width, alternateWidthAndHeight) {
+        var height = segment.length() + 14;
+        
         var obj = createObj('graphic', {
             imgsrc: imgsrc,
             layer: layer,
             pageid: pageId,
-            width: width,
+            width: alternateWidthAndHeight ? height : width,
             top: segment.b.y + ((segment.a.y - segment.b.y) / 2),
             left: segment.b.x + ((segment.a.x - segment.b.x) / 2),
-            height: segment.length() + 14,
-            rotation: segment.angleDegrees(segment.a) + 90
+            height: alternateWidthAndHeight ? width : height,
+            rotation: segment.angleDegrees(segment.a) + (alternateWidthAndHeight ? 0 : 90)
         });
         toFront(obj);
         return obj;
