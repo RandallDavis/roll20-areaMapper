@@ -11,6 +11,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         notificationBackgroundColor = '#64EED7',
         wallImageUrl = 'https://s3.amazonaws.com/files.d20.io/images/9136034/foLUiyrb1qQyK-pkkLKpTg/thumb.png?1430357960',
         floorImageUrl = 'https://s3.amazonaws.com/files.d20.io/images/48971/thumb.jpg?1340229647',
+        closedDoorImageUrl = 'https://s3.amazonaws.com/files.d20.io/images/6951/thumb.png?1336359665',
+        openDoorImageUrl = 'https://s3.amazonaws.com/files.d20.io/images/7068/thumb.png?1336366825'
         
     checkInstall = function() {
         
@@ -1053,7 +1055,21 @@ var APIAreaMapper = APIAreaMapper || (function() {
             this.setProperty('losWallIds', losWall.id);
         }, this);
         
-        //TODO: draw doors:
+        //TODO: implement logic for door toggle state / open door images with no LoS:
+        //draw closed doors:
+        a.getProperty('doors').forEach(function(d) {
+            
+            //draw closed door tokens:
+            var dIndex = g.addSimplePathFromSegment(d, top, left);
+            g.getProperty('simplePaths')[dIndex].segments.forEach(function(s) {
+                this.setProperty('doorIds', createTokenObjectFromSegment(closedDoorImageUrl, this.getProperty('pageId'), 'objects', s, 30, true).id);
+            }, this);
+            
+            //draw line of sight blocking wall:
+            var rp = g.getRawPath('simplePaths', dIndex);
+            var losWall = drawPathObject(this.getProperty('pageId'), 'walls', '#ff0000', 'transparent', rp.rawPath, rp.top, rp.left, 1);
+            this.setProperty('losWallIds', losWall.id);
+        }, this);
        
         this.save();
     };
@@ -1091,9 +1107,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         //draw blueprint doors:
         a.getProperty('doors').forEach(function(s) {
-            var dI = g.addSimplePathFromSegment(s);
+            var dI = g.addSimplePathFromSegment(s, top, left);
             var rp = g.getRawPath('simplePaths', dI);
-            var door = drawPathObject(this.getProperty('pageId'), 'objects', state.APIAreaMapper.blueprintDoorPathColor, 'transparent', rp.rawPath, rp.top + top, rp.left + left, 2);
+            var door = drawPathObject(this.getProperty('pageId'), 'objects', state.APIAreaMapper.blueprintDoorPathColor, 'transparent', rp.rawPath, rp.top, rp.left, 2);
             this.setProperty('blueprintWallIds', door.id);
         }, this);
         
@@ -2230,12 +2246,20 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return this.setProperty('simplePaths', sp);
     };
     
-    graph.prototype.addSimplePathFromSegment = function(s) {
+    graph.prototype.addSimplePathFromSegment = function(s, top, left) {
+        if('undefined' === typeof(top)) {
+            top = 0;
+        }
+        
+        if('undefined' === typeof(left)) {
+            left = 0;
+        }
+        
         var sp = new simplePath();
         
         //convert s into a segment because it may have been loaded and lost that property:
         //TODO: figure out a way to cast objects instead of doing this:
-        sp.addSegment(new segment(new point(s.a.x, s.a.y), new point(s.b.x, s.b.y)));
+        sp.addSegment(new segment(new point(s.a.x + left, s.a.y + top), new point(s.b.x + left, s.b.y + top)));
         
         return this.setProperty('simplePaths', sp);
     };
@@ -2359,16 +2383,18 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return obj;
     },
     
-    createTokenObjectFromSegment = function(imgsrc, pageId, layer, segment, width) {
+    createTokenObjectFromSegment = function(imgsrc, pageId, layer, segment, width, alternateWidthAndHeight) {
+        var height = segment.length() + 14;
+        
         var obj = createObj('graphic', {
             imgsrc: imgsrc,
             layer: layer,
             pageid: pageId,
-            width: width,
+            width: alternateWidthAndHeight ? height : width,
             top: segment.b.y + ((segment.a.y - segment.b.y) / 2),
             left: segment.b.x + ((segment.a.x - segment.b.x) / 2),
-            height: segment.length() + 14,
-            rotation: segment.angleDegrees(segment.a) + 90
+            height: alternateWidthAndHeight ? width : height,
+            rotation: segment.angleDegrees(segment.a) + (alternateWidthAndHeight ? 0 : 90)
         });
         toFront(obj);
         return obj;
