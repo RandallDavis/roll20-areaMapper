@@ -2,7 +2,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.041,
+    var version = 0.042,
         schemaVersion = 0.029,
         buttonBackgroundColor = '#E92862',
         buttonHighlightColor = '#00FF00',
@@ -13,6 +13,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
         floorImageUrl = 'https://s3.amazonaws.com/files.d20.io/images/48971/thumb.jpg?1340229647',
         closedDoorImageUrl = 'https://s3.amazonaws.com/files.d20.io/images/6951/thumb.png?1336359665',
         openDoorImageUrl = 'https://s3.amazonaws.com/files.d20.io/images/7068/thumb.png?1336366825',
+        closedDoorAlertPic = 'https://s3.amazonaws.com/files.d20.io/images/8543193/5XhwOpMaBUS_5B444UNC5Q/thumb.png?1427665106',
+        openDoorAlertPic = 'https://s3.amazonaws.com/files.d20.io/images/8543205/QBOWp1MHHlJCrPWn9kcVqQ/thumb.png?1427665124',
+        padlockAlertPic = 'https://s3.amazonaws.com/files.d20.io/images/8546285/bdyuCfZSGRXr3qrVkcPkAg/thumb.png?1427673372',
+        skullAlertPic = 'https://s3.amazonaws.com/files.d20.io/images/8779089/aM1ujMQboacuc2fEMFk7Eg/thumb.png?1428784948',
         
     checkInstall = function() {
         
@@ -1097,6 +1101,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 var master = a.getProperty(objectType)[masterIndex];
                 var dIndex = g.addSimplePathFromSegment(master[0], this.getProperty('top'), this.getProperty('left'));
                 var s = g.getProperty('simplePaths')[dIndex].segments[0];
+                var sMidpoint = s.midpoint();
                 
                 //note: there is no behavioral handling of hidden doors
                 //handle interactions:
@@ -1104,18 +1109,46 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     
                     //handle locked object:
                     if(master[2]) {
-                        //TODO: lock animation
+                        
+                        //lock visual alert:
+                        setTimeout(
+                            APIVisualAlert.visualAlert(
+                                padlockAlertPic,
+                                sMidpoint.x,
+                                sMidpoint.y,
+                                1.0,
+                                1),
+                            5);
                     }
-                    //toggle is necessary:
+                    //process toggle:
                     else {
                         if(master[3]) {
-                            //TODO: trap animation
+                            
+                            //trap visual alert:
+                            setTimeout(
+                                APIVisualAlert.visualAlert(
+                                    skullAlertPic,
+                                    sMidpoint.x,
+                                    sMidpoint.y,
+                                    1.0,
+                                    1),
+                                5);
                             
                             master[3] = 0;
                         }
                         
                         //toggle door state:
                         master[1] = (master[1] + 1) % 2;
+                        
+                        //door toggle visual alert:
+                        setTimeout(
+                            APIVisualAlert.visualAlert(
+                                master[1] ? openDoorAlertPic : closedDoorAlertPic,
+                                sMidpoint.x,
+                                sMidpoint.y,
+                                1.0,
+                                1),
+                            5);
                     }
                     
                     //update the master:
@@ -1130,6 +1163,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     this.getProperty('doorIds')[masterIndex] = ['',''];
                 }
                 
+                //TODO: hidden door images:
                 //draw the door:
                 var doorId = createTokenObjectFromSegment((master[1] ? openDoorImageUrl : closedDoorImageUrl), this.getProperty('pageId'), 'objects', s, 30, true).id;
                 
@@ -1261,10 +1295,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     /* polygon logic - begin */
     
-    /*
-    Points, segments, and angles are kept as simple, non-polymorphic datatypes for performance.
-    */
-    
+    //note: this is a simple, non-polymorphic datatype for performance purposes:
     var point = function(x, y) {
         this.x = x;
         this.y = y;
@@ -1275,6 +1306,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     },
     
     //angle object to simplify comparisons with epsilons:
+    //note: this is a simple, non-polymorphic datatype for performance purposes:
     angle = function(radians) {
         this.radians = radians;
         
@@ -1296,6 +1328,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     },
     
     //segment between points a and b:
+    //note: this is a simple, non-polymorphic datatype for performance purposes:
     segment = function(a, b) {
         this.a = a;
         this.b = b;
@@ -1341,9 +1374,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var xMax = Math.max(s.a.x, s.b.x);
         var yMax = Math.max(s.a.y, s.b.y);
         if(p.x < Math.min(s.a.x, s.b.x)
-            || p.y < Math.min(s.a.y, s.b.y)
-            || p.x > Math.max(s.a.x, s.b.x)
-            || p.y > Math.max(s.a.y, s.b.y)) {
+                || p.y < Math.min(s.a.y, s.b.y)
+                || p.x > Math.max(s.a.x, s.b.x)
+                || p.y > Math.max(s.a.y, s.b.y)) {
             return null;
         }
         
@@ -2896,7 +2929,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
 
 on('ready', function() {
     'use strict';
-
-    APIAreaMapper.checkInstall();
-    APIAreaMapper.registerEventHandlers();
+    
+    if('undefined' !== typeof(APIVisualAlert) && APIVisualAlert.visualAlert && _.isFunction(APIVisualAlert.visualAlert)) {
+        APIAreaMapper.checkInstall();
+        APIAreaMapper.registerEventHandlers();
+    } else {
+        log('--------------------------------------------------------------');
+        log('APIRoomManagement requires the VisualAlert script to work.');
+        log('VisualAlert GIST: https://github.com/RandallDavis/roll20-visualAlertScript');
+        log('--------------------------------------------------------------');
+    }
 });
