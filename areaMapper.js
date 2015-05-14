@@ -2,7 +2,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.042,
+    var version = 0.043,
         schemaVersion = 0.029,
         buttonBackgroundColor = '#E92862',
         buttonHighlightColor = '#00FF00',
@@ -800,6 +800,16 @@ var APIAreaMapper = APIAreaMapper || (function() {
         instance.handleGraphicChange(graphic);
     };
     
+    area.prototype.getManagedGraphicProperties = function(graphic) {
+        var instance = new areaInstance(this.getProperty('id'), graphic.get('_pageid'));
+        instance.load();
+        var managedGraphic = instance.findManagedGraphic(graphic);
+        
+        managedGraphic.properties = this.getProperty(managedGraphic.graphicType)[managedGraphic.graphicIndex];
+        
+        return managedGraphic;
+    };
+    
     
     var areaInstance = function(areaId, pageId) {
         typedObject.call(this);
@@ -1238,8 +1248,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         //TODO: alter an area instance and everything contained within it
     };
     
-    areaInstance.prototype.handleGraphicChange = function(graphic) {
-        var graphicId = graphic.id;
+    areaInstance.prototype.findManagedGraphic = function(graphic) {
         var graphicType;
         var graphicIndex;
         
@@ -1247,7 +1256,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var doorIds = this.getProperty('doorIds');
         
         for(var i = 0; i < doorIds.length; i++) {
-            if(graphicId === doorIds[i][0]) {
+            if(graphic.id === doorIds[i][0]) {
                 graphicType = 'doors';
                 graphicIndex = i;
                 break;
@@ -1255,6 +1264,21 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }
         
         if(!graphicType) {
+            return null;
+        }
+        
+        var returnObj = [];
+        returnObj.graphicType = graphicType;
+        returnObj.graphicIndex = graphicIndex;
+        return returnObj;
+    };
+    
+    areaInstance.prototype.handleGraphicChange = function(graphic) {
+        
+        //see if the graphic is being managed:
+        var managedGraphic = this.findManagedGraphic(graphic);
+        
+        if(!managedGraphic) {
             return;
         }
         
@@ -1263,9 +1287,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
         a = new area();
         a.setProperty('id', this.getProperty('areaId'));
         a.load();
-        var graphicMaster = a.getProperty(graphicType)[graphicIndex];
+        var graphicMaster = a.getProperty(managedGraphic.graphicType)[managedGraphic.graphicIndex];
         
-        switch(graphicType) {
+        switch(managedGraphic.graphicType) {
             case 'doors':
                 var p = (new segment(
                     new point(
@@ -1282,12 +1306,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 }
                 break;
             default:
-                log('Unhandled graphic type of ' + graphicType + ' in areaInstance.handleGraphicChange().');
+                log('Unhandled graphic type of ' + managedGraphic.graphicType + ' in areaInstance.handleGraphicChange().');
                 break;
         }
         
         //triage the necessary action that needs to be taken:
-        this.drawInteractiveObject(graphicType, graphicIndex, graphic);
+        this.drawInteractiveObject(managedGraphic.graphicType, managedGraphic.graphicIndex, graphic);
         this.save();
     };
     
@@ -2604,6 +2628,28 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     /* user interface - begin */
     
+    toggleOrSetAreaRecordMode = function(mode) {
+        if(state.APIAreaMapper.recordAreaMode == mode) {
+            state.APIAreaMapper.recordAreaMode = false;
+        } else {
+            state.APIAreaMapper.recordAreaMode = mode;
+        }
+    },
+    
+    toggleBlueprintMode = function() {
+        state.APIAreaMapper.blueprintMode = !state.APIAreaMapper.blueprintMode;
+        
+        if(state.APIAreaMapper.activeArea) {
+            var a = new area();
+            a.setProperty('id', state.APIAreaMapper.activeArea);
+            a.draw(state.APIAreaMapper.activePage);
+        }
+    },
+    
+    toggleInteractiveProperty = function(selected, who, type, property) {
+        log('interactiveProperty called with ' + type + ' / ' + property);
+    },
+    
     displayInterface = function(who, text) {
         //if(state.APIRoomManagement.uiPreference === 0) {
             sendChat('Area API', '/w ' + who.split(' ')[0] + ' ' + text); 
@@ -2708,8 +2754,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return html + '</p>';
     },
     
-    interfaceAreaDrawingOptions = function(to) {
-        sendStandardInterface(to, 'Area Mapper',
+    interfaceAreaDrawingOptions = function(who) {
+        sendStandardInterface(who, 'Area Mapper',
             commandLinks('Area Drawing', [
                 ['blueprint mode', 'blueprint', state.APIAreaMapper.blueprintMode],
                 ['create new area', 'areaCreate', (state.APIAreaMapper.recordAreaMode == 'areaCreate')],
@@ -2724,35 +2770,58 @@ var APIAreaMapper = APIAreaMapper || (function() {
         );
     },
     
-    toggleOrSetAreaRecordMode = function(mode) {
-        if(state.APIAreaMapper.recordAreaMode == mode) {
-            state.APIAreaMapper.recordAreaMode = false;
-        } else {
-            state.APIAreaMapper.recordAreaMode = mode;
-        }
-    },
-    
-    toggleBlueprintMode = function() {
-        state.APIAreaMapper.blueprintMode = !state.APIAreaMapper.blueprintMode;
-        
-        if(state.APIAreaMapper.activeArea) {
-            var a = new area();
-            a.setProperty('id', state.APIAreaMapper.activeArea);
-            a.draw(state.APIAreaMapper.activePage);
-        }
+    interfaceDoorOptions = function(who, managedGraphic) {
+        sendStandardInterface(who, 'Area Mapper',
+            commandLinks('Door Management', [
+                ['open', 'doorOpen', managedGraphic.properties[1]],
+                ['lock', 'doorLock', managedGraphic.properties[2]],
+                ['trap', 'doorTrap', managedGraphic.properties[3]],
+                ['hide', 'doorHide', managedGraphic.properties[4]]
+            ])
+        );
     },
     
     /* user interface - end */
     
     /* event handlers - begin */
     
+    //TODO: this should be callable based on selections from the selector tool:
+    intuit = function(selected, who) {
+        if(selected.length !== 1) {
+            log('Intuit logic only supported for single selections.');
+            return;
+        }
+     
+        var graphic = getObj('graphic', selected[0]._id);
+        if(!graphic) {
+            log('Intuit called without reachable selected graphic.');
+            return;
+        }
+        
+        var a = new area();
+        a.setProperty('id', state.APIAreaMapper.activeArea);
+        a.load();
+        var managedGraphicProperties = a.getManagedGraphicProperties(graphic);
+        
+        switch(managedGraphicProperties.graphicType) {
+            case 'doors':
+                interfaceDoorOptions(who, managedGraphicProperties);
+                break;
+            default:
+                log('Unhandled graphicType of ' + managedGraphicProperties.graphicType + ' in intuit().');
+                return;
+        }
+    },
+    
     handleUserInput = function(msg) {
         if(msg.type == 'api' && msg.content.match(/^!api-area/) && playerIsGM(msg.playerid)) {
             var chatCommand = msg.content.split(' ');
             if(chatCommand.length == 1) {
-                //transfer control to intuitive UI layer:
-                //intuit(msg.selected, msg.who);
-                interfaceAreaDrawingOptions(msg.who);
+                if(msg.selected) {
+                    intuit(msg.selected, msg.who);
+                } else {
+                    interfaceAreaDrawingOptions(msg.who);
+                }
             } else {
                 switch(chatCommand[1]) {
                     case 'areaCreate':
@@ -2767,6 +2836,18 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         break;
                     case 'blueprint':
                         toggleBlueprintMode();
+                        break;
+                    case 'doorOpen':
+                        toggleInteractiveProperty(msg.selected, msg.who, 'door', 'open');
+                        break;
+                    case 'doorLock':
+                        toggleInteractiveProperty(msg.selected, msg.who, 'door', 'lock');
+                        break;
+                    case 'doorTrap':
+                        toggleInteractiveProperty(msg.selected, msg.who, 'door', 'trap');
+                        break;
+                    case 'doorHide':
+                        toggleInteractiveProperty(msg.selected, msg.who, 'door', 'hide');
                         break;
                     default:
                         break;
