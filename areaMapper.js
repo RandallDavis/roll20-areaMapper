@@ -12,7 +12,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         wallImageUrl = 'https://s3.amazonaws.com/files.d20.io/images/9136034/foLUiyrb1qQyK-pkkLKpTg/thumb.png?1430357960',
         floorImageUrl = 'https://s3.amazonaws.com/files.d20.io/images/48971/thumb.jpg?1340229647',
         closedDoorImageUrl = 'https://s3.amazonaws.com/files.d20.io/images/6951/thumb.png?1336359665',
-        openDoorImageUrl = 'https://s3.amazonaws.com/files.d20.io/images/7068/thumb.png?1336366825'
+        openDoorImageUrl = 'https://s3.amazonaws.com/files.d20.io/images/7068/thumb.png?1336366825',
         
     checkInstall = function() {
         
@@ -38,7 +38,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     },
     
     resetTemporaryState = function() {
-        state.APIAreaMapper.tempIgnoreAddPath = false;
+        state.APIAreaMapper.tempIgnoreDrawingEvents = false;
         state.APIAreaMapper.recordAreaMode = false;
         //state.APIAreaMapper.blueprintMode = false;
     },
@@ -528,6 +528,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var g = new graph();
         
         //get instance that addition is relative to:
+        //TODO: should areaInstance be automatically loaded if it is able to?:
         var instance = new areaInstance(this.getProperty('id'), pageId);
         instance.load();
         
@@ -787,6 +788,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
     area.prototype.draw = function(pageId, top, left) {
         instance = new areaInstance(this.getProperty('id'), pageId);
         instance.draw(top, left);
+    };
+    
+    area.prototype.handleGraphicChange = function(graphic) {
+        var instance = new areaInstance(this.getProperty('id'), graphic.get('_pageid'));
+        instance.load();
+        instance.handleGraphicChange(graphic);
     };
     
     
@@ -1063,8 +1070,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
             this.setProperty('losWallIds', losWall.id);
         }, this);
         
-        //TODO: implement logic for door toggle state / open door images with no LoS:
-        //draw closed doors:
+        //TODO: migrate this out to a method that can be called during toggles:
+        //draw doors:
         a.getProperty('doors').forEach(function(d) {
             
             //draw closed door tokens:
@@ -1080,6 +1087,76 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }, this);
        
         this.save();
+    };
+    
+    //draws an interactive object; if eventObj is provided, it means that there was a user interaction:
+    areaInstance.prototype.drawInteractiveObject = function(objectType, masterIndex, eventObj) {
+        
+        var a = new area();
+        a.setProperty('id', this.getProperty('areaId'));
+        a.load();
+        
+        var g = new graph();
+        
+        switch(objectType) {
+            case 'doors':
+                var master = a.getProperty(objectType)[masterIndex];
+                var dIndex = g.addSimplePathFromSegment(master[0], this.getProperty('top'), this.getProperty('left'));
+                var s = g.getProperty('simplePaths')[dIndex].segments[0];
+                
+                //note: there is no behavioral handling of hidden doors
+                //handle interactions:
+                if(eventObj) {
+                    
+                    //handle locked object:
+                    if(master[2]) {
+                        //TODO: lock animation
+                    }
+                    //toggle is necessary:
+                    else {
+                        if(master[3]) {
+                            //TODO: trap animation
+                            
+                            master[3] = 0;
+                        }
+                        
+                        //toggle door state:
+                        master[1] = (master[1] + 1) % 2;
+                    }
+                    
+                    //update the master:
+                    a.getProperty(objectType)[masterIndex] = master;
+                    
+                    //delete the old object image:
+                    deleteObject('graphic', eventObj.id);
+                }
+                
+                //draw the door:
+                //TODO
+                break;
+            default:
+                log('Unsupported objectType of ' + objectType + ' in areaInstance.drawInteractiveObject().');
+                break;
+        };
+        
+        
+        //TODO
+       /* 
+        
+        a.getProperty('doors').forEach(function(d) {
+            
+            //draw closed door tokens:
+            var dIndex = g.addSimplePathFromSegment(d[0], top, left);
+            g.getProperty('simplePaths')[dIndex].segments.forEach(function(s) {
+                this.setProperty('doorIds', createTokenObjectFromSegment(closedDoorImageUrl, this.getProperty('pageId'), 'objects', s, 30, true).id);
+            }, this);
+            
+            //draw line of sight blocking wall:
+            var rp = g.getRawPath('simplePaths', dIndex);
+            var losWall = drawPathObject(this.getProperty('pageId'), 'walls', '#ff0000', 'transparent', rp.rawPath, rp.top, rp.left, 1);
+            this.setProperty('losWallIds', losWall.id);
+        }, this);
+        */
     };
     
     areaInstance.prototype.drawBlueprint = function() {
@@ -1126,6 +1203,80 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     areaInstance.prototype.alter = function(pageid, relativeRotation, relativeScaleX, relativeScaleY, relativePositionX, relativePositionY) {
         //TODO: alter an area instance and everything contained within it
+    };
+    
+    areaInstance.prototype.handleGraphicChange = function(graphic) {
+        
+        log("this.getProperty('pageId')");
+        log(this.getProperty('pageId'));
+        
+        log('graphic');
+        log(graphic);
+        
+        var graphicId = graphic.id;
+        var graphicType;
+        var graphicIndex;
+        
+        //see if the graphic is being managed:
+        var doorIds = this.getProperty('doorIds');
+        
+        log('doorIds');
+        log(doorIds);
+        
+        for(var i = 0; i < doorIds.length; i++) {
+            
+            log('graphicId');
+            log(graphicId);
+            log('doorIds[i]');
+            log(doorIds[i]);
+            
+            if(graphicId === doorIds[i]) {
+                graphicType = 'doors';
+                graphicIndex = i;
+                break;
+            }
+        }
+        
+        if(!graphicType) {
+            return;
+        }
+        
+        //see if the position changed - other changes are ignored:
+        var positionEpsilon = 0.001;
+        a = new area();
+        a.setProperty('id', this.getProperty('areaId'));
+        a.load();
+        var graphicMaster = a.getProperty(graphicType)[graphicIndex];
+        
+        switch(graphicType) {
+            case 'doors':
+                var p = (new segment(
+                    new point(
+                        graphicMaster[0].a.x + this.getProperty('left'),
+                        graphicMaster[0].a.y + this.getProperty('top')),
+                    new point(
+                        graphicMaster[0].b.x + this.getProperty('left'),
+                        graphicMaster[0].b.y + this.getProperty('top')))).midpoint();
+                
+                log('p');
+                log(p);
+                
+                //compare position to point, using epsilon:
+                if((Math.abs(graphic.get('left') - p.x) < positionEpsilon)
+                        && (Math.abs(graphic.get('top') - p.y) < positionEpsilon)) {
+                
+                    log('not enough movement');
+                
+                    return;
+                }
+                break;
+            default:
+                log('Unhandled graphic type of ' + graphicType + ' in areaInstance.handleGraphicChange().');
+                break;
+        }
+        
+        //triage the necessary action that needs to be taken:
+        this.drawInteractiveObject(graphicType, graphicIndex, graphic);
     };
     
     /* area - end */
@@ -2362,14 +2513,18 @@ var APIAreaMapper = APIAreaMapper || (function() {
     /* roll20 object management - begin */
     
     var deleteObject = function(type, id) {
+        state.APIAreaMapper.tempIgnoreDrawingEvents = true;
+        
         var obj = getObj(type, id);
         if(obj) {
             obj.remove();
         }
+        
+        state.APIAreaMapper.tempIgnoreDrawingEvents = false;
     },
     
     drawPathObject = function(pageId, layer, strokeColor, fillColor, path, top, left, strokeWidth) {
-        state.APIAreaMapper.tempIgnoreAddPath = true;
+        state.APIAreaMapper.tempIgnoreDrawingEvents = true;
         
         if('undefined' === typeof(strokeWidth)) {
             strokeWidth = 1;
@@ -2386,12 +2541,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
             _path: path
         });
         
-        state.APIAreaMapper.tempIgnoreAddPath = false;
+        state.APIAreaMapper.tempIgnoreDrawingEvents = false;
         
         return obj;
     },
     
     createTokenObjectFromSegment = function(imgsrc, pageId, layer, segment, width, alternateWidthAndHeight) {
+        state.APIAreaMapper.tempIgnoreDrawingEvents = true;
+        
         var height = segment.length() + 14;
         
         var obj = createObj('graphic', {
@@ -2405,11 +2562,16 @@ var APIAreaMapper = APIAreaMapper || (function() {
             rotation: segment.angleDegrees(segment.a) + (alternateWidthAndHeight ? 0 : 90)
         });
         toFront(obj);
+        
+        state.APIAreaMapper.tempIgnoreDrawingEvents = false;
+        
         return obj;
     },
     
     //creates a token object using a segment to define its dimensions:
     createTokenObject = function(imgsrc, pageId, layer, segment) {
+        state.APIAreaMapper.tempIgnoreDrawingEvents = true;
+        
         var obj = createObj('graphic', {
             imgsrc: imgsrc,
             layer: layer,
@@ -2421,6 +2583,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
             rotation: 0
         });
         toFront(obj);
+        
+        state.APIAreaMapper.tempIgnoreDrawingEvents = false;
+        
         return obj;
     },
     
@@ -2600,113 +2765,134 @@ var APIAreaMapper = APIAreaMapper || (function() {
     },
     
     handlePathAdd = function(path) {
-        if(!state.APIAreaMapper.tempIgnoreAddPath && state.APIAreaMapper.recordAreaMode) {
-            switch(state.APIAreaMapper.recordAreaMode) {
-                case 'areaCreate':
-                    var a = new area();
-                    a.create(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
-                    state.APIAreaMapper.activeArea = a.getProperty('id');
-                    state.APIAreaMapper.activePage = path.get('_pageid');
-                   
-                    path.remove();
-                    
-                    state.APIAreaMapper.recordAreaMode = 'areaAppend';
-                    break;
-                case 'areaAppend':
-                    if(!state.APIAreaMapper.activeArea) {
-                        log('An area needs to be active before appending.');
-                        return;
-                    }
-                    
-                    var a = new area();
-                    a.setProperty('id', state.APIAreaMapper.activeArea);
-                    a.load();
-                    a.floorPlanAppend(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
-                
-                    path.remove();
-                    break;
-                case 'areaRemove':
-                    if(!state.APIAreaMapper.activeArea) {
-                        log('An area needs to be active before doing removals.');
-                        return;
-                    }
-                    
-                    var a = new area();
-                    a.setProperty('id', state.APIAreaMapper.activeArea);
-                    a.load();
-                    a.floorPlanRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
-             
-                    path.remove();
-                    break;
-                case 'edgeWallRemove':
-                    if(!state.APIAreaMapper.activeArea) {
-                        log('An area needs to be active before doing edge wall removals.');
-                        return;
-                    }
-                    
-                    var a = new area();
-                    a.setProperty('id', state.APIAreaMapper.activeArea);
-                    a.load();
-                    a.edgeWallRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
-                    
-                    path.remove();
-                    break;
-                case 'edgeWallGapRemove':
-                    if(!state.APIAreaMapper.activeArea) {
-                        log('An area needs to be active before doing edge wall additions.');
-                        return;
-                    }
-                    
-                    var a = new area();
-                    a.setProperty('id', state.APIAreaMapper.activeArea);
-                    a.load();
-                    a.edgeWallGapRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
-                    
-                    path.remove();
-                    break;
-                case 'innerWallAdd':
-                    if(!state.APIAreaMapper.activeArea) {
-                        log('An area needs to be active before adding inner walls.');
-                        return;
-                    }
-                    
-                    var a = new area();
-                    a.setProperty('id', state.APIAreaMapper.activeArea);
-                    a.load();
-                    a.innerWallAdd(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
-                    
-                    path.remove();
-                    break;
-                case 'innerWallRemove':
-                    if(!state.APIAreaMapper.activeArea) {
-                        log('An area needs to be active before removing inner walls.');
-                        return;
-                    }
-                    
-                    var a = new area();
-                    a.setProperty('id', state.APIAreaMapper.activeArea);
-                    a.load();
-                    a.innerWallRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
-                    
-                    path.remove();
-                    break;
-                case 'doorAdd':
-                    if(!state.APIAreaMapper.activeArea) {
-                        log('An area needs to be active before adding doors.');
-                        return;
-                    }
-                    
-                    var a = new area();
-                    a.setProperty('id', state.APIAreaMapper.activeArea);
-                    a.load();
-                    a.doorAdd(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
-                    
-                    path.remove();
-                    break;
-                default:
-                    break;
-            }
+        if(state.APIAreaMapper.tempIgnoreDrawingEvents || !state.APIAreaMapper.recordAreaMode) {
+            return;
         }
+        
+        switch(state.APIAreaMapper.recordAreaMode) {
+            case 'areaCreate':
+                var a = new area();
+                a.create(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                state.APIAreaMapper.activeArea = a.getProperty('id');
+                state.APIAreaMapper.activePage = path.get('_pageid');
+               
+                path.remove();
+                
+                state.APIAreaMapper.recordAreaMode = 'areaAppend';
+                break;
+            case 'areaAppend':
+                if(!state.APIAreaMapper.activeArea) {
+                    log('An area needs to be active before appending.');
+                    return;
+                }
+                
+                var a = new area();
+                a.setProperty('id', state.APIAreaMapper.activeArea);
+                a.load();
+                a.floorPlanAppend(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+            
+                path.remove();
+                break;
+            case 'areaRemove':
+                if(!state.APIAreaMapper.activeArea) {
+                    log('An area needs to be active before doing removals.');
+                    return;
+                }
+                
+                var a = new area();
+                a.setProperty('id', state.APIAreaMapper.activeArea);
+                a.load();
+                a.floorPlanRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+         
+                path.remove();
+                break;
+            case 'edgeWallRemove':
+                if(!state.APIAreaMapper.activeArea) {
+                    log('An area needs to be active before doing edge wall removals.');
+                    return;
+                }
+                
+                var a = new area();
+                a.setProperty('id', state.APIAreaMapper.activeArea);
+                a.load();
+                a.edgeWallRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                
+                path.remove();
+                break;
+            case 'edgeWallGapRemove':
+                if(!state.APIAreaMapper.activeArea) {
+                    log('An area needs to be active before doing edge wall additions.');
+                    return;
+                }
+                
+                var a = new area();
+                a.setProperty('id', state.APIAreaMapper.activeArea);
+                a.load();
+                a.edgeWallGapRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                
+                path.remove();
+                break;
+            case 'innerWallAdd':
+                if(!state.APIAreaMapper.activeArea) {
+                    log('An area needs to be active before adding inner walls.');
+                    return;
+                }
+                
+                var a = new area();
+                a.setProperty('id', state.APIAreaMapper.activeArea);
+                a.load();
+                a.innerWallAdd(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                
+                path.remove();
+                break;
+            case 'innerWallRemove':
+                if(!state.APIAreaMapper.activeArea) {
+                    log('An area needs to be active before removing inner walls.');
+                    return;
+                }
+                
+                var a = new area();
+                a.setProperty('id', state.APIAreaMapper.activeArea);
+                a.load();
+                a.innerWallRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                
+                path.remove();
+                break;
+            case 'doorAdd':
+                if(!state.APIAreaMapper.activeArea) {
+                    log('An area needs to be active before adding doors.');
+                    return;
+                }
+                
+                var a = new area();
+                a.setProperty('id', state.APIAreaMapper.activeArea);
+                a.load();
+                a.doorAdd(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                
+                path.remove();
+                break;
+            default:
+                break;
+        }
+    },
+    
+    handleGraphicChange = function(graphic, prevState) {
+        if(state.APIAreaMapper.tempIgnoreDrawingEvents) {
+            return;
+        }
+        
+        if(!state.APIAreaMapper.activeArea) {
+            return;
+        }
+        
+        //ignore prevState: if the object was snapped to grid, prevState and graphic will both be changed; if not, prevState is old... I don't know a way to determine which case we're dealing with
+        
+        //let the area instance know about the graphic being changed; it should only care if it was a position change and if it's a managed object:
+        //TODO: pass the id into the area's constructor, and if it's not null, load:
+        var a = new area();
+        a.setProperty('id', state.APIAreaMapper.activeArea);
+        a.load();
+        a.handleGraphicChange(graphic);
     },
     
     /* event handlers - end */
@@ -2716,6 +2902,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     registerEventHandlers = function() {
         on('chat:message', handleUserInput);
         on('add:path', handlePathAdd);
+        on('change:graphic', handleGraphicChange);
     };
     
     //expose public functions:
