@@ -828,7 +828,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'edgeWallGapIds': //simple paths
             case 'losWallIds': //simple paths
             case 'blueprintWallIds': //simple paths
-            case 'doorIds': //tokens
+            case 'doorIds': //[door token, LoS wall path]
             case 'blueprintDoorIds': //simple paths
                 return this['_' + property].push(value) - 1;
             default:
@@ -981,8 +981,13 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this.initializeCollectionProperty('losWallIds');
         
         //delete doors:
-        this.getProperty('doorIds').forEach(function(wId) {
-            deleteObject('graphic', wId);
+        this.getProperty('doorIds').forEach(function(dId) {
+            
+            //delete door token:
+            deleteObject('graphic', dId[0]);
+            
+            //delete LoS wall (which may not exist):
+            deleteObject('path', dId[1]);
         }, this);
         this.initializeCollectionProperty('doorIds');
         
@@ -1116,29 +1121,33 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     //update the master:
                     a.getProperty(objectType)[masterIndex] = master;
                     
-                    //TODO: delete LoS wall (this means storing different lists of LoS walls):
-                    //delete the old object image:
-                    deleteObject('graphic', eventObj.id);
-                    this.getProperty('doorIds')[masterIndex] = null;
+                    //delete the old door image:
+                    deleteObject('graphic', this.getProperty('doorIds')[masterIndex][0]);
+                    
+                    //delete the old door LoS wall (which may not exist):
+                    deleteObject('path', this.getProperty('doorIds')[masterIndex][1]);
+                
+                    this.getProperty('doorIds')[masterIndex] = ['',''];
                 }
                 
                 //draw the door:
                 var doorId = createTokenObjectFromSegment((master[1] ? openDoorImageUrl : closedDoorImageUrl), this.getProperty('pageId'), 'objects', s, 30, true).id;
                 
+                //draw line of sight blocking wall if the door is closed:
+                var doorLosId = '';
+                if(!master[1]) {
+                    var rp = g.getRawPath('simplePaths', dIndex);
+                    doorLosId = drawPathObject(this.getProperty('pageId'), 'walls', '#ff0000', 'transparent', rp.rawPath, rp.top, rp.left, 1).id;
+                }
+                
                 //if this is replacing an existing image, write it back into the appropriate slot:
                 if(eventObj) {
-                    this.getProperty('doorIds')[masterIndex] = doorId;
+                    this.getProperty('doorIds')[masterIndex][0] = doorId;
+                    this.getProperty('doorIds')[masterIndex][1] = doorLosId;
                 }
                 //if it's a new image, push it to the end (which will line up with the master's index):
                 else {
-                    this.setProperty('doorIds', doorId);
-                }
-                
-                //draw line of sight blocking wall if the door is closed:
-                if(!master[1]) {
-                    var rp = g.getRawPath('simplePaths', dIndex);
-                    var losWall = drawPathObject(this.getProperty('pageId'), 'walls', '#ff0000', 'transparent', rp.rawPath, rp.top, rp.left, 1);
-                    this.setProperty('losWallIds', losWall.id);
+                    this.setProperty('doorIds', [doorId, doorLosId]);
                 }
                 break;
             default:
@@ -1204,7 +1213,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var doorIds = this.getProperty('doorIds');
         
         for(var i = 0; i < doorIds.length; i++) {
-            if(graphicId === doorIds[i]) {
+            if(graphicId === doorIds[i][0]) {
                 graphicType = 'doors';
                 graphicIndex = i;
                 break;
