@@ -1070,21 +1070,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
             this.setProperty('losWallIds', losWall.id);
         }, this);
         
-        //TODO: migrate this out to a method that can be called during toggles:
         //draw doors:
-        a.getProperty('doors').forEach(function(d) {
-            
-            //draw closed door tokens:
-            var dIndex = g.addSimplePathFromSegment(d[0], top, left);
-            g.getProperty('simplePaths')[dIndex].segments.forEach(function(s) {
-                this.setProperty('doorIds', createTokenObjectFromSegment(closedDoorImageUrl, this.getProperty('pageId'), 'objects', s, 30, true).id);
-            }, this);
-            
-            //draw line of sight blocking wall:
-            var rp = g.getRawPath('simplePaths', dIndex);
-            var losWall = drawPathObject(this.getProperty('pageId'), 'walls', '#ff0000', 'transparent', rp.rawPath, rp.top, rp.left, 1);
-            this.setProperty('losWallIds', losWall.id);
-        }, this);
+        for(var i = 0; i < a.getProperty('doors').length; i++) {
+            this.drawInteractiveObject('doors', i);
+        }
        
         this.save();
     };
@@ -1127,36 +1116,37 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     //update the master:
                     a.getProperty(objectType)[masterIndex] = master;
                     
+                    //TODO: delete LoS wall (this means storing different lists of LoS walls):
                     //delete the old object image:
                     deleteObject('graphic', eventObj.id);
+                    this.getProperty('doorIds')[masterIndex] = null;
                 }
                 
                 //draw the door:
-                //TODO
+                var doorId = createTokenObjectFromSegment((master[1] ? openDoorImageUrl : closedDoorImageUrl), this.getProperty('pageId'), 'objects', s, 30, true).id;
+                
+                //if this is replacing an existing image, write it back into the appropriate slot:
+                if(eventObj) {
+                    this.getProperty('doorIds')[masterIndex] = doorId;
+                }
+                //if it's a new image, push it to the end (which will line up with the master's index):
+                else {
+                    this.setProperty('doorIds', doorId);
+                }
+                
+                //draw line of sight blocking wall if the door is closed:
+                if(!master[1]) {
+                    var rp = g.getRawPath('simplePaths', dIndex);
+                    var losWall = drawPathObject(this.getProperty('pageId'), 'walls', '#ff0000', 'transparent', rp.rawPath, rp.top, rp.left, 1);
+                    this.setProperty('losWallIds', losWall.id);
+                }
                 break;
             default:
                 log('Unsupported objectType of ' + objectType + ' in areaInstance.drawInteractiveObject().');
                 break;
         };
         
-        
-        //TODO
-       /* 
-        
-        a.getProperty('doors').forEach(function(d) {
-            
-            //draw closed door tokens:
-            var dIndex = g.addSimplePathFromSegment(d[0], top, left);
-            g.getProperty('simplePaths')[dIndex].segments.forEach(function(s) {
-                this.setProperty('doorIds', createTokenObjectFromSegment(closedDoorImageUrl, this.getProperty('pageId'), 'objects', s, 30, true).id);
-            }, this);
-            
-            //draw line of sight blocking wall:
-            var rp = g.getRawPath('simplePaths', dIndex);
-            var losWall = drawPathObject(this.getProperty('pageId'), 'walls', '#ff0000', 'transparent', rp.rawPath, rp.top, rp.left, 1);
-            this.setProperty('losWallIds', losWall.id);
-        }, this);
-        */
+        a.save();
     };
     
     areaInstance.prototype.drawBlueprint = function() {
@@ -1206,13 +1196,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
     };
     
     areaInstance.prototype.handleGraphicChange = function(graphic) {
-        
-        log("this.getProperty('pageId')");
-        log(this.getProperty('pageId'));
-        
-        log('graphic');
-        log(graphic);
-        
         var graphicId = graphic.id;
         var graphicType;
         var graphicIndex;
@@ -1220,16 +1203,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         //see if the graphic is being managed:
         var doorIds = this.getProperty('doorIds');
         
-        log('doorIds');
-        log(doorIds);
-        
         for(var i = 0; i < doorIds.length; i++) {
-            
-            log('graphicId');
-            log(graphicId);
-            log('doorIds[i]');
-            log(doorIds[i]);
-            
             if(graphicId === doorIds[i]) {
                 graphicType = 'doors';
                 graphicIndex = i;
@@ -1258,15 +1232,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         graphicMaster[0].b.x + this.getProperty('left'),
                         graphicMaster[0].b.y + this.getProperty('top')))).midpoint();
                 
-                log('p');
-                log(p);
-                
                 //compare position to point, using epsilon:
                 if((Math.abs(graphic.get('left') - p.x) < positionEpsilon)
                         && (Math.abs(graphic.get('top') - p.y) < positionEpsilon)) {
-                
-                    log('not enough movement');
-                
                     return;
                 }
                 break;
@@ -1277,6 +1245,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         //triage the necessary action that needs to be taken:
         this.drawInteractiveObject(graphicType, graphicIndex, graphic);
+        this.save();
     };
     
     /* area - end */
