@@ -810,6 +810,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return managedGraphic;
     };
     
+    area.prototype.toggleInteractiveProperty = function(graphic, property) {
+        var instance = new areaInstance(this.getProperty('id'), graphic.get('_pageid'));
+        instance.load();
+        return instance.toggleInteractiveProperty(graphic, property);
+    }
+    
     
     var areaInstance = function(areaId, pageId) {
         typedObject.call(this);
@@ -1099,6 +1105,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     //draws an interactive object; if eventObj is provided, it means that there was a user interaction:
     areaInstance.prototype.drawInteractiveObject = function(objectType, masterIndex, eventObj) {
+        var isSuccess = true;
         
         var a = new area();
         a.setProperty('id', this.getProperty('areaId'));
@@ -1111,58 +1118,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 var master = a.getProperty(objectType)[masterIndex];
                 var dIndex = g.addSimplePathFromSegment(master[0], this.getProperty('top'), this.getProperty('left'));
                 var s = g.getProperty('simplePaths')[dIndex].segments[0];
-                var sMidpoint = s.midpoint();
                 
                 //note: there is no behavioral handling of hidden doors
                 //handle interactions:
                 if(eventObj) {
-                    
-                    //handle locked object:
-                    if(master[2]) {
-                        
-                        //lock visual alert:
-                        setTimeout(
-                            APIVisualAlert.visualAlert(
-                                padlockAlertPic,
-                                sMidpoint.x,
-                                sMidpoint.y,
-                                1.0,
-                                1),
-                            5);
-                    }
-                    //process toggle:
-                    else {
-                        if(master[3]) {
-                            
-                            //trap visual alert:
-                            setTimeout(
-                                APIVisualAlert.visualAlert(
-                                    skullAlertPic,
-                                    sMidpoint.x,
-                                    sMidpoint.y,
-                                    1.0,
-                                    1),
-                                5);
-                            
-                            master[3] = 0;
-                        }
-                        
-                        //toggle door state:
-                        master[1] = (master[1] + 1) % 2;
-                        
-                        //door toggle visual alert:
-                        setTimeout(
-                            APIVisualAlert.visualAlert(
-                                master[1] ? openDoorAlertPic : closedDoorAlertPic,
-                                sMidpoint.x,
-                                sMidpoint.y,
-                                1.0,
-                                1),
-                            5);
-                    }
-                    
-                    //update the master:
-                    a.getProperty(objectType)[masterIndex] = master;
                     
                     //delete the old door image:
                     deleteObject('graphic', this.getProperty('doorIds')[masterIndex][0]);
@@ -1196,10 +1155,13 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 break;
             default:
                 log('Unsupported objectType of ' + objectType + ' in areaInstance.drawInteractiveObject().');
-                break;
+                return false;
         };
         
         a.save();
+        this.save();
+        
+        return isSuccess;
     };
     
     areaInstance.prototype.drawBlueprint = function() {
@@ -1273,6 +1235,81 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return returnObj;
     };
     
+    areaInstance.prototype.handleInteractiveObjectInteraction = function(objectType, masterIndex, eventObj) {
+        var a = new area();
+        a.setProperty('id', this.getProperty('areaId'));
+        a.load();
+        
+        var g = new graph();
+        
+        switch(objectType) {
+            case 'doors':
+                var master = a.getProperty(objectType)[masterIndex];
+                var dIndex = g.addSimplePathFromSegment(master[0], this.getProperty('top'), this.getProperty('left'));
+                var s = g.getProperty('simplePaths')[dIndex].segments[0];
+                var sMidpoint = s.midpoint();
+                
+                //note: there is no behavioral handling of hidden doors
+                //handle interactions:
+                if(eventObj) {
+                    
+                    //handle locked object:
+                    if(master[2]) {
+                        
+                        //lock visual alert:
+                        setTimeout(
+                            APIVisualAlert.visualAlert(
+                                padlockAlertPic,
+                                sMidpoint.x,
+                                sMidpoint.y,
+                                1.0,
+                                1),
+                            5);
+                    }
+                    //process toggle:
+                    else {
+                        if(master[3]) {
+                            
+                            //trap visual alert:
+                            setTimeout(
+                                APIVisualAlert.visualAlert(
+                                    skullAlertPic,
+                                    sMidpoint.x,
+                                    sMidpoint.y,
+                                    1.0,
+                                    1),
+                                5);
+                            
+                            master[3] = 0;
+                        }
+                        
+                        //toggle door state:
+                        master[1] = (master[1] + 1) % 2;
+                        
+                        //door toggle visual alert:
+                        setTimeout(
+                            APIVisualAlert.visualAlert(
+                                master[1] ? openDoorAlertPic : closedDoorAlertPic,
+                                sMidpoint.x,
+                                sMidpoint.y,
+                                1.0,
+                                0),
+                            5);
+                    }
+                    
+                    //update the master:
+                    a.getProperty(objectType)[masterIndex] = master;
+                    a.save();
+                }
+                break;
+            default:
+                log('Unsupported objectType of ' + objectType + ' in areaInstance.drawInteractiveObject().');
+                break;
+        };
+        
+        this.drawInteractiveObject(objectType, masterIndex, eventObj);
+    };
+    
     areaInstance.prototype.handleGraphicChange = function(graphic) {
         
         //see if the graphic is being managed:
@@ -1310,9 +1347,66 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 break;
         }
         
-        //triage the necessary action that needs to be taken:
-        this.drawInteractiveObject(managedGraphic.graphicType, managedGraphic.graphicIndex, graphic);
+        this.handleInteractiveObjectInteraction(managedGraphic.graphicType, managedGraphic.graphicIndex, graphic);
         this.save();
+    };
+    
+    areaInstance.prototype.toggleInteractiveProperty = function(graphic, property) {
+        var isSuccess = true;
+        
+        var managedGraphic = this.findManagedGraphic(graphic);
+        
+        if(!managedGraphic) {
+            log("Didn't find a managed graphic in areaInstance.toggleInteractiveProperty().");
+            return false;
+        }
+        
+        a = new area();
+        a.setProperty('id', this.getProperty('areaId'));
+        a.load();
+        var graphicMaster = a.getProperty(managedGraphic.graphicType)[managedGraphic.graphicIndex];
+        
+        switch(managedGraphic.graphicType) {
+            case 'doors':
+                var redraw = false;
+                
+                switch(property) {
+                    case 'open':
+                        graphicMaster[1] = (graphicMaster[1] + 1) % 2;
+                        redraw = true;
+                        break;
+                    case 'lock':
+                        graphicMaster[2] = (graphicMaster[2] + 1) % 2;
+                        break;
+                    case 'trap':
+                        graphicMaster[3] = (graphicMaster[3] + 1) % 2;
+                        break;
+                    case 'hide':
+                        graphicMaster[4] = (graphicMaster[4] + 1) % 2;
+                        redraw = true;
+                        break;
+                    default:
+                        log('Unhandled property type of ' + property + ' in areaInstance.toggleInteractiveProperty().');
+                        return false;
+                }
+                
+                //update the master:
+                a.getProperty(managedGraphic.graphicType)[managedGraphic.graphicIndex] = graphicMaster;
+                a.save();
+                
+                if(redraw) {
+                    isSuccess = isSuccess && this.drawInteractiveObject(managedGraphic.graphicType, managedGraphic.graphicIndex, graphic);
+                }
+                
+                break;
+            default:
+                log('Unhandled graphic type of ' + managedGraphic.graphicType + ' in areaInstance.toggleInteractiveProperty().');
+                return false;
+        }
+        
+        this.save();
+        
+        return isSuccess;
     };
     
     /* area - end */
@@ -2646,8 +2740,25 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }
     },
     
-    toggleInteractiveProperty = function(selected, who, type, property) {
-        log('interactiveProperty called with ' + type + ' / ' + property);
+    toggleInteractiveProperty = function(selected, who, property) {
+        if(selected.length !== 1) {
+            log('toggleInteractiveProperty() only supported for single selections.');
+            return;
+        }
+     
+        var graphic = getObj('graphic', selected[0]._id);
+        if(!graphic) {
+            log('toggleInteractiveProperty() called without reachable selected graphic.');
+            return;
+        }
+        
+        var a = new area();
+        a.setProperty('id', state.APIAreaMapper.activeArea);
+        a.load();
+        
+        var result = a.toggleInteractiveProperty(graphic, property);
+        
+        //TODO: notify of result (which is a boolean)
     },
     
     displayInterface = function(who, text) {
@@ -2773,10 +2884,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
     interfaceDoorOptions = function(who, managedGraphic) {
         sendStandardInterface(who, 'Area Mapper',
             commandLinks('Door Management', [
-                ['open', 'doorOpen', managedGraphic.properties[1]],
-                ['lock', 'doorLock', managedGraphic.properties[2]],
-                ['trap', 'doorTrap', managedGraphic.properties[3]],
-                ['hide', 'doorHide', managedGraphic.properties[4]]
+                ['open', 'open', managedGraphic.properties[1]],
+                ['lock', 'lock', managedGraphic.properties[2]],
+                ['trap', 'trap', managedGraphic.properties[3]],
+                ['hide', 'hide', managedGraphic.properties[4]]
             ])
         );
     },
@@ -2837,17 +2948,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     case 'blueprint':
                         toggleBlueprintMode();
                         break;
-                    case 'doorOpen':
-                        toggleInteractiveProperty(msg.selected, msg.who, 'door', 'open');
-                        break;
-                    case 'doorLock':
-                        toggleInteractiveProperty(msg.selected, msg.who, 'door', 'lock');
-                        break;
-                    case 'doorTrap':
-                        toggleInteractiveProperty(msg.selected, msg.who, 'door', 'trap');
-                        break;
-                    case 'doorHide':
-                        toggleInteractiveProperty(msg.selected, msg.who, 'door', 'hide');
+                    case 'open':
+                    case 'lock':
+                    case 'trap':
+                    case 'hide':
+                        toggleInteractiveProperty(msg.selected, msg.who, chatCommand[1]);
                         break;
                     default:
                         break;
