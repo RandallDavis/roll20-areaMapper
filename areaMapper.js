@@ -2978,6 +2978,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     //note: this should be callable based on selections from the selector tool:
     intuit = function(selected, who) {
+        if(!(selected && selected.length)) {
+            interfaceAreaDrawingOptions(who);
+            return;
+        }
+        
         if(selected.length !== 1) {
             log('Intuit logic only supported for single selections.');
             return;
@@ -3011,16 +3016,15 @@ var APIAreaMapper = APIAreaMapper || (function() {
     handleUserInput = function(msg) {
         if(msg.type == 'api' && msg.content.match(/^!api-area/) && playerIsGM(msg.playerid)) {
             var chatCommand = msg.content.split(' ');
-            if(chatCommand.length == 1) {
-                if(msg.selected) {
-                    intuit(msg.selected, msg.who);
-                } else {
-                    interfaceAreaDrawingOptions(msg.who);
-                }
+            if(chatCommand.length === 1) {
+                intuit(msg.selected, msg.who);
             } else {
+                var followUpAction = [];
+                
                 switch(chatCommand[1]) {
                     case 'handoutUi':
-                        toggleHandoutUi();
+                        toggleHandoutUi()
+                        followUpAction.refresh = true;
                         break;
                     case 'areaCreate':
                     case 'areaAppend':
@@ -3031,15 +3035,18 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     case 'innerWallRemove':
                     case 'doorAdd':
                         toggleOrSetAreaRecordMode(chatCommand[1]);
+                        followUpAction.refresh = true;
                         break;
                     case 'blueprint':
                         toggleBlueprintMode();
+                        followUpAction.refresh = true;
                         break;
                     case 'open':
                     case 'lock':
                     case 'trap':
                     case 'hide':
                         toggleInteractiveProperty(msg.selected, msg.who, chatCommand[1]);
+                        followUpAction.refresh = true;
                         break;
                     case 'settings':
                         interfaceSettings(msg.who);
@@ -3052,6 +3059,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         break;
                     default:
                         break;
+                }
+                
+                if(followUpAction.refresh) {
+                    intuit(msg.selected, msg.who);
                 }
             }
         }
