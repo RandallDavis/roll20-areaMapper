@@ -2,7 +2,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.043,
+    var version = 0.044,
         schemaVersion = 0.029,
         buttonBackgroundColor = '#E92862',
         buttonHighlightColor = '#00FF00',
@@ -1134,7 +1134,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 
                 //TODO: hidden door images:
                 //draw the door:
-                var doorId = createTokenObjectFromSegment((master[1] ? openDoorImageUrl : closedDoorImageUrl), this.getProperty('pageId'), 'objects', s, 30, true).id;
+                var door = createTokenObjectFromSegment((master[1] ? openDoorImageUrl : closedDoorImageUrl), this.getProperty('pageId'), 'objects', s, 30, true);
+                
+                //set door privs to players unless the door is hidden:
+                if(!master[4]) {
+                    door.set("controlledby", "all");
+                }
                 
                 //draw line of sight blocking wall if the door is closed:
                 var doorLosId = '';
@@ -1145,12 +1150,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 
                 //if this is replacing an existing image, write it back into the appropriate slot:
                 if(eventObj) {
-                    this.getProperty('doorIds')[masterIndex][0] = doorId;
+                    this.getProperty('doorIds')[masterIndex][0] = door.id;
                     this.getProperty('doorIds')[masterIndex][1] = doorLosId;
                 }
                 //if it's a new image, push it to the end (which will line up with the master's index):
                 else {
-                    this.setProperty('doorIds', [doorId, doorLosId]);
+                    this.setProperty('doorIds', [door.id, doorLosId]);
                 }
                 break;
             default:
@@ -2756,9 +2761,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
         a.setProperty('id', state.APIAreaMapper.activeArea);
         a.load();
         
-        var result = a.toggleInteractiveProperty(graphic, property);
+        var isSuccess = a.toggleInteractiveProperty(graphic, property);
         
-        //TODO: notify of result (which is a boolean)
+        //TODO: notify of isSuccess (which is a boolean)
     },
     
     displayInterface = function(who, text) {
