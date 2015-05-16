@@ -806,6 +806,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
         instance.load();
         var managedGraphic = instance.findManagedGraphic(graphic);
         
+        if(!managedGraphic) {
+            return null;
+        }
+        
         managedGraphic.properties = this.getProperty(managedGraphic.graphicType)[managedGraphic.graphicIndex];
         
         return managedGraphic;
@@ -1106,8 +1110,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     //draws an interactive object; if eventObj is provided, it means that there was a user interaction:
     areaInstance.prototype.drawInteractiveObject = function(objectType, masterIndex, eventObj) {
-        var isSuccess = true;
-        
         var a = new area();
         a.setProperty('id', this.getProperty('areaId'));
         a.load();
@@ -1161,13 +1163,13 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 break;
             default:
                 log('Unsupported objectType of ' + objectType + ' in areaInstance.drawInteractiveObject().');
-                return false;
+                return 'There was a problem; check the log for details.';
         };
         
         a.save();
         this.save();
         
-        return isSuccess;
+        return null;
     };
     
     areaInstance.prototype.drawBlueprint = function() {
@@ -1358,13 +1360,13 @@ var APIAreaMapper = APIAreaMapper || (function() {
     };
     
     areaInstance.prototype.toggleInteractiveProperty = function(graphic, property) {
-        var isSuccess = true;
+        var followUpAction = [];
         
         var managedGraphic = this.findManagedGraphic(graphic);
         
         if(!managedGraphic) {
-            log("Didn't find a managed graphic in areaInstance.toggleInteractiveProperty().");
-            return false;
+            followUpAction.message = 'The graphic is not managed by the area and/or is not eligible for property changes.';
+            return followUpAction;
         }
         
         a = new area();
@@ -1383,9 +1385,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         break;
                     case 'lock':
                         graphicMaster[2] = (graphicMaster[2] + 1) % 2;
+                        followUpAction.refresh = true;
                         break;
                     case 'trap':
                         graphicMaster[3] = (graphicMaster[3] + 1) % 2;
+                        followUpAction.refresh = true;
                         break;
                     case 'hide':
                         graphicMaster[4] = (graphicMaster[4] + 1) % 2;
@@ -1393,7 +1397,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         break;
                     default:
                         log('Unhandled property type of ' + property + ' in areaInstance.toggleInteractiveProperty().');
-                        return false;
+                        followUpAction.message = 'There was a problem; see the log for details.';
+                        return followUpAction;
                 }
                 
                 //update the master:
@@ -1401,18 +1406,20 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 a.save();
                 
                 if(redraw) {
-                    isSuccess = isSuccess && this.drawInteractiveObject(managedGraphic.graphicType, managedGraphic.graphicIndex, graphic);
+                    var errorMessage = this.drawInteractiveObject(managedGraphic.graphicType, managedGraphic.graphicIndex, graphic);
+                    followUpAction.message = errorMessage ? errorMessage : 'The graphic has been replaced with a new one. Please select it for futher modifications.';
                 }
                 
                 break;
             default:
                 log('Unhandled graphic type of ' + managedGraphic.graphicType + ' in areaInstance.toggleInteractiveProperty().');
-                return false;
+                followUpAction.message = 'There was a problem; see the log for details.';
+                return followUpAction;
         }
         
         this.save();
         
-        return isSuccess;
+        return followUpAction;
     };
     
     /* area - end */
@@ -2730,6 +2737,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     toggleHandoutUi = function() {
         state.APIAreaMapper.handoutUi = !state.APIAreaMapper.handoutUi;
+        
+        var followUpAction = [];
+        followUpAction.refresh = true;
+        return followUpAction;
     },
     
     toggleOrSetAreaRecordMode = function(mode) {
@@ -2738,6 +2749,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
         } else {
             state.APIAreaMapper.recordAreaMode = mode;
         }
+        
+        var followUpAction = [];
+        followUpAction.refresh = true;
+        return followUpAction;
     },
     
     toggleBlueprintMode = function() {
@@ -2748,27 +2763,37 @@ var APIAreaMapper = APIAreaMapper || (function() {
             a.setProperty('id', state.APIAreaMapper.activeArea);
             a.draw(state.APIAreaMapper.activePage);
         }
+        
+        var followUpAction = [];
+        followUpAction.refresh = true;
+        return followUpAction;
     },
     
     toggleInteractiveProperty = function(selected, who, property) {
-        if(selected.length !== 1) {
-            log('toggleInteractiveProperty() only supported for single selections.');
-            return;
+        var followUpAction = [];
+        followUpAction.refresh = true;
+        
+        if(!selected || !selected.length) {
+            followUpAction.Message = 'An object needs to be selected.';
+            return followUpAction;
+        }
+        
+        if(selected.length > 1) {
+            followUpAction.Message = 'Only one object should be selected.';
+            return followUpAction;
         }
      
         var graphic = getObj('graphic', selected[0]._id);
         if(!graphic) {
-            log('toggleInteractiveProperty() called without reachable selected graphic.');
-            return;
+            followUpAction.Message = 'Unable to find the selected object.';
+            return followUpAction;
         }
         
         var a = new area();
         a.setProperty('id', state.APIAreaMapper.activeArea);
         a.load();
         
-        var isSuccess = a.toggleInteractiveProperty(graphic, property);
-        
-        //TODO: notify of isSuccess (which is a boolean)
+        return a.toggleInteractiveProperty(graphic, property);
     },
     
     //character converter, credits to Aaron from https://github.com/shdwjk/Roll20API/blob/master/APIHeartBeat/APIHeartBeat.js
@@ -2850,7 +2875,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                             +'<div style="margin-top:10px;"></div>'
                             +commandLinks('General', [
                                 ['settings', 'settings', false, false],
-                                ['help', 'help', false, false],
+                                ['help (TBA)', 'help', false, false],
                                 ['about', 'about', false, false]
                             ])
                         +'</span>'
@@ -2964,6 +2989,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
     },
     
     interfaceHelp = function(who) {
+        sendStandardInterface(who, 'Area Mapper',
+            '<p><b>Help</b></p>'
+            +'<p>TBA</p>'
+        );
         //TODO
     },
     
@@ -2978,20 +3007,22 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     //note: this should be callable based on selections from the selector tool:
     intuit = function(selected, who) {
+        var followUpAction = [];
+        
         if(!(selected && selected.length)) {
             interfaceAreaDrawingOptions(who);
             return;
         }
         
         if(selected.length !== 1) {
-            log('Intuit logic only supported for single selections.');
+            interfaceAreaDrawingOptions(who);
             return;
         }
      
         var graphic = getObj('graphic', selected[0]._id);
         if(!graphic) {
-            log('Intuit called without reachable selected graphic.');
-            return;
+            followUpAction.message = 'The selected item is not a reachable graphic.';
+            return followUpAction;
         }
         
         var a = new area();
@@ -2999,14 +3030,22 @@ var APIAreaMapper = APIAreaMapper || (function() {
         a.load();
         var managedGraphicProperties = a.getManagedGraphicProperties(graphic);
         
+        if(!managedGraphicProperties) {
+            followUpAction.message = 'The selected graphic has no options to display.';
+            return followUpAction;
+        }
+        
         switch(managedGraphicProperties.graphicType) {
             case 'doors':
                 interfaceDoorOptions(who, managedGraphicProperties);
                 break;
             default:
                 log('Unhandled graphicType of ' + managedGraphicProperties.graphicType + ' in intuit().');
-                return;
+                followUpAction.message = 'There was a problem; see the log for details.';
+                return followUpAction;
         }
+        
+        return followUpAction;
     },
     
     /* user interface - end */
@@ -3015,16 +3054,15 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     handleUserInput = function(msg) {
         if(msg.type == 'api' && msg.content.match(/^!api-area/) && playerIsGM(msg.playerid)) {
+            var followUpAction;
             var chatCommand = msg.content.split(' ');
+            
             if(chatCommand.length === 1) {
-                intuit(msg.selected, msg.who);
+                followUpAction = intuit(msg.selected, msg.who);
             } else {
-                var followUpAction = [];
-                
                 switch(chatCommand[1]) {
                     case 'handoutUi':
-                        toggleHandoutUi()
-                        followUpAction.refresh = true;
+                        followUpAction = toggleHandoutUi()
                         break;
                     case 'areaCreate':
                     case 'areaAppend':
@@ -3034,19 +3072,16 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     case 'innerWallAdd':
                     case 'innerWallRemove':
                     case 'doorAdd':
-                        toggleOrSetAreaRecordMode(chatCommand[1]);
-                        followUpAction.refresh = true;
+                        followUpAction = toggleOrSetAreaRecordMode(chatCommand[1]);
                         break;
                     case 'blueprint':
-                        toggleBlueprintMode();
-                        followUpAction.refresh = true;
+                        followUpAction = toggleBlueprintMode();
                         break;
                     case 'open':
                     case 'lock':
                     case 'trap':
                     case 'hide':
-                        toggleInteractiveProperty(msg.selected, msg.who, chatCommand[1]);
-                        followUpAction.refresh = true;
+                        followUpAction = toggleInteractiveProperty(msg.selected, msg.who, chatCommand[1]);
                         break;
                     case 'settings':
                         interfaceSettings(msg.who);
@@ -3060,8 +3095,13 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     default:
                         break;
                 }
-                
-                if(followUpAction.refresh) {
+            }
+            
+            if(followUpAction) {
+                if(followUpAction.message) {
+                    sendNotification(msg.who, followUpAction.message);
+                }
+                else if(followUpAction.refresh) {
                     intuit(msg.selected, msg.who);
                 }
             }
