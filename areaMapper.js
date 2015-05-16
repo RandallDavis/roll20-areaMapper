@@ -127,13 +127,18 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     /* area - begin */
     
-    var area = function() {
+    var area = function(id) {
         typedObject.call(this);
         this._type.push('area');
         this.initializeCollectionProperty('edgeWalls');
         this.initializeCollectionProperty('edgeWallGaps');
         this.initializeCollectionProperty('innerWalls');
         this.initializeCollectionProperty('doors');
+        
+        if('undefined' !== typeof(id)) {
+            this.setProperty('id', id);
+            this.load();
+        }
     };
     
     inheritPrototype(area, typedObject);
@@ -1060,9 +1065,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var left = this.getProperty('left');
         
         //get the floorPlan from the area:
-        var a = new area();
-        a.setProperty('id', this.getProperty('areaId'));
-        a.load();
+        var a = new area(this.getProperty('areaId'));
         
         //draw new floor tile:
         var floorTile = createTokenObject(floorImageUrl, this.getProperty('pageId'), 'map', new segment(new point(left, top), new point(left + a.getProperty('width'), top + a.getProperty('height'))));
@@ -1116,10 +1119,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     //draws an interactive object; if eventObj is provided, it means that there was a user interaction:
     areaInstance.prototype.drawInteractiveObject = function(objectType, masterIndex, eventObj) {
-        var a = new area();
-        a.setProperty('id', this.getProperty('areaId'));
-        a.load();
-        
+        var a = new area(this.getProperty('areaId'));
         var g = new graph();
         
         switch(objectType) {
@@ -1191,10 +1191,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var top = this.getProperty('top');
         var left = this.getProperty('left');
         
-        //get the floorPlan from the area:
-        var a = new area();
-        a.setProperty('id', this.getProperty('areaId'));
-        a.load();
+        var a = new area(this.getProperty('areaId'));
         
         //create floorPolygon:
         var floorPolygon = drawPathObject(this.getProperty('pageId'), 'map', state.APIAreaMapper.blueprintFloorPolygonColor, state.APIAreaMapper.blueprintFloorPolygonColor, a.getProperty('floorPlan'), top, left);
@@ -1255,10 +1252,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     };
     
     areaInstance.prototype.handleInteractiveObjectInteraction = function(objectType, masterIndex, eventObj) {
-        var a = new area();
-        a.setProperty('id', this.getProperty('areaId'));
-        a.load();
-        
+        var a = new area(this.getProperty('areaId'));
         var g = new graph();
         
         switch(objectType) {
@@ -1340,9 +1334,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         //see if the position changed - other changes are ignored:
         var positionEpsilon = 0.001;
-        a = new area();
-        a.setProperty('id', this.getProperty('areaId'));
-        a.load();
+        a = new area(this.getProperty('areaId'));
         var graphicMaster = a.getProperty(managedGraphic.graphicType)[managedGraphic.graphicIndex];
         
         switch(managedGraphic.graphicType) {
@@ -1380,9 +1372,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             return followUpAction;
         }
         
-        a = new area();
-        a.setProperty('id', this.getProperty('areaId'));
-        a.load();
+        a = new area(this.getProperty('areaId'));
         var graphicMaster = a.getProperty(managedGraphic.graphicType)[managedGraphic.graphicIndex];
         
         switch(managedGraphic.graphicType) {
@@ -2822,9 +2812,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             return followUpAction;
         }
         
-        var a = new area();
-        a.setProperty('id', state.APIAreaMapper.activeArea);
-        a.load();
+        var a = new area(state.APIAreaMapper.activeArea);
         
         return a.toggleInteractiveProperty(graphic, property);
     },
@@ -2987,9 +2975,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var hasDoors = false;
         
         if(state.APIAreaMapper.activeArea) {
-            var a = new area();
-            a.setProperty('id', state.APIAreaMapper.activeArea);
-            a.load();
+            var a = new area(state.APIAreaMapper.activeArea);
             
             hasEdgeWallGaps = a.getProperty('edgeWallGaps').length;
             hasEdgeWalls = a.getProperty('edgeWalls').length;
@@ -3059,9 +3045,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             return followUpAction;
         }
         
-        var a = new area();
-        a.setProperty('id', state.APIAreaMapper.activeArea);
-        a.load();
+        var a = new area(state.APIAreaMapper.activeArea);
         var managedGraphicProperties = a.getManagedGraphicProperties(graphic);
         
         if(!managedGraphicProperties) {
@@ -3164,9 +3148,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     return;
                 }
                 
-                var a = new area();
-                a.setProperty('id', state.APIAreaMapper.activeArea);
-                a.load();
+                var a = new area(state.APIAreaMapper.activeArea);
                 a.floorPlanAppend(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
             
                 path.remove();
@@ -3177,9 +3159,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     return;
                 }
                 
-                var a = new area();
-                a.setProperty('id', state.APIAreaMapper.activeArea);
-                a.load();
+                var a = new area(state.APIAreaMapper.activeArea);
                 a.floorPlanRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
          
                 path.remove();
@@ -3190,9 +3170,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     return;
                 }
                 
-                var a = new area();
-                a.setProperty('id', state.APIAreaMapper.activeArea);
-                a.load();
+                var a = new area(state.APIAreaMapper.activeArea);
                 a.edgeWallRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
                 
                 path.remove();
@@ -3203,9 +3181,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     return;
                 }
                 
-                var a = new area();
-                a.setProperty('id', state.APIAreaMapper.activeArea);
-                a.load();
+                var a = new area(state.APIAreaMapper.activeArea);
                 a.edgeWallGapRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
                 
                 path.remove();
@@ -3216,9 +3192,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     return;
                 }
                 
-                var a = new area();
-                a.setProperty('id', state.APIAreaMapper.activeArea);
-                a.load();
+                var a = new area(state.APIAreaMapper.activeArea);
                 a.innerWallAdd(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
                 
                 path.remove();
@@ -3229,9 +3203,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     return;
                 }
                 
-                var a = new area();
-                a.setProperty('id', state.APIAreaMapper.activeArea);
-                a.load();
+                var a = new area(state.APIAreaMapper.activeArea);
                 a.innerWallRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
                 
                 path.remove();
@@ -3242,9 +3214,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     return;
                 }
                 
-                var a = new area();
-                a.setProperty('id', state.APIAreaMapper.activeArea);
-                a.load();
+                var a = new area(state.APIAreaMapper.activeArea);
                 a.doorAdd(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
                 
                 path.remove();
@@ -3266,10 +3236,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         //ignore prevState: if the object was snapped to grid, prevState and graphic will both be changed; if not, prevState is old... I don't know a way to determine which case we're dealing with
         
         //let the area instance know about the graphic being changed; it should only care if it was a position change and if it's a managed object:
-        //TODO: pass the id into the area's constructor, and if it's not null, load:
-        var a = new area();
-        a.setProperty('id', state.APIAreaMapper.activeArea);
-        a.load();
+        var a = new area(state.APIAreaMapper.activeArea);
         a.handleGraphicChange(graphic);
     },
     
