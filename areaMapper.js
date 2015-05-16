@@ -356,8 +356,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 this.initializeCollectionProperty('edgeWalls');
                 this.setProperty('edgeWalls', [rp.rawPath, 0, 0]);
             } else {
-                //TODO: move all of this to "calculateEdgeWalls()?":
-                
                 this.initializeCollectionProperty('edgeWalls');
                 var edgeWallPaths = g.removePathIntersections('simplePolygons', mergedOpIndex, oldEdgeWallGaps);
                 
@@ -401,8 +399,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 this.initializeCollectionProperty('edgeWalls');
                 this.setProperty('edgeWalls', [rp.rawPath, 0, 0]);
             } else {
-                //TODO: move all of this to "calculateEdgeWalls()?":
-                
                 this.initializeCollectionProperty('edgeWalls');
                 var edgeWallPaths = g.removePathIntersections('simplePolygons', mergedOpIndex, oldEdgeWallGaps);
                 
@@ -1165,7 +1161,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             default:
                 log('Unsupported objectType of ' + objectType + ' in areaInstance.drawInteractiveObject().');
                 return 'There was a problem; check the log for details.';
-        };
+        }
         
         a.save();
         this.save();
@@ -1176,12 +1172,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
     areaInstance.prototype.drawBlueprint = function() {
         this.load();
         
-        var g = new graph();
-        
         var top = this.getProperty('top');
         var left = this.getProperty('left');
         
         var a = new area(this.getProperty('areaId'));
+        var g = new graph();
         
         //create floorPolygon:
         var floorPolygon = drawPathObject(this.getProperty('pageId'), 'map', state.APIAreaMapper.blueprintFloorPolygonColor, state.APIAreaMapper.blueprintFloorPolygonColor, a.getProperty('floorPlan'), top, left);
@@ -1252,7 +1247,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 var s = g.getProperty('simplePaths')[dIndex].segments[0];
                 var sMidpoint = s.midpoint();
                 
-                //note: there is no behavioral handling of hidden doors
                 //handle interactions:
                 if(eventObj) {
                     
@@ -1308,7 +1302,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             default:
                 log('Unsupported objectType of ' + objectType + ' in areaInstance.drawInteractiveObject().');
                 break;
-        };
+        }
         
         this.drawInteractiveObject(objectType, masterIndex, eventObj);
     };
@@ -2169,12 +2163,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return true;
     };
     
-    //TODO: reverse this? it's non-intuitive that it's a point in this that's not in sp:
     //returns a point in this that is not contained in sp:
-    simplePolygon.prototype.getPointNotContainedIndex = function(sp) {
-        //TODO: these points may be orphaned; use this.getPointsPath():
-        for(var i = 0; i < this.points.length; i++) {
-            if(!sp.hasInside(this.points[i][0])) {
+    simplePolygon.prototype.getSinglePointIndexEvadingFilter = function(sp) {
+        var pointsPath = this.getPointsPath();
+      
+        for(var i = 0; i < pointsPath.length; i++) {
+            if(!sp.hasInside(pointsPath[i])) {
                 return i;
             }
         }
@@ -2319,7 +2313,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     //removes intersection with rsp (Removed Simple Polygon):
     simplePolygon.prototype.removeIntersection = function(rsp) {
-        var controlPointIndex = this.getPointNotContainedIndex(rsp);
+        var controlPointIndex = this.getSinglePointIndexEvadingFilter(rsp);
         
         if(controlPointIndex === null) {
             return;
@@ -2549,8 +2543,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         var sp = new simplePath();
         
-        //convert s into a segment because it may have been loaded and lost that property:
-        //TODO: figure out a way to cast objects instead of doing this:
+        //convert s into a segment (because it may have been loaded and lost that property) and apply offsets:
         sp.addSegment(new segment(new point(s.a.x + left, s.a.y + top), new point(s.b.x + left, s.b.y + top)));
         
         return this.setProperty('simplePaths', sp);
@@ -2905,9 +2898,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 +'<span style="padding-left:13px;padding-top:13px;padding-right:13px;display:inline-block;background-color:'+notificationBackgroundColor+';margin-top:13px;margin-left:13px;margin-right:13px;margin-bottom:3px;">'
                     +'<p>'+message+'</p>'
                 +'</span>'
-            +'</span>'/*,
-            
-            commandLinks('standard',[['run script',''],['help','help']])*/
+            +'</span>'
         );
     },
     
@@ -3010,8 +3001,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         sendStandardInterface(who, 'Area Mapper',
             '<p><b>About</b></p>'
             +'<p>Area Mapper is a mapping tool that is intended to make map management quick, versatile, and powerful.</p>'
-            +'<p>Source can be found at https://github.com/RandallDavis/roll20-areaMapper/.</p>'
-            +'<p>Developed by Rand Davis.</p>'
+            +'<p>The source code can be found at https://github.com/RandallDavis/roll20-areaMapper/.</p>'
+            +'<p>Developed by Rand Davis circa 2015.</p>'
         );
     },
     
