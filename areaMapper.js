@@ -280,7 +280,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
             
             //get instance that removal is relative to:
             var instance = new areaInstance(this.getProperty('id'), pageId);
-            instance.load();
             topOffset = instance.getProperty('top');
             leftOffset = instance.getProperty('left');
         }
@@ -338,7 +337,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         //get instance that appending is relative to:
         var instance = new areaInstance(this.getProperty('id'), pageId);
-        instance.load();
         
         //TODO: factor in instance's rotation & scale:
         var floorPlanOpIndex = g.addSimplePolygon(this.getProperty('floorPlan'), instance.getProperty('top'), instance.getProperty('left'));
@@ -385,7 +383,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         //get instance that removal is relative to:
         var instance = new areaInstance(this.getProperty('id'), pageId);
-        instance.load();
         
         //TODO: factor in instance's rotation & scale:
         var floorPlanOpIndex = g.addSimplePolygon(this.getProperty('floorPlan'), instance.getProperty('top'), instance.getProperty('left'));
@@ -431,7 +428,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         //get instance that removal is relative to:
         var instance = new areaInstance(this.getProperty('id'), pageId);
-        instance.load();
         
         //find removal's intersections with the floorPlan edge:
         var floorPlanSpIndex = g.addSimplePolygon(this.getProperty('floorPlan'), instance.getProperty('top'), instance.getProperty('left'));
@@ -480,7 +476,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         //get instance that removal is relative to:
         var instance = new areaInstance(this.getProperty('id'), pageId);
-        instance.load();
         
         //TODO: factor in instance's rotation & scale:
         var oldEdgeWallGaps = this.getProperty('edgeWallGaps');
@@ -521,7 +516,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         //get instance that addition is relative to:
         var instance = new areaInstance(this.getProperty('id'), pageId);
-        instance.load();
         
         //get the added path:
         var innerWallAddSpIndex = g.addSimplePath(rawPath, top - instance.getProperty('top'), left - instance.getProperty('left'), isFromEvent);
@@ -545,9 +539,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var g = new graph();
         
         //get instance that addition is relative to:
-        //TODO: should areaInstance be automatically loaded if it is able to?:
         var instance = new areaInstance(this.getProperty('id'), pageId);
-        instance.load();
         
         //get the removal polygon:
         g.addComplexPolygon(rawPath, top, left, isFromEvent);
@@ -589,7 +581,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         //get instance that addition is relative to:
         var instance = new areaInstance(this.getProperty('id'), pageId);
-        instance.load();
         
         //get the addition polygon:
         g.addComplexPolygon(rawPath, top, left, isFromEvent);
@@ -808,13 +799,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     area.prototype.handleGraphicChange = function(graphic) {
         var instance = new areaInstance(this.getProperty('id'), graphic.get('_pageid'));
-        instance.load();
         instance.handleGraphicChange(graphic);
     };
     
     area.prototype.getManagedGraphicProperties = function(graphic) {
         var instance = new areaInstance(this.getProperty('id'), graphic.get('_pageid'));
-        instance.load();
         var managedGraphic = instance.findManagedGraphic(graphic);
         
         if(!managedGraphic) {
@@ -828,7 +817,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     area.prototype.toggleInteractiveProperty = function(graphic, property) {
         var instance = new areaInstance(this.getProperty('id'), graphic.get('_pageid'));
-        instance.load();
         return instance.toggleInteractiveProperty(graphic, property);
     };
     
@@ -844,6 +832,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this.initializeCollectionProperty('blueprintWallIds');
         this.initializeCollectionProperty('doorIds');
         this.initializeCollectionProperty('blueprintDoorIds');
+        
+        this.load();
     };
     
     inheritPrototype(areaInstance, typedObject);
