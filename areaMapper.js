@@ -1101,7 +1101,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             //draw wall tokens:
             var iwIndex = g.addSimplePath(iw[0], top + iw[1], left + iw[2]);
             g.getProperty('simplePaths')[iwIndex].segments.forEach(function(s) {
-                this.setProperty('wallIds', createTokenObjectFromSegment(wallImageUrl, this.getProperty('pageId'), 'map', s, 30).id);
+                this.setProperty('wallIds', createTokenObjectFromSegment(wallImageUrl, this.getProperty('pageId'), 'objects', s, 30).id);
             }, this);
             
             //draw line of sight blocking wall:
@@ -1299,7 +1299,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                                     sMidpoint.x,
                                     sMidpoint.y,
                                     1.0,
-                                    1),
+                                    2),
                                 5);
                             
                             master[3] = 0;
@@ -2696,6 +2696,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             fill: fillColor,
             _path: path
         });
+        toFront(obj);
         
         state.APIAreaMapper.tempIgnoreDrawingEvents = false;
         
