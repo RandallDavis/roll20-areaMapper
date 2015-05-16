@@ -2,10 +2,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.044,
+    var version = 0.045,
         schemaVersion = 0.029,
         buttonBackgroundColor = '#E92862',
-        buttonHighlightColor = '#00FF00',
+        buttonGreyedColor = '#8D94A9',
+        buttonHighlightedColor = '#00FF00',
         mainBackgroundColor = '#3D8FE1',
         headerBackgroundColor = '#386EA5',
         notificationBackgroundColor = '#64EED7',
@@ -45,6 +46,15 @@ var APIAreaMapper = APIAreaMapper || (function() {
         state.APIAreaMapper.tempIgnoreDrawingEvents = false;
         state.APIAreaMapper.recordAreaMode = false;
         //state.APIAreaMapper.blueprintMode = false;
+        
+        //reset the handout:
+        if(state.APIAreaMapper.handoutUi) {
+            formatInterface(null, 'Area API - Welcome',
+                '<div style="padding-left:10px;margin-bottom:3px;">'
+                    +'<p>Click below to get started!</p>'
+                +'</div>'
+            );
+        }
     },
     
     inheritPrototype = function(childObject, parentObject) {
@@ -805,6 +815,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
         instance.load();
         var managedGraphic = instance.findManagedGraphic(graphic);
         
+        if(!managedGraphic) {
+            return null;
+        }
+        
         managedGraphic.properties = this.getProperty(managedGraphic.graphicType)[managedGraphic.graphicIndex];
         
         return managedGraphic;
@@ -814,7 +828,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var instance = new areaInstance(this.getProperty('id'), graphic.get('_pageid'));
         instance.load();
         return instance.toggleInteractiveProperty(graphic, property);
-    }
+    };
     
     
     var areaInstance = function(areaId, pageId) {
@@ -1105,8 +1119,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     //draws an interactive object; if eventObj is provided, it means that there was a user interaction:
     areaInstance.prototype.drawInteractiveObject = function(objectType, masterIndex, eventObj) {
-        var isSuccess = true;
-        
         var a = new area();
         a.setProperty('id', this.getProperty('areaId'));
         a.load();
@@ -1160,13 +1172,13 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 break;
             default:
                 log('Unsupported objectType of ' + objectType + ' in areaInstance.drawInteractiveObject().');
-                return false;
+                return 'There was a problem; check the log for details.';
         };
         
         a.save();
         this.save();
         
-        return isSuccess;
+        return null;
     };
     
     areaInstance.prototype.drawBlueprint = function() {
@@ -1357,13 +1369,13 @@ var APIAreaMapper = APIAreaMapper || (function() {
     };
     
     areaInstance.prototype.toggleInteractiveProperty = function(graphic, property) {
-        var isSuccess = true;
+        var followUpAction = [];
         
         var managedGraphic = this.findManagedGraphic(graphic);
         
         if(!managedGraphic) {
-            log("Didn't find a managed graphic in areaInstance.toggleInteractiveProperty().");
-            return false;
+            followUpAction.message = 'The graphic is not managed by the area and/or is not eligible for property changes.';
+            return followUpAction;
         }
         
         a = new area();
@@ -1382,9 +1394,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         break;
                     case 'lock':
                         graphicMaster[2] = (graphicMaster[2] + 1) % 2;
+                        followUpAction.refresh = true;
                         break;
                     case 'trap':
                         graphicMaster[3] = (graphicMaster[3] + 1) % 2;
+                        followUpAction.refresh = true;
                         break;
                     case 'hide':
                         graphicMaster[4] = (graphicMaster[4] + 1) % 2;
@@ -1392,7 +1406,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         break;
                     default:
                         log('Unhandled property type of ' + property + ' in areaInstance.toggleInteractiveProperty().');
-                        return false;
+                        followUpAction.message = 'There was a problem; see the log for details.';
+                        return followUpAction;
                 }
                 
                 //update the master:
@@ -1400,18 +1415,20 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 a.save();
                 
                 if(redraw) {
-                    isSuccess = isSuccess && this.drawInteractiveObject(managedGraphic.graphicType, managedGraphic.graphicIndex, graphic);
+                    var errorMessage = this.drawInteractiveObject(managedGraphic.graphicType, managedGraphic.graphicIndex, graphic);
+                    followUpAction.message = errorMessage ? errorMessage : 'The graphic has been replaced with a new one. Please select it for futher modifications.';
                 }
                 
                 break;
             default:
                 log('Unhandled graphic type of ' + managedGraphic.graphicType + ' in areaInstance.toggleInteractiveProperty().');
-                return false;
+                followUpAction.message = 'There was a problem; see the log for details.';
+                return followUpAction;
         }
         
         this.save();
         
-        return isSuccess;
+        return followUpAction;
     };
     
     /* area - end */
@@ -2727,12 +2744,24 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     /* user interface - begin */
     
+    toggleHandoutUi = function() {
+        state.APIAreaMapper.handoutUi = !state.APIAreaMapper.handoutUi;
+        
+        var followUpAction = [];
+        followUpAction.refresh = true;
+        return followUpAction;
+    },
+    
     toggleOrSetAreaRecordMode = function(mode) {
         if(state.APIAreaMapper.recordAreaMode == mode) {
             state.APIAreaMapper.recordAreaMode = false;
         } else {
             state.APIAreaMapper.recordAreaMode = mode;
         }
+        
+        var followUpAction = [];
+        followUpAction.refresh = true;
+        return followUpAction;
     },
     
     toggleBlueprintMode = function() {
@@ -2743,57 +2772,90 @@ var APIAreaMapper = APIAreaMapper || (function() {
             a.setProperty('id', state.APIAreaMapper.activeArea);
             a.draw(state.APIAreaMapper.activePage);
         }
+        
+        var followUpAction = [];
+        followUpAction.refresh = true;
+        return followUpAction;
     },
     
     toggleInteractiveProperty = function(selected, who, property) {
-        if(selected.length !== 1) {
-            log('toggleInteractiveProperty() only supported for single selections.');
-            return;
+        var followUpAction = [];
+        followUpAction.refresh = true;
+        
+        if(!selected || !selected.length) {
+            followUpAction.Message = 'An object needs to be selected.';
+            return followUpAction;
+        }
+        
+        if(selected.length > 1) {
+            followUpAction.Message = 'Only one object should be selected.';
+            return followUpAction;
         }
      
         var graphic = getObj('graphic', selected[0]._id);
         if(!graphic) {
-            log('toggleInteractiveProperty() called without reachable selected graphic.');
-            return;
+            followUpAction.Message = 'Unable to find the selected object.';
+            return followUpAction;
         }
         
         var a = new area();
         a.setProperty('id', state.APIAreaMapper.activeArea);
         a.load();
         
-        var isSuccess = a.toggleInteractiveProperty(graphic, property);
-        
-        //TODO: notify of isSuccess (which is a boolean)
+        return a.toggleInteractiveProperty(graphic, property);
+    },
+    
+    //character converter, credits to Aaron from https://github.com/shdwjk/Roll20API/blob/master/APIHeartBeat/APIHeartBeat.js
+    ch = function(c) {
+        var entities = {
+            '<' : 'lt',
+            '>' : 'gt',
+            "'" : '#39',
+            '@' : '#64',
+            '{' : '#123',
+            '|' : '#124',
+            '}' : '#125',
+            '[' : '#91',
+            ']' : '#93',
+            '"' : 'quot',
+            '-' : 'mdash',
+            ' ' : 'nbsp'
+        };
+
+        if(_.has(entities,c) ){
+            return ('&'+entities[c]+';');
+        }
+        return '';
     },
     
     displayInterface = function(who, text) {
-        //if(state.APIRoomManagement.uiPreference === 0) {
+        if(!state.APIAreaMapper.handoutUi) {
             sendChat('Area API', '/w ' + who.split(' ')[0] + ' ' + text); 
-        /*} else {
+        } else {
             var handout = findObjs({                              
                 _type: 'handout',
-                name: 'API-RoomManagement'
+                name: 'API-AreaMapper'
             }, {caseInsensitive: true});
-        
+            
             if(handout && handout.length > 0) {
                 handout = handout[0];
             } else {
                 handout = createObj('handout', {
-                    name: 'API-RoomManagement',
+                    name: 'API-AreaMapper',
                     avatar: 'https://s3.amazonaws.com/files.d20.io/images/7360175/t-Y2NgxamazYSIkbaXQjJg/thumb.jpg?1422294416'
                 });
             }
             
             handout.set('notes', text);
-        }*/
+        }
     },
     
     formatInterface = function(who, header, body, nextSteps) {
         var rightPadding = '0px';
         
-        /*if(state.APIAreaMapper.uiPreference === 1) {
+        if(state.APIAreaMapper.handoutUi) {
             rightPadding = '14px';
-        }*/
+        }
             
         var text =
             '<span style="border: 1px solid black;width: 100%;display:inline-block;background-color:'+mainBackgroundColor+';padding-right:'+rightPadding+';">'
@@ -2803,19 +2865,31 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     +'</span>'
                 +'</span>'
                 +'<span style="border: 1px solid black;display:inline-block;width: 100%;background-color:'+mainBackgroundColor+';padding-right:'+rightPadding+';">'
+                    +'<div style="margin-top:10px;"></div>'
                     +body;
                     
         if(nextSteps) {
             text = text
-                +'<span style="padding-left:10px;display:inline-block;width: 100%;margin-top:3px;margin-bottom:3px;padding-right:'+rightPadding+';">'
-                    +'<span style="border-top: 1px solid '+headerBackgroundColor+';display:inline-block;width: 100%;margin-top:10px;border-bottom: 1px solid '+headerBackgroundColor+';">'
-                        +'<div style="margin-top:10px;"></div>'
-                        +nextSteps
-                    +'</span>'
-                +'</span>';
+                    +'<span style="padding-left:10px;display:inline-block;width: 100%;margin-top:3px;margin-bottom:3px;padding-right:'+rightPadding+';">'
+                        +'<span style="border-top: 1px solid '+headerBackgroundColor+';display:inline-block;width: 100%;margin-top:10px;border-bottom: 1px solid '+headerBackgroundColor+';">'
+                            +'<div style="margin-top:10px;"></div>'
+                            +nextSteps
+                        +'</span>'
+                    +'</span>';
         }
         
         text = text
+                    +'<span style="padding-left:10px;display:inline-block;width: 100%;margin-top:3px;margin-bottom:3px;padding-right:'+rightPadding+';">'
+                        +'<span style="border-top: 1px solid '+headerBackgroundColor+';display:inline-block;width: 100%;margin-top:10px;border-bottom: 1px solid '+headerBackgroundColor+';">'
+                            +'<div style="margin-top:10px;"></div>'
+                            +commandLinks('General', [
+                                ['run script', '', false, false],
+                                ['settings', 'settings', false, false],
+                                ['help (TBA)', 'help', false, false],
+                                ['about', 'about', false, false]
+                            ])
+                        +'</span>'
+                    +'</span>'
                 +'</span>'
             +'</span>';
         
@@ -2844,74 +2918,121 @@ var APIAreaMapper = APIAreaMapper || (function() {
     },
     
     //constructs a clickable command:
-    commandLink = function(text, command, highlight) {
-        //note: hightlight defaults to false
+    commandLink = function(text, command, greyed, highlighted) {
         
-        //if(state.APIRoomManagement.uiPreference === 0) {
-            if(highlight) {
-                //TODO: pad around this?:
-                return '<span style="border: 1px solid white;display:inline-block;background-color: ' + buttonHighlightColor + ';padding: 3px 3px;"> <a href="!api-area ' + command + '">' + text + '</a> </span> ';
-            } else {
-                return '[' + text + '](!api-area ' + command + ') ';
-            }
-        //} else {
-        //    return '<span style="border: 1px solid white;display:inline-block;background-color: ' + buttonBackgroundColor + ';padding: 5px 5px;"> <a href="!api-area ' + command + '">' + text + '</a> </span> ';
-        //}
+        var link = 
+            greyed 
+                ? ('<span style="border: 1px solid white;display:inline-block;background-color: ' + buttonGreyedColor + ';padding: 3px 3px;"> ' + text + ' </span> ')
+                : (state.APIAreaMapper.handoutUi
+                    ? ('<span style="border: 1px solid white;display:inline-block;background-color: ' + buttonBackgroundColor + ';padding: 5px 5px;"> <a href="!api-area ' + command + '">' + text + '</a> </span> ')
+                    : ('[' + text + '](!api-area ' + command + ') '));
+        
+        if(highlighted) {
+            return ('<span style="border: 1px solid white;display:inline-block;background-color: ' + buttonHighlightedColor + ';padding: 3px 3px;"> ' + link + ' </span> ');
+        } else {
+            return link;
+        }
     },
     
-    //constructs clickable commands:
+    //constructs set of clickable commands:
     commandLinks = function(header, commands) {
-        var html = '<p><b>' + header + '</b><br/>';
+        var html = '<p><b>' + header + '</b></p><p>';
         
         for(var i = 0;i<commands.length;i++) {
-            html += commandLink(commands[i][0], commands[i][1], commands[i].length > 2 ? commands[i][2] : false);
+            html += commandLink(commands[i][0], commands[i][1], commands[i].length > 2 ? commands[i][2] : false, commands[i].length > 3 ? commands[i][3] : false);
         }
         
         return html + '</p>';
     },
     
-    interfaceAreaDrawingOptions = function(who) {
-        sendStandardInterface(who, 'Area Mapper',
-            commandLinks('Area Drawing', [
-                ['blueprint mode', 'blueprint', state.APIAreaMapper.blueprintMode],
-                ['create new area', 'areaCreate', (state.APIAreaMapper.recordAreaMode == 'areaCreate')],
-                ['add to area', 'areaAppend', (state.APIAreaMapper.recordAreaMode == 'areaAppend')],
-                ['remove from area', 'areaRemove', (state.APIAreaMapper.recordAreaMode == 'areaRemove')],
-                ['remove edge walls', 'edgeWallRemove', (state.APIAreaMapper.recordAreaMode == 'edgeWallRemove')],
-                ['add edge walls', 'edgeWallGapRemove', (state.APIAreaMapper.recordAreaMode == 'edgeWallGapRemove')],
-                ['add inner walls', 'innerWallAdd', (state.APIAreaMapper.recordAreaMode == 'innerWallAdd')],
-                ['remove inner walls', 'innerWallRemove', (state.APIAreaMapper.recordAreaMode == 'innerWallRemove')],
-                ['add door', 'doorAdd', (state.APIAreaMapper.recordAreaMode == 'doorAdd')]
-            ])
-        );
-    },
-    
     interfaceDoorOptions = function(who, managedGraphic) {
         sendStandardInterface(who, 'Area Mapper',
             commandLinks('Door Management', [
-                ['open', 'open', managedGraphic.properties[1]],
-                ['lock', 'lock', managedGraphic.properties[2]],
-                ['trap', 'trap', managedGraphic.properties[3]],
-                ['hide', 'hide', managedGraphic.properties[4]]
+                ['open', 'open', false, managedGraphic.properties[1]],
+                ['lock', 'lock', false, managedGraphic.properties[2]],
+                ['trap', 'trap', false, managedGraphic.properties[3]],
+                ['hide', 'hide', false, managedGraphic.properties[4]]
             ])
         );
     },
     
-    /* user interface - end */
+    interfaceAreaDrawingOptions = function(who) {
+        var hasEdgeWallGaps = false;
+        var hasEdgeWalls = false;
+        var hasInnerWalls = false;
+        var hasDoors = false;
+        
+        if(state.APIAreaMapper.activeArea) {
+            var a = new area();
+            a.setProperty('id', state.APIAreaMapper.activeArea);
+            a.load();
+            
+            hasEdgeWallGaps = a.getProperty('edgeWallGaps').length;
+            hasEdgeWalls = a.getProperty('edgeWalls').length;
+            hasInnerWalls = a.getProperty('innerWalls').length;
+            hasDoors = a.getProperty('doors').length;
+        }
+        
+        sendStandardInterface(who, 'Area Mapper',
+            commandLinks('Area Drawing', [
+                ['blueprint mode', 'blueprint', false, state.APIAreaMapper.blueprintMode],
+                ['create new area', 'areaCreate', false, (state.APIAreaMapper.recordAreaMode == 'areaCreate')],
+                ['add to area', 'areaAppend', !state.APIAreaMapper.activeArea, (state.APIAreaMapper.recordAreaMode == 'areaAppend')],
+                ['remove from area', 'areaRemove', !state.APIAreaMapper.activeArea, (state.APIAreaMapper.recordAreaMode == 'areaRemove')],
+                ['remove edge walls', 'edgeWallRemove', !state.APIAreaMapper.activeArea || !hasEdgeWalls, (state.APIAreaMapper.recordAreaMode == 'edgeWallRemove')],
+                ['add edge walls', 'edgeWallGapRemove', !state.APIAreaMapper.activeArea || !hasEdgeWallGaps, (state.APIAreaMapper.recordAreaMode == 'edgeWallGapRemove')],
+                ['add inner walls', 'innerWallAdd', !state.APIAreaMapper.activeArea, (state.APIAreaMapper.recordAreaMode == 'innerWallAdd')],
+                ['remove inner walls', 'innerWallRemove', !state.APIAreaMapper.activeArea || !hasInnerWalls, (state.APIAreaMapper.recordAreaMode == 'innerWallRemove')],
+                ['add door', 'doorAdd', !state.APIAreaMapper.activeArea || (!hasEdgeWalls && !hasInnerWalls), (state.APIAreaMapper.recordAreaMode == 'doorAdd')],
+                ['remove door (TBA)', 'doorRemove', true || !state.APIAreaMapper.activeArea || !hasDoors, false],
+                ['undo (TBA)', 'undo', true || !state.APIAreaMapper.activeArea, false]
+            ])
+        );
+    },
     
-    /* event handlers - begin */
+    interfaceSettings = function(who) {
+        sendStandardInterface(who, 'Area Mapper',
+            commandLinks('Settings', [
+                ['handout UI', 'handoutUi', false, state.APIAreaMapper.handoutUi]
+            ])
+        );
+    },
     
-    //TODO: this should be callable based on selections from the selector tool:
+    interfaceHelp = function(who) {
+        sendStandardInterface(who, 'Area Mapper',
+            '<p><b>Help</b></p>'
+            +'<p>TBA</p>'
+        );
+        //TODO
+    },
+    
+    interfaceAbout = function(who) {
+        sendStandardInterface(who, 'Area Mapper',
+            '<p><b>About</b></p>'
+            +'<p>Area Mapper is a mapping tool that is intended to make map management quick, versatile, and powerful.</p>'
+            +'<p>Source can be found at https://github.com/RandallDavis/roll20-areaMapper/.</p>'
+            +'<p>Developed by Rand Davis.</p>'
+        );
+    },
+    
+    //note: this should be callable based on selections from the selector tool:
     intuit = function(selected, who) {
+        var followUpAction = [];
+        
+        if(!(selected && selected.length)) {
+            interfaceAreaDrawingOptions(who);
+            return;
+        }
+        
         if(selected.length !== 1) {
-            log('Intuit logic only supported for single selections.');
+            interfaceAreaDrawingOptions(who);
             return;
         }
      
         var graphic = getObj('graphic', selected[0]._id);
         if(!graphic) {
-            log('Intuit called without reachable selected graphic.');
-            return;
+            followUpAction.message = 'The selected item is not a reachable graphic.';
+            return followUpAction;
         }
         
         var a = new area();
@@ -2919,27 +3040,40 @@ var APIAreaMapper = APIAreaMapper || (function() {
         a.load();
         var managedGraphicProperties = a.getManagedGraphicProperties(graphic);
         
+        if(!managedGraphicProperties) {
+            followUpAction.message = 'The selected graphic has no options to display.';
+            return followUpAction;
+        }
+        
         switch(managedGraphicProperties.graphicType) {
             case 'doors':
                 interfaceDoorOptions(who, managedGraphicProperties);
                 break;
             default:
                 log('Unhandled graphicType of ' + managedGraphicProperties.graphicType + ' in intuit().');
-                return;
+                followUpAction.message = 'There was a problem; see the log for details.';
+                return followUpAction;
         }
+        
+        return followUpAction;
     },
+    
+    /* user interface - end */
+    
+    /* event handlers - begin */
     
     handleUserInput = function(msg) {
         if(msg.type == 'api' && msg.content.match(/^!api-area/) && playerIsGM(msg.playerid)) {
+            var followUpAction;
             var chatCommand = msg.content.split(' ');
-            if(chatCommand.length == 1) {
-                if(msg.selected) {
-                    intuit(msg.selected, msg.who);
-                } else {
-                    interfaceAreaDrawingOptions(msg.who);
-                }
+            
+            if(chatCommand.length === 1) {
+                followUpAction = intuit(msg.selected, msg.who);
             } else {
                 switch(chatCommand[1]) {
+                    case 'handoutUi':
+                        followUpAction = toggleHandoutUi()
+                        break;
                     case 'areaCreate':
                     case 'areaAppend':
                     case 'areaRemove':
@@ -2948,19 +3082,37 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     case 'innerWallAdd':
                     case 'innerWallRemove':
                     case 'doorAdd':
-                        toggleOrSetAreaRecordMode(chatCommand[1]);
+                        followUpAction = toggleOrSetAreaRecordMode(chatCommand[1]);
                         break;
                     case 'blueprint':
-                        toggleBlueprintMode();
+                        followUpAction = toggleBlueprintMode();
                         break;
                     case 'open':
                     case 'lock':
                     case 'trap':
                     case 'hide':
-                        toggleInteractiveProperty(msg.selected, msg.who, chatCommand[1]);
+                        followUpAction = toggleInteractiveProperty(msg.selected, msg.who, chatCommand[1]);
+                        break;
+                    case 'settings':
+                        interfaceSettings(msg.who);
+                        break;
+                    case 'help':
+                        interfaceHelp(msg.who);
+                        break;
+                    case 'about':
+                        interfaceAbout(msg.who);
                         break;
                     default:
                         break;
+                }
+            }
+            
+            if(followUpAction) {
+                if(followUpAction.message) {
+                    sendNotification(msg.who, followUpAction.message);
+                }
+                else if(followUpAction.refresh) {
+                    intuit(msg.selected, msg.who);
                 }
             }
         }
