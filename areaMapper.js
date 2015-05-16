@@ -46,6 +46,15 @@ var APIAreaMapper = APIAreaMapper || (function() {
         state.APIAreaMapper.tempIgnoreDrawingEvents = false;
         state.APIAreaMapper.recordAreaMode = false;
         //state.APIAreaMapper.blueprintMode = false;
+        
+        //reset the handout:
+        if(state.APIAreaMapper.handoutUi) {
+            formatInterface(null, 'Area API - Welcome',
+                '<div style="padding-left:10px;margin-bottom:3px;">'
+                    +'<p>Click below to get started!</p>'
+                +'</div>'
+            );
+        }
     },
     
     inheritPrototype = function(childObject, parentObject) {
@@ -2874,6 +2883,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         +'<span style="border-top: 1px solid '+headerBackgroundColor+';display:inline-block;width: 100%;margin-top:10px;border-bottom: 1px solid '+headerBackgroundColor+';">'
                             +'<div style="margin-top:10px;"></div>'
                             +commandLinks('General', [
+                                ['run script', '', false, false],
                                 ['settings', 'settings', false, false],
                                 ['help (TBA)', 'help', false, false],
                                 ['about', 'about', false, false]
