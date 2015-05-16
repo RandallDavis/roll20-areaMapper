@@ -155,6 +155,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 return typedObject.prototype.setProperty.call(this, property, value);
                 break;
         }
+        
+        return null;
     };
     
     area.prototype.initializeCollectionProperty = function(property, value) {
@@ -285,7 +287,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             
             //convert raw paths to points paths:
             ewgI = g.addSimplePath(ewg[0], ewg[1] + topOffset, ewg[2] + leftOffset);
-            edgeWallGaps.push(g.getProperty('simplePaths')[ewgI].getPointsPath());
+            edgeWallGaps.push(g.getPointsPath('simplePaths', ewgI));
         }, this);
         
         return edgeWallGaps;
@@ -303,10 +305,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         edgeWallPaths.forEach(function(ew) {
             var spI = g.addSimplePath(ew[0], ew[1], ew[2]);
-            edgeWallPointPaths.push(g.getProperty('simplePaths')[spI].getPointsPath());
+            edgeWallPointPaths.push(g.getPointsPath('simplePaths', spI));
         }, this);
         
-        var edgeWallGaps = g.getProperty('simplePolygons')[floorPlanIndex].removePathIntersections(edgeWallPointPaths);
+        var edgeWallGaps = g.removePathIntersections('simplePolygons', floorPlanIndex, edgeWallPointPaths);
         
         var edgeWallGapRawPaths = [];
         edgeWallGaps.forEach(function(ewg) {
@@ -354,7 +356,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 //TODO: move all of this to "calculateEdgeWalls()?":
                 
                 this.initializeCollectionProperty('edgeWalls');
-                var edgeWallPaths = g.getProperty('simplePolygons')[mergedOpIndex].removePathIntersections(oldEdgeWallGaps);
+                var edgeWallPaths = g.removePathIntersections('simplePolygons', mergedOpIndex, oldEdgeWallGaps);
                 
                 //convert edgeWallPaths into raw paths:
                 edgeWallPaths.forEach(function(ew) {
@@ -400,7 +402,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 //TODO: move all of this to "calculateEdgeWalls()?":
                 
                 this.initializeCollectionProperty('edgeWalls');
-                var edgeWallPaths = g.getProperty('simplePolygons')[mergedOpIndex].removePathIntersections(oldEdgeWallGaps);
+                var edgeWallPaths = g.removePathIntersections('simplePolygons', mergedOpIndex, oldEdgeWallGaps);
                 
                 //convert edgeWallPaths into raw paths:
                 edgeWallPaths.forEach(function(ew) {
@@ -428,7 +430,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         //find removal's intersections with the floorPlan edge:
         var floorPlanSpIndex = g.addSimplePolygon(this.getProperty('floorPlan'), instance.getProperty('top'), instance.getProperty('left'));
-        var containedPaths = g.getProperty('simplePolygons')[removeSpIndex].getIntersectingPaths(g.getProperty('simplePolygons')[floorPlanSpIndex]);
+        var containedPaths = g.getIntersectingPaths('simplePolygons', removeSpIndex, 'simplePolygons', floorPlanSpIndex);
         
         //append containedPaths with existing gaps (might result in multiples being merged):
         var oldEdgeWallGaps = [];
@@ -436,14 +438,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
             
             //convert raw paths to points paths:
             ewgI = g.addSimplePath(ewg[0], ewg[1] + instance.getProperty('top'), ewg[2] + instance.getProperty('left'));
-            oldEdgeWallGaps.push(g.getProperty('simplePaths')[ewgI].getPointsPath());
+            oldEdgeWallGaps.push(g.getPointsPath('simplePaths', ewgI));
         }, this);
         containedPaths = containedPaths.concat(oldEdgeWallGaps);
         
-        var edgeWallPaths = g.getProperty('simplePolygons')[floorPlanSpIndex].removePathIntersections(containedPaths);
+        var edgeWallPaths = g.removePathIntersections('simplePolygons', floorPlanSpIndex, containedPaths);
         
         //merge and store edge wall gaps:
-        var edgeWallGapPaths = g.getProperty('simplePolygons')[floorPlanSpIndex].removePathIntersections(edgeWallPaths);
+        var edgeWallGapPaths = g.removePathIntersections('simplePolygons', floorPlanSpIndex, edgeWallPaths);
         this.initializeCollectionProperty('edgeWallGaps');
         edgeWallGapPaths.forEach(function(ewg) {
             
@@ -482,7 +484,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             var ewg = oldEdgeWallGaps[i];
             ewgI = g.addSimplePath(ewg[0], ewg[1] + instance.getProperty('top'), ewg[2] + instance.getProperty('left'));
             
-            if(!g.getProperty('simplePolygons')[removeSpIndex].hasInsideEntirePath(g.getProperty('simplePaths')[ewgI])) {
+            if(!g.hasInsideEntirePath('simplePolygons', removeSpIndex, 'simplePaths', ewgI)) {
                 edgeWallGaps.push(oldEdgeWallGaps[i]);
             }
         }
@@ -495,7 +497,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             //update edge walls property:
             this.initializeCollectionProperty('edgeWalls');
             var floorPlanOpIndex = g.addSimplePolygon(this.getProperty('floorPlan'), instance.getProperty('top'), instance.getProperty('left'));
-            var edgeWallPaths = g.getProperty('simplePolygons')[floorPlanOpIndex].removePathIntersections(this.getEdgeWallGapPointsPath(pageId));
+            var edgeWallPaths = g.removePathIntersections('simplePolygons', floorPlanOpIndex, this.getEdgeWallGapPointsPath(pageId));
             
             //convert edgeWallPaths into raw paths:
             edgeWallPaths.forEach(function(ew) {
@@ -521,7 +523,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         //make sure that the inner wall is fully contained in the floorPlan:
         var floorPlanSpIndex = g.addSimplePolygon(this.getProperty('floorPlan'));
-        if(!g.getProperty('simplePolygons')[floorPlanSpIndex].hasInsideEntirePath(g.getProperty('simplePaths')[innerWallAddSpIndex])) {
+        if(!g.hasInsideEntirePath('simplePolygons', floorPlanSpIndex, 'simplePaths', innerWallAddSpIndex)) {
             log('Attempt to add inner walls that exceed the floorPlan.');
             return;
         }
@@ -555,11 +557,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
             var iwSpIndex = g.addSimplePath(iw[0], iw[1] + instance.getProperty('top'), iw[2] + instance.getProperty('left'));
             
             //find intersections between the removal polygon and the inner wall:
-            var removalIntersections = g.getProperty('simplePolygons')[removeSpIndex].getIntersectingPaths(g.getProperty('simplePaths')[iwSpIndex]);
+            var removalIntersections = g.getIntersectingPaths('simplePolygons', removeSpIndex, 'simplePaths', iwSpIndex);
   
             //record new inner walls that avoid intersections:
             if(removalIntersections.length) {
-                var newInnerWallPointPaths = g.getProperty('simplePaths')[iwSpIndex].removePathIntersections(removalIntersections);
+                var newInnerWallPointPaths = g.removePathIntersections('simplePaths', iwSpIndex, removalIntersections);
                 
                 newInnerWallPointPaths.forEach(function(iwPP) {
                     var iwSpI = g.addSimplePathFromPoints(iwPP);
@@ -602,7 +604,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             innerWallSpIndexes.push(iwI);
             
             //find intersected points:
-            var iwIntersectedPoints = g.getProperty('simplePolygons')[addSpIndex].getContainedPoints(g.getProperty('simplePaths')[iwI]);
+            var iwIntersectedPoints = g.getContainedPoints('simplePolygons', addSpIndex, 'simplePaths', iwI);
             
             //if there were matches, save them:
             if(iwIntersectedPoints && iwIntersectedPoints.length) {
@@ -616,7 +618,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             innerWallSpIndexes.forEach(function(iwI) {
                 
                 //find intersecting paths:
-                var iwIntersectedPaths = g.getProperty('simplePolygons')[addSpIndex].getIntersectingPaths(g.getProperty('simplePaths')[iwI]);
+                var iwIntersectedPaths = g.getIntersectingPaths('simplePolygons', addSpIndex, 'simplePaths', iwI);
       
                 if(iwIntersectedPaths && iwIntersectedPaths.length) {
                     iwIntersectedPaths.forEach(function(iwip) {
@@ -677,7 +679,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 edgeWallSpIndexes.push(ewI);
                 
                 //find intersected points:
-                var ewIntersectedPoints = g.getProperty('simplePolygons')[addSpIndex].getContainedPoints(g.getProperty('simplePaths')[ewI]);
+                var ewIntersectedPoints = g.getContainedPoints('simplePolygons', addSpIndex, 'simplePaths', ewI);
                 
                 //if there were matches, save them:
                 if(ewIntersectedPoints && ewIntersectedPoints.length) {
@@ -692,7 +694,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             edgeWallSpIndexes.forEach(function(ewI) {
                 
                 //find intersecting paths:
-                var ewIntersectedPaths = g.getProperty('simplePolygons')[addSpIndex].getIntersectingPaths(g.getProperty('simplePaths')[ewI]);
+                var ewIntersectedPaths = g.getIntersectingPaths('simplePolygons', addSpIndex, 'simplePaths', ewI);
                 
                 if(ewIntersectedPaths && ewIntersectedPaths.length) {
                     ewIntersectedPaths.forEach(function(ewip) {
@@ -2610,6 +2612,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return this.getProperty(pathType)[index].getRawPath();
     };
     
+    graph.prototype.getPointsPath = function(pathType, index) {
+        return this.getProperty(pathType)[index].getPointsPath();
+    };
+    
+    graph.prototype.getContainedPoints = function(pathType1, index1, pathType2, index2) {
+        return this.getProperty(pathType1)[index1].getContainedPoints(this.getProperty(pathType2)[index2]);
+    };
+    
     graph.prototype.mergeSimplePolygons = function(index1, index2) {
         var cp = new complexPolygon();
         var op1 = this.getProperty('simplePolygons')[index1];
@@ -2658,6 +2668,19 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var invertedOp = this.getProperty('simplePolygons')[index].invert();
         return this.setProperty('simplePolygons', invertedOp);
     };
+    
+    graph.prototype.removePathIntersections = function(pathType, index, intersectingPaths) {
+        return this.getProperty(pathType)[index].removePathIntersections(intersectingPaths);
+    };
+    
+    graph.prototype.getIntersectingPaths = function(pathType1, index1, pathType2, index2) {
+        return this.getProperty(pathType1)[index1].getIntersectingPaths(this.getProperty(pathType2)[index2]);
+    };
+    
+    graph.prototype.hasInsideEntirePath = function(pathType1, index1, pathType2, index2) {
+        return this.getProperty(pathType1)[index1].hasInsideEntirePath(this.getProperty(pathType2)[index2]);
+    };
+        
      
     /* polygon logic - end */
     
