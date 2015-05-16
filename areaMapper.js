@@ -1,8 +1,12 @@
+// Github:    https://github.com/RandallDavis/roll20-areaMapper
+// By:        Rand Davis
+// Contact:   https://app.roll20.net/users/163846/rand
+
 var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.046,
+    var version = 0.100,
         schemaVersion = 0.029,
         buttonBackgroundColor = '#E92862',
         buttonGreyedColor = '#8D94A9',
@@ -45,7 +49,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
     resetTemporaryState = function() {
         state.APIAreaMapper.tempIgnoreDrawingEvents = false;
         state.APIAreaMapper.recordAreaMode = false;
-        //state.APIAreaMapper.blueprintMode = false;
         
         //reset the handout:
         if(state.APIAreaMapper.handoutUi) {
@@ -355,10 +358,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 
                 //convert edgeWallPaths into raw paths:
                 edgeWallPaths.forEach(function(ew) {
-                    //TODO: abstract through graph object:
-                    var sp = new simplePath();
-                    sp.addPointsPath(ew);
-                    var rp = sp.getRawPath();
+                    var ewSpI = g.addSimplePathFromPoints(ew);
+                    var rp = g.getRawPath('simplePaths', ewSpI);
                     this.setProperty('edgeWalls', [rp.rawPath, rp.top - instance.getProperty('top'), rp.left - instance.getProperty('left')]);
                 }, this);
                 
@@ -403,10 +404,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 
                 //convert edgeWallPaths into raw paths:
                 edgeWallPaths.forEach(function(ew) {
-                    //TODO: abstract through graph object:
-                    var sp = new simplePath();
-                    sp.addPointsPath(ew);
-                    var rp = sp.getRawPath();
+                    var ewSpI = g.addSimplePathFromPoints(ew);
+                    var rp = g.getRawPath('simplePaths', ewSpI);
                     this.setProperty('edgeWalls', [rp.rawPath, rp.top - instance.getProperty('top'), rp.left - instance.getProperty('left')]);
                 }, this);
                 
@@ -458,10 +457,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         //convert edgeWallPaths into raw paths:
         this.initializeCollectionProperty('edgeWalls');
         edgeWallPaths.forEach(function(ew) {
-            //TODO: abstract through graph object:
-            var sp = new simplePath();
-            sp.addPointsPath(ew);
-            var rp = sp.getRawPath();
+            var ewSpI = g.addSimplePathFromPoints(ew);
+            var rp = g.getRawPath('simplePaths', ewSpI);
             this.setProperty('edgeWalls', [rp.rawPath, rp.top - instance.getProperty('top'), rp.left - instance.getProperty('left')]);
         }, this);
         
@@ -502,9 +499,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
             
             //convert edgeWallPaths into raw paths:
             edgeWallPaths.forEach(function(ew) {
-                var sp = new simplePath();
-                sp.addPointsPath(ew);
-                var rp = sp.getRawPath();
+                var ewSpI = g.addSimplePathFromPoints(ew);
+                var rp = g.getRawPath('simplePaths', ewSpI);
                 this.setProperty('edgeWalls', [rp.rawPath, rp.top - instance.getProperty('top'), rp.left - instance.getProperty('left')]);
             }, this);
             
@@ -566,9 +562,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 var newInnerWallPointPaths = g.getProperty('simplePaths')[iwSpIndex].removePathIntersections(removalIntersections);
                 
                 newInnerWallPointPaths.forEach(function(iwPP) {
-                    var sp = new simplePath();
-                    sp.addPointsPath(iwPP);
-                    var rp = sp.getRawPath();
+                    var iwSpI = g.addSimplePathFromPoints(iwPP);
+                    var rp = g.getRawPath('simplePaths', iwSpI);
                     newInnerWalls.push([rp.rawPath, rp.top - instance.getProperty('top'), rp.left - instance.getProperty('left')]);
                 }, this);
             } else {
