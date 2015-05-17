@@ -6,7 +6,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.100,
+    var version = 0.101,
         schemaVersion = 0.029,
         buttonBackgroundColor = '#E92862',
         buttonGreyedColor = '#8D94A9',
@@ -49,6 +49,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
     resetTemporaryState = function() {
         state.APIAreaMapper.tempIgnoreDrawingEvents = false;
         state.APIAreaMapper.recordAreaMode = false;
+        delete state.APIAreaMapper.playerId;
+        delete state.APIAreaMapper.playerName;
         
         //reset the handout:
         if(state.APIAreaMapper.handoutUi) {
@@ -197,6 +199,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this.setProperty('height', rp.height);
         this.save();
         this.draw(pageId, rp.top, rp.left);
+        
+        var followUpAction = [];
+        followUpAction.refresh = true;
+        return followUpAction;
     };
     
     area.prototype.load = function() {
@@ -329,6 +335,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     //alters the area's floorPlan using an area instance as a control:
     area.prototype.floorPlanAppend = function(rawPath, pageId, top, left, isFromEvent) {
+        var followUpAction = [];
         
         //get a simple polygon from the rawPath:
         var g = new graph();
@@ -372,9 +379,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
             this.save();
             this.draw(pageId, rp.top, rp.left);
         }
+        
+        followUpAction.refresh = true;
+        return followUpAction;
     };
     
     area.prototype.floorPlanRemove = function(rawPath, pageId, top, left, isFromEvent) {
+        var followUpAction = [];
+        
         var g = new graph();
         g.addComplexPolygon(rawPath, top, left, isFromEvent);
         var removeOpIndex = g.convertComplexPolygonToSimplePolygon(0);
@@ -415,9 +427,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
             this.save();
             this.draw(pageId, rp.top, rp.left);
         }
+        
+        followUpAction.refresh = true;
+        return followUpAction;
     };
     
     area.prototype.edgeWallRemove = function(rawPath, pageId, top, left, isFromEvent) {
+        followUpAction = [];
+        
         var g = new graph();
         g.addComplexPolygon(rawPath, top, left, isFromEvent);
         var removeSpIndex = g.convertComplexPolygonToSimplePolygon(0);
@@ -463,9 +480,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         this.save();
         this.draw(pageId, instance.getProperty('top'), instance.getProperty('left'));
+        
+        followUpAction.refresh = true;
+        return followUpAction;
     };
     
     area.prototype.edgeWallGapRemove = function(rawPath, pageId, top, left, isFromEvent) {
+        var followUpAction = [];
+        
         var g = new graph();
         g.addComplexPolygon(rawPath, top, left, isFromEvent);
         var removeSpIndex = g.convertComplexPolygonToSimplePolygon(0);
@@ -505,9 +527,13 @@ var APIAreaMapper = APIAreaMapper || (function() {
             this.save();
             this.draw(pageId, instance.getProperty('top'), instance.getProperty('left'));
         }
+
+        followUpAction.refresh = true;
+        return followUpAction;
     };
     
     area.prototype.innerWallAdd = function(rawPath, pageId, top, left, isFromEvent) {
+        var followUpAction = [];
         var g = new graph();
         
         //get instance that addition is relative to:
@@ -529,9 +555,13 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         this.save();
         this.draw(pageId, instance.getProperty('top'), instance.getProperty('left'));
+        
+        followUpAction.refresh = true;
+        return followUpAction;
     };
     
     area.prototype.innerWallRemove = function(rawPath, pageId, top, left, isFromEvent) {
+        var followUpAction = [];
         var g = new graph();
         
         //get instance that addition is relative to:
@@ -570,9 +600,13 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         this.save();
         this.draw(pageId, instance.getProperty('top'), instance.getProperty('left'));
+        
+        followUpAction.refresh = true;
+        return followUpAction;
     };
     
     area.prototype.doorAdd = function(rawPath, pageId, top, left, isFromEvent) {
+        var followUpAction = [];
         var g = new graph();
         
         //get instance that addition is relative to:
@@ -737,20 +771,20 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }
         
         if(pointCount < 2) {
-            log('Attempt to add door failed because fewer than 2 points were identified.');
-            return;
+            followUpAction.message = 'Attempt to add door failed because fewer than 2 points were identified.';
+            return followUpAction;
         } 
         
         if(pointCount > 2) {
-            log('Attempt to add door failed because more than 2 points were identified.');
-            return;
+            followUpAction.message = 'Attempt to add door failed because more than 2 points were identified.';
+            return followUpAction;
         }
         
         //ensure that the two points are not a wall segment:
         if((innerWallPoints.length === 1 && innerWallPoints[0][1].length === 2)
                 || (edgeWallPoints.length === 1 && edgeWallPoints[0][1].length === 2)){
-            log('Attempt to add door failed because the 2 identified points are a wall segment.');
-            return;
+            followUpAction.message = 'Attempt to add door failed because the 2 identified points are a wall segment.';
+            return followUpAction;
         }
         
         //extract the points:
@@ -781,6 +815,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         this.save();
         this.draw(pageId, instance.getProperty('top'), instance.getProperty('left'));
+        
+        followUpAction.refresh = true;
+        return followUpAction;
     };
     
     area.prototype.undraw = function(pageId) {
@@ -2825,6 +2862,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     displayInterface = function(who, text) {
         if(!state.APIAreaMapper.handoutUi) {
+            
+            //if who isn't supplied, send whisper to last player to use the macro:
+            if('undefined' === typeof(who)) {
+                who = state.APIAreaMapper.playerName;
+            }
+            
             sendChat('Area API', '/w ' + who.split(' ')[0] + ' ' + text); 
         } else {
             var handout = findObjs({                              
@@ -2892,7 +2935,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     },
     
     sendNotification = function(to, message) {
-        formatInterface(to.split(' ')[0],
+        formatInterface(to,
             'Area API - Notification',
             '<span style="text-align:center;padding-left:3px;display:inline-block;width: 100%;margin-top:3px;margin-bottom:3px;">'
                 +'<span style="padding-left:13px;padding-top:13px;padding-right:13px;display:inline-block;background-color:'+notificationBackgroundColor+';margin-top:13px;margin-left:13px;margin-right:13px;margin-bottom:3px;">'
@@ -3047,12 +3090,28 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return followUpAction;
     },
     
+    processFollowUpAction = function(followUpAction, who, selected) {
+        if(followUpAction) {
+            if(followUpAction.message) {
+                sendNotification(who, followUpAction.message);
+            }
+            else if(followUpAction.refresh) {
+                intuit(selected, who);
+            }
+        }
+    },
+    
     /* user interface - end */
     
     /* event handlers - begin */
     
     handleUserInput = function(msg) {
         if(msg.type == 'api' && msg.content.match(/^!api-area/) && playerIsGM(msg.playerid)) {
+            
+            //store player information to use for any future anonymous actions:
+            state.APIAreaMapper.playerId = msg.playerid;
+            state.APIAreaMapper.playerName = msg.who;
+            
             var followUpAction;
             var chatCommand = msg.content.split(' ');
             
@@ -3096,14 +3155,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 }
             }
             
-            if(followUpAction) {
-                if(followUpAction.message) {
-                    sendNotification(msg.who, followUpAction.message);
-                }
-                else if(followUpAction.refresh) {
-                    intuit(msg.selected, msg.who);
-                }
-            }
+            processFollowUpAction(followUpAction, msg.who, msg.selected);
         }
     },
     
@@ -3112,10 +3164,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
             return;
         }
         
+        var followUpAction;
+        
         switch(state.APIAreaMapper.recordAreaMode) {
             case 'areaCreate':
                 var a = new area();
-                a.create(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                followUpAction = a.create(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
                 state.APIAreaMapper.activeArea = a.getProperty('id');
                 state.APIAreaMapper.activePage = path.get('_pageid');
                
@@ -3130,7 +3184,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 }
                 
                 var a = new area(state.APIAreaMapper.activeArea);
-                a.floorPlanAppend(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                followUpAction = a.floorPlanAppend(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
             
                 path.remove();
                 break;
@@ -3141,7 +3195,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 }
                 
                 var a = new area(state.APIAreaMapper.activeArea);
-                a.floorPlanRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                followUpAction = a.floorPlanRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
          
                 path.remove();
                 break;
@@ -3152,7 +3206,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 }
                 
                 var a = new area(state.APIAreaMapper.activeArea);
-                a.edgeWallRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                followUpAction = a.edgeWallRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
                 
                 path.remove();
                 break;
@@ -3163,7 +3217,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 }
                 
                 var a = new area(state.APIAreaMapper.activeArea);
-                a.edgeWallGapRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                followUpAction = a.edgeWallGapRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
                 
                 path.remove();
                 break;
@@ -3174,7 +3228,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 }
                 
                 var a = new area(state.APIAreaMapper.activeArea);
-                a.innerWallAdd(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                followUpAction = a.innerWallAdd(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
                 
                 path.remove();
                 break;
@@ -3185,7 +3239,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 }
                 
                 var a = new area(state.APIAreaMapper.activeArea);
-                a.innerWallRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                followUpAction = a.innerWallRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
                 
                 path.remove();
                 break;
@@ -3196,13 +3250,15 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 }
                 
                 var a = new area(state.APIAreaMapper.activeArea);
-                a.doorAdd(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                followUpAction = a.doorAdd(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
                 
                 path.remove();
                 break;
             default:
-                break;
+                return;
         }
+        
+        processFollowUpAction(followUpAction);
     },
     
     handleGraphicChange = function(graphic, prevState) {
