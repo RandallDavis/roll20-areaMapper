@@ -8,6 +8,9 @@ A fundamental aspect of this is the use of the drawing tool as a primary mode fo
 <a href="http://www.youtube.com/watch?feature=player_embedded&v=QOcWWKUHCmQ" target="_blank"><img src="http://img.youtube.com/vi/QOcWWKUHCmQ/0.jpg" 
 alt="Tutorial" width="100%" height="100%" border="10" /></a>
 
+##### Required libraries:
+This requires another script I wrote for its visual alert animations. They can be found here: https://github.com/RandallDavis/roll20-visualAlertScript
+
 ##### Core design ideas:
 - Create areas based on drawing tool unions.
 - Expand areas based on drawing tool unions.
