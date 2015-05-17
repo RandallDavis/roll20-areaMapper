@@ -2,7 +2,7 @@
 
 This is an open source script that's used on the Roll20 API platform (https://roll20.net), which is a site that hosts online table-top games. Roll20 provides some powerful features that are extremely laborous to use, so this script aims to automate and improve on what would otherwise be possible.
 
-The draw of this project is the approach of using the drawing tool as a primary mode for receiving user input. This results in the need for polygon graph algorithms, which was really enticing and rewarding to solve.
+A fundamental aspect of this is the use of the drawing tool as a primary mode for receiving user input. This approach required several polygon graph algorithms, which were both enticing and rewarding to solve.
 
 ##### Progress so far:
 
