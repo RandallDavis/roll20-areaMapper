@@ -1,6 +1,13 @@
 # roll20-areaMapper
 
-Core design ideas:
+This is an open source script that's used on the Roll20 API platform (https://roll20.net), which is a site that hosts online table-top games. Roll20 provides some powerful features that are extremely laborous to use, so this script aims to automate and improve on what would otherwise be possible.
+
+The draw of this project is the approach of using the drawing tool as a primary mode for receiving user input. This results in the need for polygon graph algorithms, which was really enticing and rewarding to solve.
+
+##### Progress so far:
+
+
+##### Core design ideas:
 - Create areas based on drawing tool unions.
 - Expand areas based on drawing tool unions.
 - Remove from areas based on drawing tool intersections.
@@ -14,15 +21,15 @@ Core design ideas:
 - Keep data out of objects so that copy / paste doesn't confuse anything.
 - Any automatically drawn object (walls, floors, doors, etc.) can be cycled between available images / styling, and dynamically assigned Urls can be provided (maybe with an option to add these as a regular part of cycling options as opposed to a one-off).
 
-Possibilites:
+##### Possibilites:
 - Areas will certainly need a Z-order so that superimposing can be handled logically. Normally, you'd expect floors to be at the base layer, then walls, then doors, then objects, basically as a merging / layering between all of the areas. Another optional approach could be to situationally have different areas be on different "floors", and ditch the merging logic and impose a semi-transparent graying effect on floors that are below the active floor.
 
-Implementation:
+##### Implementation:
 - All of the polygon logic should be handled as a clustered graph algorithm. For fun, don't do research on others' approaches to this, but do it from scratch.
 
 ![graph algorithms!](http://i.imgur.com/QUJJXA5.jpg)
 
-Details that need to be explained to users:
+##### Details that need to be explained to users:
 - When drawing inner walls, paths are ignored if they aren't fully contained in the floorplan.
 - When removing edge wall gaps, only complete gaps that are contained in the removal polygon are removed.
 - In all edge wall logic, a heuristic is used for intersection / reversal-of-intersection logic that determines each path's orientation. This is done to speed up the algorithm. There is a trade-off between the number of points that are considered on the floorplan edge, such that the more points considered the less accuracy in the heuristic, but the more features that can be had with overlapping paths. The main thing that needs to be conveyed is that when removing edge walls, it is often better to use polygons that capture fewer points - if an instruction is being ignored, it's probably capturing too many overlapping points from different paths.
