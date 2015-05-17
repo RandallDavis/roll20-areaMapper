@@ -9,7 +9,7 @@ A fundamental aspect of this is the use of the drawing tool as a primary mode fo
 alt="Tutorial" width="100%" height="100%" border="10" /></a>
 
 ##### Required libraries:
-This requires another script I wrote for its visual alert animations. They can be found here: https://github.com/RandallDavis/roll20-visualAlertScript
+This requires another script I wrote for its visual alert animations. It can be found here: https://github.com/RandallDavis/roll20-visualAlertScript.
 
 ##### Core design ideas:
 - Create areas based on drawing tool unions.
