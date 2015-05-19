@@ -1457,15 +1457,30 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 a.getProperty(managedGraphic.graphicType)[managedGraphic.graphicIndex] = graphicMaster;
                 a.save();
                 
+                //redraw the entire door:
                 if(redraw) {
                     var errorMessage = this.drawInteractiveObject(managedGraphic.graphicType, managedGraphic.graphicIndex, graphic);
                     followUpAction.message = errorMessage ? errorMessage : 'The graphic has been replaced with a new one. Please select it for futher modifications.';
-                } else {
+                }
+                //redraw feature tags, but not the door:
+                else {
+                    this.getProperty('doorIds')[2].forEach(function(ftId) {
+                        delete('path', ftId);
+                    }, this);
                     
-                    //redraw feature tags:
+                    var featureTagColors = [];
+                    if(master[2]) {
+                        featureTagColors.push(lockedTagColor);
+                    }
+                    if(master[3]) {
+                        featureTagColors.push(trappedTagColor);
+                    }
+                    if(master[4]) {
+                        featureTagColors.push(hiddenTagColor);
+                    }
+                    var tagIds = drawFeatureTags(door, featureTagColors);
                     
-                    
-                    a.save();
+                    this.getProperty('doorIds')[2] = tagIds;
                 }
                 
                 break;
