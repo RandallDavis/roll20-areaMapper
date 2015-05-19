@@ -6,15 +6,18 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.101,
-        schemaVersion = 0.029,
+    var version = 0.102,
+        schemaVersion = 0.030,
         buttonBackgroundColor = '#E92862',
         buttonGreyedColor = '#8D94A9',
         buttonHighlightedColor = '#00FF00',
         mainBackgroundColor = '#3D8FE1',
         headerBackgroundColor = '#386EA5',
         notificationBackgroundColor = '#64EED7',
-        wallImageUrl = 'https://s3.amazonaws.com/files.d20.io/images/9136034/foLUiyrb1qQyK-pkkLKpTg/thumb.png?1430357960',
+        lockedTagColor = '#E5DB50',
+        trappedTagColor = '#E2274C',
+        hiddenTagColor = '#277EE2',
+        wallImageUrl = 'https://s3.amazonaws.com/files.d20.io/images/9585786/x1-hhxavuLoUjMsgA5vYdA/thumb.png?1432007204',
         floorImageUrl = 'https://s3.amazonaws.com/files.d20.io/images/48971/thumb.jpg?1340229647',
         closedDoorImageUrl = 'https://s3.amazonaws.com/files.d20.io/images/6951/thumb.png?1336359665',
         openDoorImageUrl = 'https://s3.amazonaws.com/files.d20.io/images/7068/thumb.png?1336366825',
@@ -878,17 +881,17 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'area':
             case 'top':
             case 'left':
-            case 'floorPolygonId': //simple path
+            case 'floorPolygonId': //path
             case 'floorTileId': //token
-            case 'floorMaskId': //simple path
+            case 'floorMaskId': //path
                 this['_' + property] = value;
                 break;
             case 'wallIds': //tokens
-            case 'edgeWallGapIds': //simple paths
-            case 'losWallIds': //simple paths
-            case 'blueprintWallIds': //simple paths
-            case 'doorIds': //[door token, LoS wall path]
-            case 'blueprintDoorIds': //simple paths
+            case 'edgeWallGapIds': //paths
+            case 'losWallIds': //paths
+            case 'blueprintWallIds': //paths
+            case 'doorIds': //[door token, LoS wall path, feature tag paths]
+            case 'blueprintDoorIds': //paths
                 return this['_' + property].push(value) - 1;
             default:
                 return typedObject.prototype.setProperty.call(this, property, value);
@@ -1047,6 +1050,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
             
             //delete LoS wall (which may not exist):
             deleteObject('path', dId[1]);
+            
+            //delete feature tag paths:
+            dId[2].forEach(function(ftId) {
+                deleteObject('path', ftId);
+            }, this);
         }, this);
         this.initializeCollectionProperty('doorIds');
         
@@ -1110,7 +1118,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             //draw wall tokens:
             var ewIndex = g.addSimplePath(ew[0], top + ew[1], left + ew[2]);
             g.getProperty('simplePaths')[ewIndex].segments.forEach(function(s) {
-                this.setProperty('wallIds', createTokenObjectFromSegment(wallImageUrl, this.getProperty('pageId'), 'objects', s, 30).id);
+                this.setProperty('wallIds', createTokenObjectFromSegment(wallImageUrl, this.getProperty('pageId'), 'objects', s, 20).id);
             }, this);
             
             //draw line of sight blocking wall:
@@ -1124,7 +1132,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             //draw wall tokens:
             var iwIndex = g.addSimplePath(iw[0], top + iw[1], left + iw[2]);
             g.getProperty('simplePaths')[iwIndex].segments.forEach(function(s) {
-                this.setProperty('wallIds', createTokenObjectFromSegment(wallImageUrl, this.getProperty('pageId'), 'objects', s, 30).id);
+                this.setProperty('wallIds', createTokenObjectFromSegment(wallImageUrl, this.getProperty('pageId'), 'objects', s, 20).id);
             }, this);
             
             //draw line of sight blocking wall:
@@ -1160,8 +1168,13 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     
                     //delete the old door LoS wall (which may not exist):
                     deleteObject('path', this.getProperty('doorIds')[masterIndex][1]);
+                    
+                    //delete the old door feature tags:
+                    this.getProperty('doorIds')[masterIndex][2].forEach(function(ftId) {
+                        deleteObject('path', ftId);
+                    }, this);
                 
-                    this.getProperty('doorIds')[masterIndex] = ['',''];
+                    this.getProperty('doorIds')[masterIndex] = ['','',[]];
                 }
                 
                 //TODO: replace open hidden door image with something unique:
@@ -1170,13 +1183,26 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     master[4]
                         ? (master[1]
                             ? createTokenObjectFromSegment(openDoorImageUrl, this.getProperty('pageId'), 'objects', s, 30, true)
-                            : createTokenObjectFromSegment(wallImageUrl, this.getProperty('pageId'), 'objects', s, 30, false))
+                            : createTokenObjectFromSegment(wallImageUrl, this.getProperty('pageId'), 'objects', s, 20, false))
                         : createTokenObjectFromSegment((master[1] ? openDoorImageUrl : closedDoorImageUrl), this.getProperty('pageId'), 'objects', s, 30, true);
                 
                 //set door privs to players unless the door is hidden:
                 if(!master[4]) {
                     door.set("controlledby", "all");
                 }
+                
+                //draw feature tags around the door:
+                var featureTagColors = [];
+                if(master[2]) {
+                    featureTagColors.push(lockedTagColor);
+                }
+                if(master[3]) {
+                    featureTagColors.push(trappedTagColor);
+                }
+                if(master[4]) {
+                    featureTagColors.push(hiddenTagColor);
+                }
+                var tagIds = drawFeatureTags(door, featureTagColors);
                 
                 //draw line of sight blocking wall if the door is closed:
                 var doorLosId = '';
@@ -1185,14 +1211,18 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     doorLosId = drawPathObject(this.getProperty('pageId'), 'walls', '#ff0000', 'transparent', rp.rawPath, rp.top, rp.left, 1).id;
                 }
                 
+                var doorProperty = [];
+                doorProperty.push(door.id);
+                doorProperty.push(doorLosId);
+                doorProperty.push(tagIds);
+                
                 //if this is replacing an existing image, write it back into the appropriate slot:
                 if(eventObj) {
-                    this.getProperty('doorIds')[masterIndex][0] = door.id;
-                    this.getProperty('doorIds')[masterIndex][1] = doorLosId;
+                    this.getProperty('doorIds')[masterIndex] = doorProperty;
                 }
                 //if it's a new image, push it to the end (which will line up with the master's index):
                 else {
-                    this.setProperty('doorIds', [door.id, doorLosId]);
+                    this.setProperty('doorIds', doorProperty);
                 }
                 break;
             default:
@@ -1427,9 +1457,30 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 a.getProperty(managedGraphic.graphicType)[managedGraphic.graphicIndex] = graphicMaster;
                 a.save();
                 
+                //redraw the entire door:
                 if(redraw) {
                     var errorMessage = this.drawInteractiveObject(managedGraphic.graphicType, managedGraphic.graphicIndex, graphic);
                     followUpAction.message = errorMessage ? errorMessage : 'The graphic has been replaced with a new one. Please select it for futher modifications.';
+                }
+                //redraw feature tags, but not the door:
+                else {
+                    this.getProperty('doorIds')[2].forEach(function(ftId) {
+                        delete('path', ftId);
+                    }, this);
+                    
+                    var featureTagColors = [];
+                    if(master[2]) {
+                        featureTagColors.push(lockedTagColor);
+                    }
+                    if(master[3]) {
+                        featureTagColors.push(trappedTagColor);
+                    }
+                    if(master[4]) {
+                        featureTagColors.push(hiddenTagColor);
+                    }
+                    var tagIds = drawFeatureTags(door, featureTagColors);
+                    
+                    this.getProperty('doorIds')[2] = tagIds;
                 }
                 
                 break;
@@ -2696,7 +2747,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     /* roll20 object management - begin */
     
-    var deleteObject = function(type, id) {
+    var getRectanglePath = function(height, width) {
+        return "[[\"M\",0,0],[\"L\",0," + height + "],[\"L\"," + width + "," + height + "],[\"L\"," + width + ",0],[\"L\",0,0]]";
+    },
+    
+    deleteObject = function(type, id) {
         state.APIAreaMapper.tempIgnoreDrawingEvents = true;
         
         var obj = getObj(type, id);
@@ -2707,11 +2762,15 @@ var APIAreaMapper = APIAreaMapper || (function() {
         state.APIAreaMapper.tempIgnoreDrawingEvents = false;
     },
     
-    drawPathObject = function(pageId, layer, strokeColor, fillColor, path, top, left, strokeWidth) {
+    drawPathObject = function(pageId, layer, strokeColor, fillColor, path, top, left, strokeWidth, rotation) {
         state.APIAreaMapper.tempIgnoreDrawingEvents = true;
         
         if('undefined' === typeof(strokeWidth)) {
             strokeWidth = 1;
+        }
+        
+        if('undefined' === typeof(rotation)) {
+            rotation = 0;
         }
         
         var obj = createObj('path', {
@@ -2722,13 +2781,52 @@ var APIAreaMapper = APIAreaMapper || (function() {
             stroke: strokeColor,
             stroke_width: strokeWidth,
             fill: fillColor,
-            _path: path
+            _path: path,
+            rotation: rotation
         });
         toFront(obj);
         
         state.APIAreaMapper.tempIgnoreDrawingEvents = false;
         
         return obj;
+    },
+    
+    drawFeatureTag = function(graphic, tagBand, color) {
+        var tagStrokeWidth = 4;
+     
+        var atan = Math.atan2(graphic.get('height'), graphic.get('width'));
+        var rot = graphic.get('rotation') * Math.PI / 180;
+        var naturalRadius = (Math.sqrt((Math.pow(graphic.get('height'), 2) + Math.pow(graphic.get('width'), 2))) / 2) - tagBand;
+        var tagOffset = tagBand * (tagStrokeWidth + 1);
+        var radius = naturalRadius + tagOffset;
+        var cornerAngle = (((((rot + atan) * naturalRadius) + ((rot + (Math.PI * 1 / 4)) * tagOffset)) / radius) + (4 * Math.PI)) % (2 * Math.PI); 
+        
+        var top = radius * Math.sin(cornerAngle);
+        var left = radius * Math.cos(cornerAngle);
+        
+        return drawPathObject(
+            graphic.get('_pageid'),
+            'gmlayer',
+            color,
+            'transparent',
+            getRectanglePath(graphic.get('height') + (2 * (tagBand * tagStrokeWidth)), graphic.get('width') + (2 * (tagBand * tagStrokeWidth))),
+            graphic.get('top') - top,
+            graphic.get('left') - left,
+            tagStrokeWidth,
+            graphic.get('rotation')
+        );
+    },
+    
+    //receives a graphic and an array of tag colors, and returns an array of new feature tag IDs:
+    drawFeatureTags = function(graphic, featureTagColors) {
+        var tagIds = [];
+        var tagBand = 0;
+        
+        featureTagColors.forEach(function(color) {
+            tagIds.push(drawFeatureTag(graphic, tagBand++, color).id);
+        }, this);
+        
+        return tagIds;
     },
     
     createTokenObjectFromSegment = function(imgsrc, pageId, layer, segment, width, alternateWidthAndHeight) {
