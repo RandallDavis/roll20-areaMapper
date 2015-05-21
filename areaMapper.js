@@ -6,7 +6,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.102,
+    var version = 0.103,
         schemaVersion = 0.030,
         buttonBackgroundColor = '#E92862',
         buttonGreyedColor = '#8D94A9',
@@ -819,6 +819,44 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this.save();
         this.draw(pageId, instance.getProperty('top'), instance.getProperty('left'));
         
+        followUpAction.refresh = true;
+        return followUpAction;
+    };
+    
+    area.prototype.doorRemove = function(rawPath, pageId, top, left, isFromEvent) {
+        var followUpAction = [];
+        
+        var g = new graph();
+        g.addComplexPolygon(rawPath, top, left, isFromEvent);
+        var removeSpIndex = g.convertComplexPolygonToSimplePolygon(0);
+        
+        //get instance that removal is relative to:
+        var instance = new areaInstance(this.getProperty('id'), pageId);
+        
+        var oldDoors = this.getProperty('doors');
+        var doors = [];
+        for(var i = 0; i < oldDoors.length; i++) {
+            var s = new segment(
+                new point(
+                    oldDoors[i][0].a.x + instance.getProperty('left'),
+                    oldDoors[i][0].a.y + instance.getProperty('top')),
+                new point(
+                    oldDoors[i][0].b.x + instance.getProperty('left'),
+                    oldDoors[i][0].b.y + instance.getProperty('top'))
+            );
+            
+            if(!g.hasInsideSegment('simplePolygons', removeSpIndex, s)) {
+                doors.push(oldDoors[i]);
+            }
+        }
+        
+        if(doors.length < oldDoors.length) {
+            this.initializeCollectionProperty('doors', doors);
+            
+            this.save();
+            this.draw(pageId, instance.getProperty('top'), instance.getProperty('left'));
+        }
+      
         followUpAction.refresh = true;
         return followUpAction;
     };
@@ -2239,6 +2277,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return (pointsOnLeft % 2 === 1);
     };
     
+    //only tests segment's endpoints:
+    simplePolygon.prototype.hasInsideSegment = function(s) {
+        return (this.hasInside(s.a) && this.hasInside(s.b));
+    };
+    
     simplePolygon.prototype.hasInsideEntirePath = function(sp) {
         var pointsPath = sp.getPointsPath();
         
@@ -2738,6 +2781,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return this.getProperty(pathType1)[index1].getIntersectingPaths(this.getProperty(pathType2)[index2]);
     };
     
+    graph.prototype.hasInsideSegment = function(pathType, index, s) {
+        return this.getProperty(pathType)[index].hasInsideSegment(s);
+    }
+    
     graph.prototype.hasInsideEntirePath = function(pathType1, index1, pathType2, index2) {
         return this.getProperty(pathType1)[index1].hasInsideEntirePath(this.getProperty(pathType2)[index2]);
     };
@@ -3116,7 +3163,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 ['add inner walls', 'innerWallAdd', !state.APIAreaMapper.activeArea, (state.APIAreaMapper.recordAreaMode == 'innerWallAdd')],
                 ['remove inner walls', 'innerWallRemove', !state.APIAreaMapper.activeArea || !hasInnerWalls, (state.APIAreaMapper.recordAreaMode == 'innerWallRemove')],
                 ['add door', 'doorAdd', !state.APIAreaMapper.activeArea || (!hasEdgeWalls && !hasInnerWalls), (state.APIAreaMapper.recordAreaMode == 'doorAdd')],
-                ['remove door (TBA)', 'doorRemove', true || !state.APIAreaMapper.activeArea || !hasDoors, false],
+                ['remove door', 'doorRemove', !state.APIAreaMapper.activeArea || !hasDoors, (state.APIAreaMapper.recordAreaMode == 'doorRemove')],
                 ['undo (TBA)', 'undo', true || !state.APIAreaMapper.activeArea, false]
             ])
         );
@@ -3228,6 +3275,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     case 'innerWallAdd':
                     case 'innerWallRemove':
                     case 'doorAdd':
+                    case 'doorRemove':
                         followUpAction = toggleOrSetAreaRecordMode(chatCommand[1]);
                         break;
                     case 'blueprint':
@@ -3349,6 +3397,17 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 
                 var a = new area(state.APIAreaMapper.activeArea);
                 followUpAction = a.doorAdd(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                
+                path.remove();
+                break;
+            case 'doorRemove':
+                if(!state.APIAreaMapper.activeArea) {
+                    log('An area needs to be active before removing doors.');
+                    return;
+                }
+                
+                var a = new area(state.APIAreaMapper.activeArea);
+                followUpAction = a.doorRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
                 
                 path.remove();
                 break;
