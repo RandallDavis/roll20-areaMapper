@@ -6,7 +6,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.103,
+    var version = 0.104,
         schemaVersion = 0.030,
         buttonBackgroundColor = '#E92862',
         buttonGreyedColor = '#8D94A9',
@@ -1502,23 +1502,23 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 }
                 //redraw feature tags, but not the door:
                 else {
-                    this.getProperty('doorIds')[2].forEach(function(ftId) {
-                        delete('path', ftId);
+                    this.getProperty('doorIds')[managedGraphic.graphicIndex][2].forEach(function(ftId) {
+                        deleteObject('path', ftId);
                     }, this);
                     
                     var featureTagColors = [];
-                    if(master[2]) {
+                    if(graphicMaster[2]) {
                         featureTagColors.push(lockedTagColor);
                     }
-                    if(master[3]) {
+                    if(graphicMaster[3]) {
                         featureTagColors.push(trappedTagColor);
                     }
-                    if(master[4]) {
+                    if(graphicMaster[4]) {
                         featureTagColors.push(hiddenTagColor);
                     }
-                    var tagIds = drawFeatureTags(door, featureTagColors);
+                    var tagIds = drawFeatureTags(graphic, featureTagColors);
                     
-                    this.getProperty('doorIds')[2] = tagIds;
+                    this.getProperty('doorIds')[managedGraphic.graphicIndex][2] = tagIds;
                 }
                 
                 break;
