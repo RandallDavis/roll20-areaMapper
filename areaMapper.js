@@ -2851,7 +2851,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             'gmlayer',
             color,
             'transparent',
-            getRectanglePath(graphic.get('height') + (2 * (tagBand * tagStrokeWidth)), graphic.get('width') + (2 * (tagBand * tagStrokeWidth))),
+            getRectanglePath(height, width),
             graphic.get('top') - (height / 2),
             graphic.get('left') - (width / 2),
             height,
