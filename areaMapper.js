@@ -6,8 +6,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.104,
-        schemaVersion = 0.030,
+    var version = 0.105,
+        schemaVersion = 0.031,
         buttonBackgroundColor = '#E92862',
         buttonGreyedColor = '#8D94A9',
         buttonHighlightedColor = '#00FF00',
@@ -156,9 +156,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'height':
                 this['_' + property] = value;
                 break;
-            case 'edgeWalls': //[simple path, top, left]
-            case 'edgeWallGaps': //[simple path, top, left]
-            case 'innerWalls': //[simple path, top, left]
+            case 'edgeWalls': //[simple path, top, left, height, width]
+            case 'edgeWallGaps': //[simple path, top, left, height, width]
+            case 'innerWalls': //[simple path, top, left, height, width]
             case 'doors': //[segment position, isOpen, isLocked, isTrapped, isHidden]
                 return this['_' + property].push(value) - 1;
             default:
@@ -196,7 +196,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this.setProperty('floorPlan', rp.rawPath);
         
         //initially, edge walls will be identical to the floorPlan, because no gaps have been declared:
-        this.setProperty('edgeWalls', [rp.rawPath, 0, 0]);
+        this.setProperty('edgeWalls', [rp.rawPath, 0, 0, rp.height, rp.width]);
         
         this.setProperty('width', rp.width);
         this.setProperty('height', rp.height);
@@ -329,7 +329,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             //convert points paths to raw paths:
             ewgI = g.addSimplePathFromPoints(ewg);
             var ewgRaw = g.getRawPath('simplePaths', ewgI);
-            edgeWallGapRawPaths.push([ewgRaw.rawPath, ewgRaw.top, ewgRaw.left]);
+            edgeWallGapRawPaths.push([ewgRaw.rawPath, ewgRaw.top, ewgRaw.left, ewgRaw.height, ewgRaw.width]);
         }, this);
         this.initializeCollectionProperty('edgeWallGaps', edgeWallGapRawPaths);
         
@@ -364,7 +364,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             //if there are no edge wall gaps, just use the new floorPlan for edge walls:
             if(!oldEdgeWallGaps || !oldEdgeWallGaps.length) {
                 this.initializeCollectionProperty('edgeWalls');
-                this.setProperty('edgeWalls', [rp.rawPath, 0, 0]);
+                this.setProperty('edgeWalls', [rp.rawPath, 0, 0, rp.height, rp.width]);
             } else {
                 this.initializeCollectionProperty('edgeWalls');
                 var edgeWallPaths = g.removePathIntersections('simplePolygons', mergedOpIndex, oldEdgeWallGaps);
@@ -373,7 +373,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 edgeWallPaths.forEach(function(ew) {
                     var ewSpI = g.addSimplePathFromPoints(ew);
                     var rp = g.getRawPath('simplePaths', ewSpI);
-                    this.setProperty('edgeWalls', [rp.rawPath, rp.top - instance.getProperty('top'), rp.left - instance.getProperty('left')]);
+                    this.setProperty('edgeWalls', [rp.rawPath, rp.top - instance.getProperty('top'), rp.left - instance.getProperty('left'), rp.height, rp.width]);
                 }, this);
                 
                 this.calculateEdgeWallGaps();
@@ -412,7 +412,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             //if there are no edge wall gaps, just use the new floorPlan for edge walls:
             if(!oldEdgeWallGaps || !oldEdgeWallGaps.length) {
                 this.initializeCollectionProperty('edgeWalls');
-                this.setProperty('edgeWalls', [rp.rawPath, 0, 0]);
+                this.setProperty('edgeWalls', [rp.rawPath, 0, 0, rp.height, rp.width]);
             } else {
                 this.initializeCollectionProperty('edgeWalls');
                 var edgeWallPaths = g.removePathIntersections('simplePolygons', mergedOpIndex, oldEdgeWallGaps);
@@ -421,7 +421,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 edgeWallPaths.forEach(function(ew) {
                     var ewSpI = g.addSimplePathFromPoints(ew);
                     var rp = g.getRawPath('simplePaths', ewSpI);
-                    this.setProperty('edgeWalls', [rp.rawPath, rp.top - instance.getProperty('top'), rp.left - instance.getProperty('left')]);
+                    this.setProperty('edgeWalls', [rp.rawPath, rp.top - instance.getProperty('top'), rp.left - instance.getProperty('left'), rp.height, rp.width]);
                 }, this);
                 
                 this.calculateEdgeWallGaps();
@@ -469,7 +469,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             //convert points paths to raw paths:
             ewgI = g.addSimplePathFromPoints(ewg);
             var ewgRaw = g.getRawPath('simplePaths', ewgI);
-            this.setProperty('edgeWallGaps', [ewgRaw.rawPath, ewgRaw.top - instance.getProperty('top'), ewgRaw.left - instance.getProperty('left')]);
+            this.setProperty('edgeWallGaps', [ewgRaw.rawPath, ewgRaw.top - instance.getProperty('top'), ewgRaw.left - instance.getProperty('left'), ewgRaw.height, ewgRaw.width]);
         }, this);
         
         //TODO: factor in instance's rotation & scale:
@@ -478,7 +478,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         edgeWallPaths.forEach(function(ew) {
             var ewSpI = g.addSimplePathFromPoints(ew);
             var rp = g.getRawPath('simplePaths', ewSpI);
-            this.setProperty('edgeWalls', [rp.rawPath, rp.top - instance.getProperty('top'), rp.left - instance.getProperty('left')]);
+            this.setProperty('edgeWalls', [rp.rawPath, rp.top - instance.getProperty('top'), rp.left - instance.getProperty('left'), rp.height, rp.width]);
         }, this);
         
         this.save();
@@ -524,7 +524,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             edgeWallPaths.forEach(function(ew) {
                 var ewSpI = g.addSimplePathFromPoints(ew);
                 var rp = g.getRawPath('simplePaths', ewSpI);
-                this.setProperty('edgeWalls', [rp.rawPath, rp.top - instance.getProperty('top'), rp.left - instance.getProperty('left')]);
+                this.setProperty('edgeWalls', [rp.rawPath, rp.top - instance.getProperty('top'), rp.left - instance.getProperty('left'), rp.height, rp.width]);
             }, this);
             
             this.save();
@@ -554,7 +554,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         //add the inner wall:
         var rp = g.getRawPath('simplePaths', innerWallAddSpIndex);
-        this.setProperty('innerWalls', [rp.rawPath, rp.top, rp.left]);
+        this.setProperty('innerWalls', [rp.rawPath, rp.top, rp.left, rp.height, rp.width]);
         
         this.save();
         this.draw(pageId, instance.getProperty('top'), instance.getProperty('left'));
@@ -592,7 +592,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 newInnerWallPointPaths.forEach(function(iwPP) {
                     var iwSpI = g.addSimplePathFromPoints(iwPP);
                     var rp = g.getRawPath('simplePaths', iwSpI);
-                    newInnerWalls.push([rp.rawPath, rp.top - instance.getProperty('top'), rp.left - instance.getProperty('left')]);
+                    newInnerWalls.push([rp.rawPath, rp.top - instance.getProperty('top'), rp.left - instance.getProperty('left'), rp.height, rp.width]);
                 }, this);
             } else {
                 newInnerWalls.push(iw);
@@ -1147,7 +1147,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var floorPlanOpIndex = g.addSimplePolygon(a.getProperty('floorPlan'), top, left);
         var floorMaskOpIndex = g.invertSimplePolygon(floorPlanOpIndex);
         var floorMaskRawPath = g.getRawPath('simplePolygons', floorMaskOpIndex);
-        var floorMask = drawPathObject(this.getProperty('pageId'), 'map', maskColor, maskColor, floorMaskRawPath.rawPath, floorMaskRawPath.top, floorMaskRawPath.left);
+        var floorMask = createPathObject(this.getProperty('pageId'), 'map', maskColor, maskColor, floorMaskRawPath.rawPath, floorMaskRawPath.top, floorMaskRawPath.left, floorMaskRawPath.height, floorMaskRawPath.width);
         this.setProperty('floorMaskId', floorMask.id);
         
         //draw edge walls:
@@ -1160,7 +1160,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             }, this);
             
             //draw line of sight blocking wall:
-            var losWall = drawPathObject(this.getProperty('pageId'), 'walls', '#ff0000', 'transparent', ew[0], top + ew[1], left + ew[2], 1);
+            var losWall = createPathObject(this.getProperty('pageId'), 'walls', '#ff0000', 'transparent', ew[0], top + ew[1], left + ew[2], ew[3], ew[4], 1);
             this.setProperty('losWallIds', losWall.id);
         }, this);
         
@@ -1174,7 +1174,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             }, this);
             
             //draw line of sight blocking wall:
-            var losWall = drawPathObject(this.getProperty('pageId'), 'walls', '#ff0000', 'transparent', iw[0], top + iw[1], left + iw[2], 1);
+            var losWall = createPathObject(this.getProperty('pageId'), 'walls', '#ff0000', 'transparent', iw[0], top + iw[1], left + iw[2], iw[3], iw[4], 1);
             this.setProperty('losWallIds', losWall.id);
         }, this);
         
@@ -1246,7 +1246,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 var doorLosId = '';
                 if(!master[1]) {
                     var rp = g.getRawPath('simplePaths', dIndex);
-                    doorLosId = drawPathObject(this.getProperty('pageId'), 'walls', '#ff0000', 'transparent', rp.rawPath, rp.top, rp.left, 1).id;
+                    doorLosId = createPathObject(this.getProperty('pageId'), 'walls', '#ff0000', 'transparent', rp.rawPath, rp.top, rp.left, rp.height, rp.width, 1).id;
                 }
                 
                 var doorProperty = [];
@@ -1284,20 +1284,20 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var g = new graph();
         
         //create floorPolygon:
-        var floorPolygon = drawPathObject(this.getProperty('pageId'), 'map', state.APIAreaMapper.blueprintFloorPolygonColor, state.APIAreaMapper.blueprintFloorPolygonColor, a.getProperty('floorPlan'), top, left);
+        var floorPolygon = createPathObject(this.getProperty('pageId'), 'map', state.APIAreaMapper.blueprintFloorPolygonColor, state.APIAreaMapper.blueprintFloorPolygonColor, a.getProperty('floorPlan'), top, left, a.getProperty('height'), a.getProperty('width'));
         this.setProperty('floorPolygonId', floorPolygon.id);
         
         //draw edge wall gaps:
         a.calculateEdgeWallGaps().forEach(function(ew) {
             var ewI = g.addSimplePathFromPoints(ew);
             var ewRaw = g.getRawPath('simplePaths', ewI);
-            var edgeWallGap = drawPathObject(this.getProperty('pageId'), 'objects', state.APIAreaMapper.blueprintEdgeWallGapsPathColor, 'transparent', ewRaw.rawPath, top + ewRaw.top, left + ewRaw.left, 5);
+            var edgeWallGap = createPathObject(this.getProperty('pageId'), 'objects', state.APIAreaMapper.blueprintEdgeWallGapsPathColor, 'transparent', ewRaw.rawPath, top + ewRaw.top, left + ewRaw.left, ewRaw.height, ewRaw.width, 5);
             this.setProperty('edgeWallGapIds', edgeWallGap.id);
         }, this);
         
         //draw blueprint walls:
         a.getProperty('innerWalls').forEach(function(iw) {
-            var wall = drawPathObject(this.getProperty('pageId'), 'objects', state.APIAreaMapper.blueprintInnerWallsPathColor, 'transparent', iw[0], top + iw[1], left + iw[2], 2);
+            var wall = createPathObject(this.getProperty('pageId'), 'objects', state.APIAreaMapper.blueprintInnerWallsPathColor, 'transparent', iw[0], top + iw[1], left + iw[2], iw[3], iw[4], 2);
             this.setProperty('blueprintWallIds', wall.id);
         }, this);
         
@@ -1305,7 +1305,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         a.getProperty('doors').forEach(function(s) {
             var dI = g.addSimplePathFromSegment(s[0], top, left);
             var rp = g.getRawPath('simplePaths', dI);
-            var door = drawPathObject(this.getProperty('pageId'), 'objects', state.APIAreaMapper.blueprintDoorPathColor, 'transparent', rp.rawPath, rp.top, rp.left, 2);
+            var door = createPathObject(this.getProperty('pageId'), 'objects', state.APIAreaMapper.blueprintDoorPathColor, 'transparent', rp.rawPath, rp.top, rp.left, rp.height, rp.width, 2);
             this.setProperty('blueprintWallIds', door.id);
         }, this);
         
@@ -2794,11 +2794,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     /* roll20 object management - begin */
     
-    var getRectanglePath = function(height, width) {
-        return "[[\"M\",0,0],[\"L\",0," + height + "],[\"L\"," + width + "," + height + "],[\"L\"," + width + ",0],[\"L\",0,0]]";
-    },
-    
-    deleteObject = function(type, id) {
+    var deleteObject = function(type, id) {
         state.APIAreaMapper.tempIgnoreDrawingEvents = true;
         
         var obj = getObj(type, id);
@@ -2809,7 +2805,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
         state.APIAreaMapper.tempIgnoreDrawingEvents = false;
     },
     
-    drawPathObject = function(pageId, layer, strokeColor, fillColor, path, top, left, strokeWidth, rotation) {
+    getRectanglePath = function(height, width) {
+        return "[[\"M\",0,0],[\"L\",0," + height + "],[\"L\"," + width + "," + height + "],[\"L\"," + width + ",0],[\"L\",0,0]]";
+    },
+    
+    createPathObject = function(pageId, layer, strokeColor, fillColor, path, top, left, height, width, strokeWidth, rotation) {
         state.APIAreaMapper.tempIgnoreDrawingEvents = true;
         
         if('undefined' === typeof(strokeWidth)) {
@@ -2823,8 +2823,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var obj = createObj('path', {
             layer: layer,
             pageid: pageId,
-            top: top,
-            left: left,
+            top: top + (height / 2),
+            left: left + (width / 2),
+            height: height,
+            width: width,
             stroke: strokeColor,
             stroke_width: strokeWidth,
             fill: fillColor,
@@ -2841,24 +2843,19 @@ var APIAreaMapper = APIAreaMapper || (function() {
     drawFeatureTag = function(graphic, tagBand, color) {
         var tagStrokeWidth = 4;
      
-        var atan = Math.atan2(graphic.get('height'), graphic.get('width'));
-        var rot = graphic.get('rotation') * Math.PI / 180;
-        var naturalRadius = (Math.sqrt((Math.pow(graphic.get('height'), 2) + Math.pow(graphic.get('width'), 2))) / 2) - tagBand;
-        var tagOffset = tagBand * (tagStrokeWidth + 1);
-        var radius = naturalRadius + tagOffset;
-        var cornerAngle = (((((rot + atan) * naturalRadius) + ((rot + (Math.PI * 1 / 4)) * tagOffset)) / radius) + (4 * Math.PI)) % (2 * Math.PI); 
+        var height = graphic.get('height') + (2 * (tagBand * tagStrokeWidth));
+        var width = graphic.get('width') + (2 * (tagBand * tagStrokeWidth));
         
-        var top = radius * Math.sin(cornerAngle);
-        var left = radius * Math.cos(cornerAngle);
-        
-        return drawPathObject(
+        return createPathObject(
             graphic.get('_pageid'),
             'gmlayer',
             color,
             'transparent',
             getRectanglePath(graphic.get('height') + (2 * (tagBand * tagStrokeWidth)), graphic.get('width') + (2 * (tagBand * tagStrokeWidth))),
-            graphic.get('top') - top,
-            graphic.get('left') - left,
+            graphic.get('top') - (height / 2),
+            graphic.get('left') - (width / 2),
+            height,
+            width,
             tagStrokeWidth,
             graphic.get('rotation')
         );
