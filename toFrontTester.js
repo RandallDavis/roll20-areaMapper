@@ -22,8 +22,10 @@ var APIToFrontTester = APIToFrontTester || (function() {
         var obj = createObj('path', {
             layer: layer,
             pageid: Campaign().get('playerpageid'),
-            top: top,
-            left: left,
+            top: top + ( size / 2),
+            left: left + (size / 2),
+            width: size,
+            height: size,
             stroke: strokeColor,
             stroke_width: 1,
             fill: fillColor,
@@ -95,6 +97,28 @@ var APIToFrontTester = APIToFrontTester || (function() {
         }
     },
     
+    toFrontList = function (l) {
+        var o;
+    	if(l.length) {
+			o = l.shift();
+			toFrontObject(o[0], o[1]);
+			if(l.length) {
+				setTimeout(_.partial(toFrontList, l), 50);
+			}
+		}
+	},
+    
+	toBackList = function (l) {
+        var o;
+		if(l.length) {
+			o = l.shift();
+			toBackObject(o[0], o[1]);
+			if(l.length) {
+				setTimeout(_.partial(toBackList, l), 50);
+			}
+		}
+	},
+    
     run = function() {
         var graphics = [];
         graphics.push(graphicUrl1);
@@ -106,64 +130,50 @@ var APIToFrontTester = APIToFrontTester || (function() {
         colors.push(pathColor2);
         colors.push(pathColor3);
         
+        var itemOffset = 30;
+        
         var graphicIndex = 0,
             pathIndex = 0;
         
         var testTop = 50,
             testLeft = 150;
-            
-        
-        var itemTop = testTop,
-            itemLeft = testLeft;
+       
+       
         createTextObject('graphics - natural insertion', testTop, testLeft + 50);
-        for(var i = 0; i < 10; i++) {
-            itemTop += 30;
-            itemLeft += 30;
-            createGraphicObject(graphics[graphicIndex++ % graphics.length], 'objects', 100, itemTop, itemLeft);
+        for(var i = 1; i <= 10; i++) {
+            createGraphicObject(graphics[graphicIndex++ % graphics.length], 'objects', 100, testTop + (i * itemOffset), testLeft + (i * itemOffset));
         }
         
         
         testLeft += 200;
-        itemTop = testTop;
-        itemLeft = testLeft;
         graphicIndex = 0;
         pathIndex = 0;
         createTextObject('paths - natural insertion', testTop, testLeft + 50);
-        for(var i = 0; i < 10; i++) {
-            itemTop += 30;
-            itemLeft += 30;
-            createPathObject('objects', colors[pathIndex++ % colors.length], colors[pathIndex % colors.length], 100, itemTop, itemLeft);
+        for(var i = 1; i <= 10; i++) {
+            createPathObject('objects', colors[pathIndex++ % colors.length], colors[pathIndex % colors.length], 100, testTop + (i * itemOffset), testLeft + (i * itemOffset));
         }
         
         
         testLeft += 200;
-        itemTop = testTop;
-        itemLeft = testLeft;
         graphicIndex = 0;
         pathIndex = 0;
         createTextObject('mixed - natural insertion', testTop, testLeft + 50);
-        for(var i = 0; i < 10; i++) {
-            itemTop += 30;
-            itemLeft += 30;
+        for(var i = 1; i <= 10; i++) {
             if(i % 2) {
-                createGraphicObject(graphics[graphicIndex++ % graphics.length], 'objects', 100, itemTop, itemLeft);
+                createGraphicObject(graphics[graphicIndex++ % graphics.length], 'objects', 100, testTop + (i * itemOffset), testLeft + (i * itemOffset));
             } else {    
-                createPathObject('objects', colors[pathIndex++ % colors.length], colors[pathIndex % colors.length], 100, itemTop, itemLeft);
+                createPathObject('objects', colors[pathIndex++ % colors.length], colors[pathIndex % colors.length], 100, testTop + (i * itemOffset), testLeft + (i * itemOffset));
             }
         }
         
         
         testLeft += 200;
-        itemTop = testTop;
-        itemLeft = testLeft;
         graphicIndex = 0;
         pathIndex = 0;
         createTextObject('graphic - toFront from bottom', testTop, testLeft + 50);
         var objects = [];
-        for(var i = 0; i < 10; i++) {
-            itemTop += 30;
-            itemLeft += 30;
-            objects.unshift(createGraphicObject(graphics[graphicIndex++ % graphics.length], 'objects', 100, itemTop, itemLeft));
+        for(var i = 10; i > 0; i--) {
+            objects.unshift(createGraphicObject(graphics[graphicIndex++ % graphics.length], 'objects', 100, testTop + (i * itemOffset), testLeft + (i * itemOffset)));
         }
         //toFront in reverse order:
         objects.forEach(function(o) {
@@ -172,16 +182,12 @@ var APIToFrontTester = APIToFrontTester || (function() {
         
         
         testLeft += 200;
-        itemTop = testTop;
-        itemLeft = testLeft;
         graphicIndex = 0;
         pathIndex = 0;
         createTextObject('graphic - toBack from top', testTop, testLeft + 50);
         objects = [];
-        for(var i = 0; i < 10; i++) {
-            itemTop += 30;
-            itemLeft += 30;
-            objects.push(createGraphicObject(graphics[graphicIndex++ % graphics.length], 'objects', 100, itemTop, itemLeft));
+        for(var i = 10; i > 0; i--) {
+            objects.push(createGraphicObject(graphics[graphicIndex++ % graphics.length], 'objects', 100, testTop + (i * itemOffset), testLeft + (i * itemOffset)));
         }
         //toBack in regular order:
         objects.forEach(function(o) {
@@ -190,16 +196,12 @@ var APIToFrontTester = APIToFrontTester || (function() {
         
         
         testLeft += 200;
-        itemTop = testTop;
-        itemLeft = testLeft;
         graphicIndex = 0;
         pathIndex = 0;
         createTextObject('path - toBack from top', testTop, testLeft + 50);
         objects = [];
-        for(var i = 0; i < 10; i++) {
-            itemTop += 30;
-            itemLeft += 30;
-            objects.push(createPathObject('objects', colors[pathIndex++ % colors.length], colors[pathIndex % colors.length], 100, itemTop, itemLeft));
+        for(var i = 10; i > 0; i--) {
+            objects.push(createPathObject('objects', colors[pathIndex++ % colors.length], colors[pathIndex % colors.length], 100, testTop + (i * itemOffset), testLeft + (i * itemOffset)));
         }
         //toBack in regular order:
         objects.forEach(function(o) {
@@ -208,19 +210,15 @@ var APIToFrontTester = APIToFrontTester || (function() {
         
         
         testLeft += 200;
-        itemTop = testTop;
-        itemLeft = testLeft;
         graphicIndex = 0;
         pathIndex = 0;
         createTextObject('mixed - toFront from bottom', testTop, testLeft + 50);
         var objects = [];
-        for(var i = 0; i < 10; i++) {
-            itemTop += 30;
-            itemLeft += 30;
+        for(var i = 10; i > 0; i--) {
             if(i % 2) {
-                objects.unshift(createGraphicObject(graphics[graphicIndex++ % graphics.length], 'objects', 100, itemTop, itemLeft));
+                objects.unshift(createGraphicObject(graphics[graphicIndex++ % graphics.length], 'objects', 100, testTop + (i * itemOffset), testLeft + (i * itemOffset)));
             } else {    
-                objects.unshift(createPathObject('objects', colors[pathIndex++ % colors.length], colors[pathIndex % colors.length], 100, itemTop, itemLeft));
+                objects.unshift(createPathObject('objects', colors[pathIndex++ % colors.length], colors[pathIndex % colors.length], 100, testTop + (i * itemOffset), testLeft + (i * itemOffset)));
             }
         }
         //toFront in reverse order:
@@ -230,19 +228,15 @@ var APIToFrontTester = APIToFrontTester || (function() {
         
         
         testLeft += 200;
-        itemTop = testTop;
-        itemLeft = testLeft;
         graphicIndex = 0;
         pathIndex = 0;
         createTextObject('mixed - toBack from top', testTop, testLeft + 50);
         objects = [];
-        for(var i = 0; i < 10; i++) {
-            itemTop += 30;
-            itemLeft += 30;
+        for(var i = 10; i > 0; i--) {
             if(i % 2) {
-                objects.push(createGraphicObject(graphics[graphicIndex++ % graphics.length], 'objects', 100, itemTop, itemLeft));
+                objects.push(createGraphicObject(graphics[graphicIndex++ % graphics.length], 'objects', 100, testTop + (i * itemOffset), testLeft + (i * itemOffset)));
             } else {    
-                objects.push(createPathObject('objects', colors[pathIndex++ % colors.length], colors[pathIndex % colors.length], 100, itemTop, itemLeft));
+                objects.push(createPathObject('objects', colors[pathIndex++ % colors.length], colors[pathIndex % colors.length], 100, testTop + (i * itemOffset), testLeft + (i * itemOffset)));
             }
         }
         //toBack in regular order:
@@ -252,27 +246,19 @@ var APIToFrontTester = APIToFrontTester || (function() {
         
         
         testLeft += 250;
-        itemTop = testTop;
-        itemLeft = testLeft;
         graphicIndex = 0;
         pathIndex = 0;
         createTextObject('mixed, delayed - toFront from bottom', testTop, testLeft + 50);
         var objects = [];
-        for(var i = 0; i < 10; i++) {
-            itemTop += 30;
-            itemLeft += 30;
+        for(var i = 10; i > 0; i--) {
             if(i % 2) {
-                objects.unshift(createGraphicObject(graphics[graphicIndex++ % graphics.length], 'objects', 100, itemTop, itemLeft));
+                objects.unshift(createGraphicObject(graphics[graphicIndex++ % graphics.length], 'objects', 100, testTop + (i * itemOffset), testLeft + (i * itemOffset)));
             } else {    
-                objects.unshift(createPathObject('objects', colors[pathIndex++ % colors.length], colors[pathIndex % colors.length], 100, itemTop, itemLeft));
+                objects.unshift(createPathObject('objects', colors[pathIndex++ % colors.length], colors[pathIndex % colors.length], 100, testTop + (i * itemOffset), testLeft + (i * itemOffset)));
             }
         }
         //toFront in reverse order:
-        setTimeout(function() { 
-            objects.forEach(function(o) {
-                toFrontObject(o[0], o[1]);
-            }, this);
-        }, 500);
+        toFrontList(objects);
     },
     
     deleteObject = function(type, id) {
