@@ -6,8 +6,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.105,
-        schemaVersion = 0.031,
+    var version = 0.106,
+        schemaVersion = 0.032,
         buttonBackgroundColor = '#E92862',
         buttonGreyedColor = '#8D94A9',
         buttonHighlightedColor = '#00FF00',
@@ -54,14 +54,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
         state.APIAreaMapper.recordAreaMode = false;
         delete state.APIAreaMapper.playerId;
         delete state.APIAreaMapper.playerName;
+        delete state.APIAreaMapper.uiWindow;
         
         //reset the handout:
         if(state.APIAreaMapper.handoutUi) {
-            formatInterface(null, 'Area API - Welcome',
-                '<div style="padding-left:10px;margin-bottom:3px;">'
-                    +'<p>Click below to get started!</p>'
-                +'</div>'
-            );
+            state.APIAreaMapper.uiWindow = 'mainMenu';
+            followUpAction = [];
+            followUpAction.refresh = true;
+            processFollowUpAction(followUpAction);
         }
     },
     
@@ -141,7 +141,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this.initializeCollectionProperty('doors');
         
         if('undefined' !== typeof(id)) {
-            this.setProperty('id', id);
+            this.setProperty('id', parseFloat(id));
             this.load();
         }
     };
@@ -210,7 +210,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     area.prototype.load = function() {
         var id = this.getProperty('id');
-        
         var areas = state.APIAreaMapper.areas;
         var areaState;
         areas.forEach(function(a) {
@@ -2833,7 +2832,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             _path: path,
             rotation: rotation
         });
-        toFront(obj);
+        //toFront(obj);
         
         state.APIAreaMapper.tempIgnoreDrawingEvents = false;
         
@@ -2888,7 +2887,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             height: alternateWidthAndHeight ? width : height,
             rotation: segment.angleDegrees(segment.a) + (alternateWidthAndHeight ? 0 : 90)
         });
-        toFront(obj);
+        //toFront(obj);
         
         state.APIAreaMapper.tempIgnoreDrawingEvents = false;
         
@@ -2909,7 +2908,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             width: segment.b.x - segment.a.x,
             rotation: 0
         });
-        toFront(obj);
+        //toFront(obj);
         
         state.APIAreaMapper.tempIgnoreDrawingEvents = false;
         
@@ -3010,7 +3009,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 who = state.APIAreaMapper.playerName;
             }
             
-            sendChat('Area API', '/w ' + who.split(' ')[0] + ' ' + text); 
+            sendChat('Area Mapper', '/w ' + who.split(' ')[0] + ' ' + text); 
         } else {
             var handout = findObjs({                              
                 _type: 'handout',
@@ -3064,9 +3063,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
                             +'<div style="margin-top:10px;"></div>'
                             +commandLinks('General', [
                                 ['run script', '', false, false],
-                                ['settings', 'settings', false, false],
+                                ['main menu', 'mainMenu', false, false], //TODO: mainMenu link implementation
                                 ['help (TBA)', 'help', false, false],
-                                ['about', 'about', false, false]
+                                ['about', 'about', false, false],
+                                ['settings', 'settings', false, false]
                             ])
                         +'</span>'
                     +'</span>'
@@ -3078,7 +3078,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     sendNotification = function(to, message) {
         formatInterface(to,
-            'Area API - Notification',
+            'Notification',
             '<span style="text-align:center;padding-left:3px;display:inline-block;width: 100%;margin-top:3px;margin-bottom:3px;">'
                 +'<span style="padding-left:13px;padding-top:13px;padding-right:13px;display:inline-block;background-color:'+notificationBackgroundColor+';margin-top:13px;margin-left:13px;margin-right:13px;margin-bottom:3px;">'
                     +'<p>'+message+'</p>'
@@ -3123,7 +3123,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return html + '</p>';
     },
     
-    interfaceDoorOptions = function(who, managedGraphic) {
+    interfaceDoor = function(who, managedGraphic) {
+        state.APIAreaMapper.uiWindow = 'door'; //TODO: real door id - see note below
+        //TODO: when a door image is changed, rather than send a notification about reselecting, have it be implied to have the new graphic selected and call this method; also will have to store a specific selected door ID in the uiWindow state so that it can be a special rule that if it exists, the untuitive interface considers that to be a selection
+        
         sendStandardInterface(who, 'Area Mapper',
             commandLinks('Door Management', [
                 ['open', 'open', false, managedGraphic.properties[1]],
@@ -3134,34 +3137,59 @@ var APIAreaMapper = APIAreaMapper || (function() {
         );
     },
     
-    interfaceAreaDrawingOptions = function(who) {
-        var hasEdgeWallGaps = false;
-        var hasEdgeWalls = false;
-        var hasInnerWalls = false;
-        var hasDoors = false;
+    interfaceAreaManagement = function(who, areaId) {
+        var a = new area(areaId);
         
-        if(state.APIAreaMapper.activeArea) {
-            var a = new area(state.APIAreaMapper.activeArea);
-            
-            hasEdgeWallGaps = a.getProperty('edgeWallGaps').length;
-            hasEdgeWalls = a.getProperty('edgeWalls').length;
-            hasInnerWalls = a.getProperty('innerWalls').length;
-            hasDoors = a.getProperty('doors').length;
+        if(!a) {
+            log("Couldn't find area '" + areaId + "' in interfaceAreaManagement().");
+            delete state.APIAreaMapper.uiWindow;
+            return;
         }
         
+        var hasEdgeWallGaps = a.getProperty('edgeWallGaps').length;
+        var hasEdgeWalls = a.getProperty('edgeWalls').length;
+        var hasInnerWalls = a.getProperty('innerWalls').length;
+        var hasDoors = a.getProperty('doors').length;
+        
+        sendStandardInterface(who, 'Area Mapper', //TODO: rename page to area's name
+            commandLinks('Manage', [
+                ['activate', 'activate ' + areaId, false, (state.APIAreaMapper.activeArea == areaId)],
+                ['rename (TBA)', 'rename', true, false],
+                ['hide (TBA)', 'hide', true, false], //TODO: removes all instances, highlighted if there are no instances, TODO: decide if 'unhiding' draws an instance and figure out how to determine which page it should be on
+                ['archive (TBA)', 'archive', true, false] //TODO: hides and archives, highlighted if archived - changing from archived to non-archived unsets the archive flag
+            ])
+            +commandLinks('Modify', [
+                ['blueprint mode', 'blueprint', (state.APIAreaMapper.activeArea != areaId), state.APIAreaMapper.blueprintMode],
+                ['add to area', 'areaAppend', (state.APIAreaMapper.activeArea != areaId), (state.APIAreaMapper.recordAreaMode == 'areaAppend')],
+                ['remove from area', 'areaRemove', (state.APIAreaMapper.activeArea != areaId), (state.APIAreaMapper.recordAreaMode == 'areaRemove')],
+                ['remove edge walls', 'edgeWallRemove', (state.APIAreaMapper.activeArea != areaId) || !hasEdgeWalls, (state.APIAreaMapper.recordAreaMode == 'edgeWallRemove')],
+                ['add edge walls', 'edgeWallGapRemove', (state.APIAreaMapper.activeArea != areaId) || !hasEdgeWallGaps, (state.APIAreaMapper.recordAreaMode == 'edgeWallGapRemove')],
+                ['add inner walls', 'innerWallAdd', (state.APIAreaMapper.activeArea != areaId), (state.APIAreaMapper.recordAreaMode == 'innerWallAdd')],
+                ['remove inner walls', 'innerWallRemove', (state.APIAreaMapper.activeArea != areaId) || !hasInnerWalls, (state.APIAreaMapper.recordAreaMode == 'innerWallRemove')],
+                ['add door', 'doorAdd', (state.APIAreaMapper.activeArea != areaId) || (!hasEdgeWalls && !hasInnerWalls), (state.APIAreaMapper.recordAreaMode == 'doorAdd')],
+                ['remove door', 'doorRemove', (state.APIAreaMapper.activeArea != areaId) || !hasDoors, (state.APIAreaMapper.recordAreaMode == 'doorRemove')],
+                ['undo (TBA)', 'undo', true || (state.APIAreaMapper.activeArea != areaId), false],
+                ['redraw (TBA)', 'redraw', true || (state.APIAreaMapper.activeArea != areaId), false]
+            ])
+            +commandLinks('Related', [
+                ['active area', 'activeArea', !state.APIAreaMapper.activeArea || (state.APIAreaMapper.activeArea == areaId), false]
+            ])
+        );
+    },
+    
+    interfaceAreaList = function(who) {
+        
+    },
+    
+    interfaceMainMenu = function(who) {
+        state.APIAreaMapper.uiWindow = 'mainMenu';
+        
         sendStandardInterface(who, 'Area Mapper',
-            commandLinks('Area Drawing', [
-                ['blueprint mode', 'blueprint', false, state.APIAreaMapper.blueprintMode],
+            commandLinks('Main Menu', [
+                ['active area', 'activeArea', !state.APIAreaMapper.activeArea, false],
                 ['create new area', 'areaCreate', false, (state.APIAreaMapper.recordAreaMode == 'areaCreate')],
-                ['add to area', 'areaAppend', !state.APIAreaMapper.activeArea, (state.APIAreaMapper.recordAreaMode == 'areaAppend')],
-                ['remove from area', 'areaRemove', !state.APIAreaMapper.activeArea, (state.APIAreaMapper.recordAreaMode == 'areaRemove')],
-                ['remove edge walls', 'edgeWallRemove', !state.APIAreaMapper.activeArea || !hasEdgeWalls, (state.APIAreaMapper.recordAreaMode == 'edgeWallRemove')],
-                ['add edge walls', 'edgeWallGapRemove', !state.APIAreaMapper.activeArea || !hasEdgeWallGaps, (state.APIAreaMapper.recordAreaMode == 'edgeWallGapRemove')],
-                ['add inner walls', 'innerWallAdd', !state.APIAreaMapper.activeArea, (state.APIAreaMapper.recordAreaMode == 'innerWallAdd')],
-                ['remove inner walls', 'innerWallRemove', !state.APIAreaMapper.activeArea || !hasInnerWalls, (state.APIAreaMapper.recordAreaMode == 'innerWallRemove')],
-                ['add door', 'doorAdd', !state.APIAreaMapper.activeArea || (!hasEdgeWalls && !hasInnerWalls), (state.APIAreaMapper.recordAreaMode == 'doorAdd')],
-                ['remove door', 'doorRemove', !state.APIAreaMapper.activeArea || !hasDoors, (state.APIAreaMapper.recordAreaMode == 'doorRemove')],
-                ['undo (TBA)', 'undo', true || !state.APIAreaMapper.activeArea, false]
+                ['list areas (TBA)', 'listAreas', true || !state.APIAreaMapper.areas, false],
+                ['asset management (TBA)', 'assetsManage', true, false]
             ])
         );
     },
@@ -3195,16 +3223,21 @@ var APIAreaMapper = APIAreaMapper || (function() {
     intuit = function(selected, who) {
         var followUpAction = [];
         
-        if(!(selected && selected.length)) {
-            interfaceAreaDrawingOptions(who);
+        if(!(selected && selected.length) || selected.length !== 1) {
+            if(!state.APIAreaMapper.uiWindow || state.APIAreaMapper.uiWindow == 'mainMenu') {
+                interfaceMainMenu(who);
+                return;
+            }
+            
+            if(state.APIAreaMapper.uiWindow.indexOf('area#') === 0) {
+                interfaceAreaManagement(who, state.APIAreaMapper.uiWindow.substring(5));
+                return;
+            }
+            
+            interfaceMainMenu(who);
             return;
         }
-        
-        if(selected.length !== 1) {
-            interfaceAreaDrawingOptions(who);
-            return;
-        }
-     
+       
         var graphic = getObj('graphic', selected[0]._id);
         if(!graphic) {
             followUpAction.message = 'The selected item is not a reachable graphic.';
@@ -3221,7 +3254,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         switch(managedGraphicProperties.graphicType) {
             case 'doors':
-                interfaceDoorOptions(who, managedGraphicProperties);
+                interfaceDoor(who, managedGraphicProperties);
                 break;
             default:
                 log('Unhandled graphicType of ' + managedGraphicProperties.graphicType + ' in intuit().');
@@ -3254,7 +3287,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             state.APIAreaMapper.playerId = msg.playerid;
             state.APIAreaMapper.playerName = msg.who;
             
-            var followUpAction;
+            var followUpAction = []; //might get clobbered
             var chatCommand = msg.content.split(' ');
             
             if(chatCommand.length === 1) {
@@ -3263,6 +3296,22 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 switch(chatCommand[1]) {
                     case 'handoutUi':
                         followUpAction = toggleHandoutUi()
+                        break;
+                    case 'mainMenu':
+                        state.APIAreaMapper.uiWindow = 'mainMenu';
+                        followUpAction.refresh = true;
+                        break;
+                    case 'activeArea':
+                        state.APIAreaMapper.uiWindow = 'area#' + state.APIAreaMapper.activeArea;
+                        followUpAction.refresh = true;
+                        break;
+                    case 'activate':
+                        if(state.APIAreaMapper.activeArea == chatCommand[2]) {
+                            delete state.APIAreaMapper.activeArea;
+                        } else {
+                            state.APIAreaMapper.activeArea = chatCommand[2]
+                        }
+                        followUpAction.refresh = true;
                         break;
                     case 'areaCreate':
                     case 'areaAppend':
@@ -3315,10 +3364,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 followUpAction = a.create(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
                 state.APIAreaMapper.activeArea = a.getProperty('id');
                 state.APIAreaMapper.activePage = path.get('_pageid');
+                state.APIAreaMapper.uiWindow = 'area#' + state.APIAreaMapper.activeArea;
+                delete state.APIAreaMapper.recordAreaMode;
                
                 path.remove();
-                
-                state.APIAreaMapper.recordAreaMode = 'areaAppend';
                 break;
             case 'areaAppend':
                 if(!state.APIAreaMapper.activeArea) {
