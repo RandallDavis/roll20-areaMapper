@@ -140,6 +140,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this.initializeCollectionProperty('innerWalls');
         this.initializeCollectionProperty('doors');
         
+        //load existing area:
         if('undefined' !== typeof(id)) {
             this.setProperty('id', parseFloat(id));
             this.load();
@@ -151,6 +152,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     area.prototype.setProperty = function(property, value) {
         switch(property) {
             case 'id':
+            case 'name':
             case 'floorPlan': //simple polygon
             case 'width':
             case 'height':
@@ -187,12 +189,42 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }
     };
     
+    area.prototype.createName = function(nameType) {
+        var name = "";
+        
+        switch(nameType) {
+            case 'new':
+                var newNameBase = 'new area ';
+                var greatestNewNameNumber = 0;
+                
+                state.APIAreaMapper.areas.forEach(function(a) {
+                    a.forEach(function(prop) {
+                        if(prop[0] == 'name') {
+                            if(prop[1].indexOf(newNameBase) === 0) {
+                                greatestNewNameNumber = Math.max(greatestNewNameNumber, parseInt(prop[1].substring(newNameBase.length)));
+                            }
+                        }
+                    }, this);
+                }, this);
+                
+                name = newNameBase + (greatestNewNameNumber + 1);
+                break;
+            default:
+                log("Unhandled nameType of '" + nameType + "' in area.createName().");
+                return null;
+        }
+        
+        return name;
+    };
+    
     area.prototype.create = function(rawPath, pageId, top, left, isFromEvent) {
         var g = new graph();
         g.addComplexPolygon(rawPath, top, left, isFromEvent);
         var sp = g.convertComplexPolygonToSimplePolygon(0);
         var rp = g.getRawPath('simplePolygons', sp);
         this.setProperty('id', Math.random());
+        this.setProperty('name', this.createName('new'));
+        
         this.setProperty('floorPlan', rp.rawPath);
         
         //initially, edge walls will be identical to the floorPlan, because no gaps have been declared:
@@ -228,6 +260,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         for(var i = 0; i < areaState.length; i++) {
             switch(areaState[i][0]) {
                 case 'id':
+                case 'name':
                 case 'floorPlan':
                 case 'width':
                 case 'height':
@@ -249,6 +282,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     area.prototype.save = function() {
         var areaState = [];
         areaState.push(['id', this.getProperty('id')]);
+        areaState.push(['name', this.getProperty('name')]);
         areaState.push(['floorPlan', this.getProperty('floorPlan')]);
         areaState.push(['width', this.getProperty('width')]);
         areaState.push(['height', this.getProperty('height')]);
@@ -3151,13 +3185,16 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var hasInnerWalls = a.getProperty('innerWalls').length;
         var hasDoors = a.getProperty('doors').length;
         
-        sendStandardInterface(who, 'Area Mapper', //TODO: rename page to area's name
+        sendStandardInterface(who, a.getProperty('name'),
             commandLinks('Manage', [
                 ['activate', 'activate ' + areaId, false, (state.APIAreaMapper.activeArea == areaId)],
-                ['rename (TBA)', 'rename', true, false],
-                ['hide (TBA)', 'hide', true, false], //TODO: removes all instances, highlighted if there are no instances, TODO: decide if 'unhiding' draws an instance and figure out how to determine which page it should be on
+                ['rename (TBA)', 'rename', true, false], //TODO: name intializes to "new area #x" where x is the greatest generic name number +1
+                ['draw instance (TBA)', 'drawInstance', (state.APIAreaMapper.activeArea != areaId), (state.APIAreaMapper.recordAreaMode == 'areaInstanceCreate')], //TODO: waits for a path input - basically use the path to generally determine the page, position, and size of the instance
+                ['hide (TBA)', 'hide', true, false], //TODO: removes all instances, greyed if there are no instances
                 ['archive (TBA)', 'archive', true, false] //TODO: hides and archives, highlighted if archived - changing from archived to non-archived unsets the archive flag
             ])
+            //TODO: all modify commands greyed out if area his hidden (has no active instances)
+            //TODO: functionally in all of these area path adds, make sure that there is an instance on the same page as the drawn path
             +commandLinks('Modify', [
                 ['blueprint mode', 'blueprint', (state.APIAreaMapper.activeArea != areaId), state.APIAreaMapper.blueprintMode],
                 ['add to area', 'areaAppend', (state.APIAreaMapper.activeArea != areaId), (state.APIAreaMapper.recordAreaMode == 'areaAppend')],
@@ -3170,6 +3207,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 ['remove door', 'doorRemove', (state.APIAreaMapper.activeArea != areaId) || !hasDoors, (state.APIAreaMapper.recordAreaMode == 'doorRemove')],
                 ['undo (TBA)', 'undo', true || (state.APIAreaMapper.activeArea != areaId), false],
                 ['redraw (TBA)', 'redraw', true || (state.APIAreaMapper.activeArea != areaId), false]
+                //TODO: if you're modifying an area with multiple instances, all instances should be redrawn as the area changes
+                //TODO: instance-specific modifications: move, resize, rotate
             ])
             +commandLinks('Related', [
                 ['active area', 'activeArea', !state.APIAreaMapper.activeArea || (state.APIAreaMapper.activeArea == areaId), false]
