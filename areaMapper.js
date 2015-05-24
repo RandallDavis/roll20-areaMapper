@@ -3332,7 +3332,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 sendNotification(who, followUpAction.message);
             }
             else if(followUpAction.refresh) {
-                intuit(selected, who);
+                intuit(followUpAction.ignoreSelection ? null : selected, who);
             }
         }
     },
@@ -3357,22 +3357,27 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 switch(chatCommand[1]) {
                     case 'handoutUi':
                         followUpAction = toggleHandoutUi()
+                        followUpAction.ignoreSelection = true;
                         break;
                     case 'mainMenu':
                         state.APIAreaMapper.uiWindow = 'mainMenu';
                         followUpAction.refresh = true;
+                        followUpAction.ignoreSelection = true;
                         break;
                     case 'activeArea':
                         state.APIAreaMapper.uiWindow = 'area#' + state.APIAreaMapper.activeArea;
                         followUpAction.refresh = true;
+                        followUpAction.ignoreSelection = true;
                         break;
                     case 'areaActivate':
+                        //TODO: activating the area is not grabbing an active instance, so toggling blueprint mode creates a new one
                         if(state.APIAreaMapper.activeArea == chatCommand[2]) {
                             delete state.APIAreaMapper.activeArea;
                         } else {
                             state.APIAreaMapper.activeArea = chatCommand[2]
                         }
                         followUpAction.refresh = true;
+                        followUpAction.ignoreSelection = true;
                         break;
                     case 'areaCreate':
                     case 'areaAppend':
@@ -3384,9 +3389,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     case 'doorAdd':
                     case 'doorRemove':
                         followUpAction = toggleOrSetAreaRecordMode(chatCommand[1]);
+                        followUpAction.ignoreSelection = true;
                         break;
                     case 'blueprint':
                         followUpAction = toggleBlueprintMode();
+                        followUpAction.ignoreSelection = true;
                         break;
                     case 'interactiveObjectOpen':
                     case 'interactiveObjectLock':
