@@ -192,6 +192,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
     area.prototype.createName = function(nameType) {
         var name = "";
         
+        //TODO: nameType of "copy" along with ID of area being copied; like 'new' case, find the greastest number of 'copy of xxx #' and increment
+        
         switch(nameType) {
             case 'new':
                 var newNameBase = 'new area ';
@@ -224,7 +226,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var rp = g.getRawPath('simplePolygons', sp);
         this.setProperty('id', Math.random());
         this.setProperty('name', this.createName('new'));
-        
         this.setProperty('floorPlan', rp.rawPath);
         
         //initially, edge walls will be identical to the floorPlan, because no gaps have been declared:
@@ -3007,9 +3008,30 @@ var APIAreaMapper = APIAreaMapper || (function() {
             return followUpAction;
         }
         
+        var interactiveProperty;
+        
+        switch(property) {
+            case 'interactiveObjectOpen':
+                interactiveProperty = 'open';
+                break;
+            case 'interactiveObjectLock':
+                interactiveProperty = 'lock';
+                break;
+            case 'interactiveObjectTrap':
+                interactiveProperty = 'trap';
+                break;
+            case 'interactiveObjectHide':
+                interactiveProperty = 'hide';
+                break;
+            default:
+                log("Unhandled property of '" + property + "' in toggleInteractiveProperty().");
+                //TODO: return a failure message:
+                return;
+        }
+        
         var a = new area(state.APIAreaMapper.activeArea);
         
-        return a.toggleInteractiveProperty(graphic, property);
+        return a.toggleInteractiveProperty(graphic, interactiveProperty);
     },
     
     //character converter, credits to Aaron from https://github.com/shdwjk/Roll20API/blob/master/APIHeartBeat/APIHeartBeat.js
@@ -3163,10 +3185,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         sendStandardInterface(who, 'Area Mapper',
             commandLinks('Door Management', [
-                ['open', 'open', false, managedGraphic.properties[1]],
-                ['lock', 'lock', false, managedGraphic.properties[2]],
-                ['trap', 'trap', false, managedGraphic.properties[3]],
-                ['hide', 'hide', false, managedGraphic.properties[4]]
+                ['open', 'interactiveObjectOpen', false, managedGraphic.properties[1]],
+                ['lock', 'interactiveObjectLock', false, managedGraphic.properties[2]],
+                ['trap', 'interactiveObjectTrap', false, managedGraphic.properties[3]],
+                ['hide', 'interactiveObjectHide', false, managedGraphic.properties[4]]
             ])
         );
     },
@@ -3187,11 +3209,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         sendStandardInterface(who, a.getProperty('name'),
             commandLinks('Manage', [
-                ['activate', 'activate ' + areaId, false, (state.APIAreaMapper.activeArea == areaId)],
-                ['rename (TBA)', 'rename', true, false], //TODO: name intializes to "new area #x" where x is the greatest generic name number +1
-                ['draw instance (TBA)', 'drawInstance', (state.APIAreaMapper.activeArea != areaId), (state.APIAreaMapper.recordAreaMode == 'areaInstanceCreate')], //TODO: waits for a path input - basically use the path to generally determine the page, position, and size of the instance
-                ['hide (TBA)', 'hide', true, false], //TODO: removes all instances, greyed if there are no instances
-                ['archive (TBA)', 'archive', true, false] //TODO: hides and archives, highlighted if archived - changing from archived to non-archived unsets the archive flag
+                ['activate', 'areaActivate ' + areaId, false, (state.APIAreaMapper.activeArea == areaId)],
+                ['rename (TBA)', 'areaRename', true, false], //TODO: name intializes to "new area #x" where x is the greatest generic name number +1
+                ['draw instance (TBA)', 'areaDrawInstance', true || (state.APIAreaMapper.activeArea != areaId), (state.APIAreaMapper.recordAreaMode == 'areaInstanceCreate')], //TODO: waits for a path input - basically use the path to generally determine the page, position, and size of the instance; should fail if the page already has an instance
+                ['hide (TBA)', 'areaHide', true, false], //TODO: removes all instances, greyed if there are no instances
+                ['archive (TBA)', 'areaArchive', true, false] //TODO: hides and archives, highlighted if archived - changing from archived to non-archived unsets the archive flag
             ])
             //TODO: all modify commands greyed out if area his hidden (has no active instances)
             //TODO: functionally in all of these area path adds, make sure that there is an instance on the same page as the drawn path
@@ -3344,7 +3366,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         state.APIAreaMapper.uiWindow = 'area#' + state.APIAreaMapper.activeArea;
                         followUpAction.refresh = true;
                         break;
-                    case 'activate':
+                    case 'areaActivate':
                         if(state.APIAreaMapper.activeArea == chatCommand[2]) {
                             delete state.APIAreaMapper.activeArea;
                         } else {
@@ -3366,10 +3388,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     case 'blueprint':
                         followUpAction = toggleBlueprintMode();
                         break;
-                    case 'open':
-                    case 'lock':
-                    case 'trap':
-                    case 'hide':
+                    case 'interactiveObjectOpen':
+                    case 'interactiveObjectLock':
+                    case 'interactiveObjectTrap':
+                    case 'interactiveObjectHide':
                         followUpAction = toggleInteractiveProperty(msg.selected, msg.who, chatCommand[1]);
                         break;
                     case 'settings':
