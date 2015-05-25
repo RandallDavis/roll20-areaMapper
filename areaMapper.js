@@ -38,7 +38,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 areas: [],
                 areaInstances: [],
                 activeArea: null,
-                activePage: null,
                 blueprintFloorPolygonColor: '#A3E1E4',
                 blueprintEdgeWallGapsPathColor: '#D13583',
                 blueprintInnerWallsPathColor: '#3535D1',
@@ -234,7 +233,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this.setProperty('width', rp.width);
         this.setProperty('height', rp.height);
         this.save();
-        this.draw(pageId, rp.top, rp.left);
+        
+        this.createInstance(pageId, rp.top, rp.left);
         
         var followUpAction = [];
         followUpAction.refresh = true;
@@ -311,6 +311,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         //save the updated area state:
         state.APIAreaMapper.areas.push(areaState);
+    };
+    
+    area.prototype.createInstance = function(pageId, top, left) {
+        var instance = new areaInstance(this.getProperty('id'), pageId);
+        instance.setProperty('top', top);
+        instance.setProperty('left', left);
+        instance.save();
+        instance.draw();
     };
     
     area.prototype.getEdgeWallGapPointsPath = function(pageId) {
@@ -414,7 +422,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             }
             
             this.save();
-            this.draw(pageId, rp.top, rp.left);
+            this.draw();
         }
         
         followUpAction.refresh = true;
@@ -462,7 +470,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             }
             
             this.save();
-            this.draw(pageId, rp.top, rp.left);
+            this.draw();
         }
         
         followUpAction.refresh = true;
@@ -516,7 +524,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }, this);
         
         this.save();
-        this.draw(pageId, instance.getProperty('top'), instance.getProperty('left'));
+        this.draw();
         
         followUpAction.refresh = true;
         return followUpAction;
@@ -562,7 +570,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             }, this);
             
             this.save();
-            this.draw(pageId, instance.getProperty('top'), instance.getProperty('left'));
+            this.draw();
         }
 
         followUpAction.refresh = true;
@@ -591,7 +599,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this.setProperty('innerWalls', [rp.rawPath, rp.top, rp.left, rp.height, rp.width]);
         
         this.save();
-        this.draw(pageId, instance.getProperty('top'), instance.getProperty('left'));
+        this.draw();
         
         followUpAction.refresh = true;
         return followUpAction;
@@ -636,7 +644,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this.initializeCollectionProperty('innerWalls', newInnerWalls);
         
         this.save();
-        this.draw(pageId, instance.getProperty('top'), instance.getProperty('left'));
+        this.draw();
         
         followUpAction.refresh = true;
         return followUpAction;
@@ -848,10 +856,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
             0, //is locked
             0, //is trapped
             0 //is hidden
-            ]);
+        ]);
         
         this.save();
-        this.draw(pageId, instance.getProperty('top'), instance.getProperty('left'));
+        this.draw();
         
         followUpAction.refresh = true;
         return followUpAction;
@@ -888,21 +896,40 @@ var APIAreaMapper = APIAreaMapper || (function() {
             this.initializeCollectionProperty('doors', doors);
             
             this.save();
-            this.draw(pageId, instance.getProperty('top'), instance.getProperty('left'));
+            this.draw();
         }
       
         followUpAction.refresh = true;
         return followUpAction;
     };
     
-    area.prototype.undraw = function(pageId) {
-        instance = new areaInstance(this.getProperty('id'), pageId);
-        instance.undraw();
+    area.prototype.getInstancePageIds = function() {
+        var instancePageIds = [];
+    
+        state.APIAreaMapper.areaInstances.forEach(function(a) {
+            if(a[0][1] === this.getProperty('id')) {
+                instancePageIds.push(a[1][1])
+            }
+        }, this);
+        
+        log('instancePageIds');
+        log(instancePageIds);
+        
+        return instancePageIds;
     };
     
-    area.prototype.draw = function(pageId, top, left) {
-        instance = new areaInstance(this.getProperty('id'), pageId);
-        instance.draw(top, left);
+    area.prototype.undraw = function() {
+        this.getInstancePageIds().forEach(function(pageId) {
+            var instance = new areaInstance(this.getProperty('id'), pageId)
+            instance.undraw();
+        }, this);
+    };
+    
+    area.prototype.draw = function() {
+        this.getInstancePageIds().forEach(function(pageId) {
+            var instance = new areaInstance(this.getProperty('id'), pageId)
+            instance.draw();
+        }, this);
     };
     
     area.prototype.handleGraphicChange = function(graphic) {
@@ -1006,7 +1033,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             if(areaInstanceState) {
                 return;
             }
-        });
+        }, this);
         
         //couldn't find any state to load:
         if(!areaInstanceState) {
@@ -1061,8 +1088,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         for(var i = 0; i < areaInstances.length; i++) {
             
             //note: expects areaId and pageId to be the first and second properties:
-            if(areaInstances[i][0] === this.getProperty('areaId')
-                    && areaInstances[i][1] === this.getProperty('pageId')) {
+            if(areaInstances[i][0][1] === this.getProperty('areaId')
+                    && areaInstances[i][1][1] === this.getProperty('pageId')) {
                 oldAreaInstanceState = state.APIAreaMapper.areaInstances.splice(i, 1);        
             }
    
@@ -1139,20 +1166,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this.save();
     };
     
-    areaInstance.prototype.draw = function(top, left) {
+    areaInstance.prototype.draw = function() {
         this.undraw();
         
-        this.load();
-        
-        if('undefined' !== typeof(top)) {
-            this.setProperty('top', top);
-        }
-        
-        if('undefined' !== typeof(left)) {
-            this.setProperty('left', left);
-        }
-        
-        this.save();
+        log('areaInstance.draw() called');
         
         if(state.APIAreaMapper.blueprintMode) {
             this.drawBlueprint();
@@ -1443,6 +1460,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 break;
         }
         
+        //TODO: does this need to call to the area and propagate to all instances?
         this.drawInteractiveObject(objectType, masterIndex, eventObj);
     };
     
@@ -1529,6 +1547,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 a.getProperty(managedGraphic.graphicType)[managedGraphic.graphicIndex] = graphicMaster;
                 a.save();
                 
+                //TODO: do these drawing calls need to go out to the area and propagate down to all instances?
                 //redraw the entire door:
                 if(redraw) {
                     var errorMessage = this.drawInteractiveObject(managedGraphic.graphicType, managedGraphic.graphicIndex, graphic);
@@ -2978,9 +2997,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         state.APIAreaMapper.blueprintMode = !state.APIAreaMapper.blueprintMode;
         
         if(state.APIAreaMapper.activeArea) {
-            var a = new area();
-            a.setProperty('id', state.APIAreaMapper.activeArea);
-            a.draw(state.APIAreaMapper.activePage);
+            var a = new area(state.APIAreaMapper.activeArea);
+            a.draw();
         }
         
         var followUpAction = [];
@@ -3370,7 +3388,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         followUpAction.ignoreSelection = true;
                         break;
                     case 'areaActivate':
-                        //TODO: activating the area is not grabbing an active instance, so toggling blueprint mode creates a new one
                         if(state.APIAreaMapper.activeArea == chatCommand[2]) {
                             delete state.APIAreaMapper.activeArea;
                         } else {
@@ -3426,12 +3443,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         var followUpAction;
         
+        //TODO: a lot of these log entries can become notifications
         switch(state.APIAreaMapper.recordAreaMode) {
             case 'areaCreate':
                 var a = new area();
                 followUpAction = a.create(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
                 state.APIAreaMapper.activeArea = a.getProperty('id');
-                state.APIAreaMapper.activePage = path.get('_pageid');
                 state.APIAreaMapper.uiWindow = 'area#' + state.APIAreaMapper.activeArea;
                 delete state.APIAreaMapper.recordAreaMode;
                
