@@ -912,9 +912,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
             }
         }, this);
         
-        log('instancePageIds');
-        log(instancePageIds);
-        
         return instancePageIds;
     };
     
@@ -953,6 +950,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
     area.prototype.toggleInteractiveProperty = function(graphic, property) {
         var instance = new areaInstance(this.getProperty('id'), graphic.get('_pageid'));
         return instance.toggleInteractiveProperty(graphic, property);
+    };
+    
+    //draws an interactive object in all instances:
+    area.prototype.drawInteractiveObject = function(objectType, masterIndex, featureTagsOnly) {
+        this.getInstancePageIds().forEach(function(pageId) {
+            var instance = new areaInstance(this.getProperty('id'), pageId)
+            instance.drawInteractiveObject(objectType, masterIndex, featureTagsOnly);
+        }, this);
     };
     
     
@@ -1169,8 +1174,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
     areaInstance.prototype.draw = function() {
         this.undraw();
         
-        log('areaInstance.draw() called');
-        
         if(state.APIAreaMapper.blueprintMode) {
             this.drawBlueprint();
         } else {
@@ -1237,8 +1240,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this.save();
     };
     
-    //draws an interactive object; if eventObj is provided, it means that there was a user interaction:
-    areaInstance.prototype.drawInteractiveObject = function(objectType, masterIndex, eventObj) {
+    //draws an interactive object, which may replace an existing one:
+    areaInstance.prototype.drawInteractiveObject = function(objectType, masterIndex, featureTagsOnly) {
+        
+        //note: featureTagsOnly is only legal if this is an existing object
+        
         var a = new area(this.getProperty('areaId'));
         var g = new graph();
         
@@ -1247,37 +1253,72 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 var master = a.getProperty(objectType)[masterIndex];
                 var dIndex = g.addSimplePathFromSegment(master[0], this.getProperty('top'), this.getProperty('left'));
                 var s = g.getProperty('simplePaths')[dIndex].segments[0];
+                var doorProperty = [];
                 
-                //note: there is no behavioral handling of hidden doors
-                //handle interactions:
-                if(eventObj) {
+                //if the number of objects in the area and the instance are equal, then this is modifying an existing object:
+                var existingDoor = this.getProperty('doorIds').length === a.getProperty(objectType).length;
+                
+                if(existingDoor) {
                     
-                    //delete the old door image:
-                    deleteObject('graphic', this.getProperty('doorIds')[masterIndex][0]);
-                    
-                    //delete the old door LoS wall (which may not exist):
-                    deleteObject('path', this.getProperty('doorIds')[masterIndex][1]);
-                    
-                    //delete the old door feature tags:
+                    //delete feature tags:
                     this.getProperty('doorIds')[masterIndex][2].forEach(function(ftId) {
                         deleteObject('path', ftId);
                     }, this);
-                
-                    this.getProperty('doorIds')[masterIndex] = ['','',[]];
+                    
+                    //delete door:
+                    if(!featureTagsOnly) {
+                        //note: there is no behavioral handling of hidden doors
+                            
+                        //delete the old door image:
+                        deleteObject('graphic', this.getProperty('doorIds')[masterIndex][0]);
+                        
+                        //delete the old door LoS wall (which may not exist):
+                        deleteObject('path', this.getProperty('doorIds')[masterIndex][1]);
+                        
+                        //delete the old door feature tags:
+                        this.getProperty('doorIds')[masterIndex][2].forEach(function(ftId) {
+                            deleteObject('path', ftId);
+                        }, this);
+                    
+                        //clear properties out to be prudent, but they will be overwritten soon anyway:
+                        this.getProperty('doorIds')[masterIndex] = ['','',[]];
+                    }
                 }
                 
-                //TODO: replace open hidden door image with something unique:
-                //draw the door (hidden or standard):
-                var door = 
-                    master[4]
-                        ? (master[1]
-                            ? createTokenObjectFromSegment(openDoorImageUrl, this.getProperty('pageId'), 'objects', s, 30, true)
-                            : createTokenObjectFromSegment(wallImageUrl, this.getProperty('pageId'), 'objects', s, 20, false))
-                        : createTokenObjectFromSegment((master[1] ? openDoorImageUrl : closedDoorImageUrl), this.getProperty('pageId'), 'objects', s, 30, true);
+                var door;
                 
-                //set door privs to players unless the door is hidden:
-                if(!master[4]) {
-                    door.set("controlledby", "all");
+                //keep existing door:
+                if(featureTagsOnly) {
+                    door = getObj('graphic', this.getProperty('doorIds')[masterIndex][0]);
+                    doorProperty.push(this.getProperty('doorIds')[masterIndex][0]); //door token ID
+                    doorProperty.push(this.getProperty('doorIds')[masterIndex][1]); //door LoS path ID
+                }
+                //create a new door:
+                else {
+                
+                    //TODO: replace open hidden door image with something unique:
+                    //draw the door (hidden or standard):
+                    door = 
+                        master[4]
+                            ? (master[1]
+                                ? createTokenObjectFromSegment(openDoorImageUrl, this.getProperty('pageId'), 'objects', s, 30, true)
+                                : createTokenObjectFromSegment(wallImageUrl, this.getProperty('pageId'), 'objects', s, 20, false))
+                            : createTokenObjectFromSegment((master[1] ? openDoorImageUrl : closedDoorImageUrl), this.getProperty('pageId'), 'objects', s, 30, true);
+                    
+                    //set door privs to players unless the door is hidden:
+                    if(!master[4]) {
+                        door.set("controlledby", "all");
+                    }
+                    
+                    //draw line of sight blocking wall if the door is closed:
+                    var doorLosId = '';
+                    if(!master[1]) {
+                        var rp = g.getRawPath('simplePaths', dIndex);
+                        doorLosId = createPathObject(this.getProperty('pageId'), 'walls', '#ff0000', 'transparent', rp.rawPath, rp.top, rp.left, rp.height, rp.width, 1).id;
+                    }
+                    
+                    doorProperty.push(door.id);
+                    doorProperty.push(doorLosId);
                 }
                 
                 //draw feature tags around the door:
@@ -1293,20 +1334,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 }
                 var tagIds = drawFeatureTags(door, featureTagColors);
                 
-                //draw line of sight blocking wall if the door is closed:
-                var doorLosId = '';
-                if(!master[1]) {
-                    var rp = g.getRawPath('simplePaths', dIndex);
-                    doorLosId = createPathObject(this.getProperty('pageId'), 'walls', '#ff0000', 'transparent', rp.rawPath, rp.top, rp.left, rp.height, rp.width, 1).id;
-                }
-                
-                var doorProperty = [];
-                doorProperty.push(door.id);
-                doorProperty.push(doorLosId);
                 doorProperty.push(tagIds);
                 
                 //if this is replacing an existing image, write it back into the appropriate slot:
-                if(eventObj) {
+                if(existingDoor) {
                     this.getProperty('doorIds')[masterIndex] = doorProperty;
                 }
                 //if it's a new image, push it to the end (which will line up with the master's index):
@@ -1319,7 +1350,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 return 'There was a problem; check the log for details.';
         }
         
-        a.save();
         this.save();
         
         return null;
@@ -1392,7 +1422,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return returnObj;
     };
     
-    areaInstance.prototype.handleInteractiveObjectInteraction = function(objectType, masterIndex, eventObj) {
+    areaInstance.prototype.handleInteractiveObjectInteraction = function(objectType, masterIndex) {
         var a = new area(this.getProperty('areaId'));
         var g = new graph();
         
@@ -1402,66 +1432,62 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 var dIndex = g.addSimplePathFromSegment(master[0], this.getProperty('top'), this.getProperty('left'));
                 var s = g.getProperty('simplePaths')[dIndex].segments[0];
                 var sMidpoint = s.midpoint();
-                
-                //handle interactions:
-                if(eventObj) {
                     
-                    //handle locked object:
-                    if(master[2]) {
-                        
-                        //lock visual alert:
-                        setTimeout(
-                            APIVisualAlert.visualAlert(
-                                padlockAlertPic,
-                                sMidpoint.x,
-                                sMidpoint.y,
-                                1.0,
-                                1),
-                            5);
-                    }
-                    //process toggle:
-                    else {
-                        if(master[3]) {
-                            
-                            //trap visual alert:
-                            setTimeout(
-                                APIVisualAlert.visualAlert(
-                                    skullAlertPic,
-                                    sMidpoint.x,
-                                    sMidpoint.y,
-                                    1.0,
-                                    2),
-                                5);
-                            
-                            master[3] = 0;
-                        }
-                        
-                        //toggle door state:
-                        master[1] = (master[1] + 1) % 2;
-                        
-                        //door toggle visual alert:
-                        setTimeout(
-                            APIVisualAlert.visualAlert(
-                                master[1] ? openDoorAlertPic : closedDoorAlertPic,
-                                sMidpoint.x,
-                                sMidpoint.y,
-                                1.0,
-                                0),
-                            5);
-                    }
+                //handle locked object:
+                if(master[2]) {
                     
-                    //update the master:
-                    a.getProperty(objectType)[masterIndex] = master;
-                    a.save();
+                    //lock visual alert:
+                    setTimeout(
+                        APIVisualAlert.visualAlert(
+                            padlockAlertPic,
+                            sMidpoint.x,
+                            sMidpoint.y,
+                            1.0,
+                            1),
+                        5);
                 }
+                //process toggle:
+                else {
+                    if(master[3]) {
+                        
+                        //trap visual alert:
+                        setTimeout(
+                            APIVisualAlert.visualAlert(
+                                skullAlertPic,
+                                sMidpoint.x,
+                                sMidpoint.y,
+                                1.0,
+                                2),
+                            5);
+                        
+                        master[3] = 0;
+                    }
+                    
+                    //toggle door state:
+                    master[1] = (master[1] + 1) % 2;
+                    
+                    //door toggle visual alert:
+                    setTimeout(
+                        APIVisualAlert.visualAlert(
+                            master[1] ? openDoorAlertPic : closedDoorAlertPic,
+                            sMidpoint.x,
+                            sMidpoint.y,
+                            1.0,
+                            0),
+                        5);
+                }
+                
+                //update the master:
+                a.getProperty(objectType)[masterIndex] = master;
+                a.save();
                 break;
             default:
                 log('Unsupported objectType of ' + objectType + ' in areaInstance.drawInteractiveObject().');
                 break;
         }
         
-        //TODO: does this need to call to the area and propagate to all instances?
-        this.drawInteractiveObject(objectType, masterIndex, eventObj);
+        //draw the object in the area, so that it propagates to all instances:
+        a.drawInteractiveObject(objectType, masterIndex);
     };
     
     areaInstance.prototype.handleGraphicChange = function(graphic) {
@@ -1499,7 +1525,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 break;
         }
         
-        this.handleInteractiveObjectInteraction(managedGraphic.graphicType, managedGraphic.graphicIndex, graphic);
+        this.handleInteractiveObjectInteraction(managedGraphic.graphicType, managedGraphic.graphicIndex);
         this.save();
     };
     
@@ -1547,33 +1573,13 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 a.getProperty(managedGraphic.graphicType)[managedGraphic.graphicIndex] = graphicMaster;
                 a.save();
                 
-                //TODO: do these drawing calls need to go out to the area and propagate down to all instances?
-                //redraw the entire door:
-                if(redraw) {
-                    var errorMessage = this.drawInteractiveObject(managedGraphic.graphicType, managedGraphic.graphicIndex, graphic);
-                    followUpAction.message = errorMessage ? errorMessage : 'The graphic has been replaced with a new one. Please select it for futher modifications.';
+                //redraw the door or just its features across all instances of the area:
+                var errorMessage = a.drawInteractiveObject(managedGraphic.graphicType, managedGraphic.graphicIndex, !redraw);
+                followUpAction.message = errorMessage;
+                if(!followUpAction.message && redraw) {
+                    followUpAction.message = 'The graphic has been replaced with a new one. Please select it for futher modifications.';
                 }
-                //redraw feature tags, but not the door:
-                else {
-                    this.getProperty('doorIds')[managedGraphic.graphicIndex][2].forEach(function(ftId) {
-                        deleteObject('path', ftId);
-                    }, this);
-                    
-                    var featureTagColors = [];
-                    if(graphicMaster[2]) {
-                        featureTagColors.push(lockedTagColor);
-                    }
-                    if(graphicMaster[3]) {
-                        featureTagColors.push(trappedTagColor);
-                    }
-                    if(graphicMaster[4]) {
-                        featureTagColors.push(hiddenTagColor);
-                    }
-                    var tagIds = drawFeatureTags(graphic, featureTagColors);
-                    
-                    this.getProperty('doorIds')[managedGraphic.graphicIndex][2] = tagIds;
-                }
-                
+          
                 break;
             default:
                 log('Unhandled graphic type of ' + managedGraphic.graphicType + ' in areaInstance.toggleInteractiveProperty().');
@@ -3137,7 +3143,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                             +'<div style="margin-top:10px;"></div>'
                             +commandLinks('General', [
                                 ['run script', '', false, false],
-                                ['main menu', 'mainMenu', false, false], //TODO: mainMenu link implementation
+                                ['main menu', 'mainMenu', false, false],
                                 ['help (TBA)', 'help', false, false],
                                 ['about', 'about', false, false],
                                 ['settings', 'settings', false, false]
@@ -3228,7 +3234,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         sendStandardInterface(who, a.getProperty('name'),
             commandLinks('Manage', [
                 ['activate', 'areaActivate ' + areaId, false, (state.APIAreaMapper.activeArea == areaId)],
-                ['rename (TBA)', 'areaRename', true, false], //TODO: name intializes to "new area #x" where x is the greatest generic name number +1
+                ['rename (TBA)', 'areaRename', true, false],
                 ['draw instance (TBA)', 'areaDrawInstance', true || (state.APIAreaMapper.activeArea != areaId), (state.APIAreaMapper.recordAreaMode == 'areaInstanceCreate')], //TODO: waits for a path input - basically use the path to generally determine the page, position, and size of the instance; should fail if the page already has an instance
                 ['hide (TBA)', 'areaHide', true, false], //TODO: removes all instances, greyed if there are no instances
                 ['archive (TBA)', 'areaArchive', true, false] //TODO: hides and archives, highlighted if archived - changing from archived to non-archived unsets the archive flag
@@ -3246,8 +3252,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 ['add door', 'doorAdd', (state.APIAreaMapper.activeArea != areaId) || (!hasEdgeWalls && !hasInnerWalls), (state.APIAreaMapper.recordAreaMode == 'doorAdd')],
                 ['remove door', 'doorRemove', (state.APIAreaMapper.activeArea != areaId) || !hasDoors, (state.APIAreaMapper.recordAreaMode == 'doorRemove')],
                 ['undo (TBA)', 'undo', true || (state.APIAreaMapper.activeArea != areaId), false],
-                ['redraw (TBA)', 'redraw', true || (state.APIAreaMapper.activeArea != areaId), false]
-                //TODO: if you're modifying an area with multiple instances, all instances should be redrawn as the area changes
+                ['redraw (TBA)', 'redraw', true || (state.APIAreaMapper.activeArea != areaId), false] //TODO: if you're modifying an area with multiple instances, all instances should be redrawn as the area changes
                 //TODO: instance-specific modifications: move, resize, rotate
             ])
             +commandLinks('Related', [
