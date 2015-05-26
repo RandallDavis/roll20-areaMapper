@@ -6,7 +6,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.108,
+    var version = 0.109,
         schemaVersion = 0.032,
         buttonBackgroundColor = '#E92862',
         buttonGreyedColor = '#8D94A9',
@@ -330,11 +330,16 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     //draws an instance on the page, if one already exists, it'll be redrawn in the new location:
     area.prototype.createInstance = function(pageId, top, left) {
+        var followUpAction = [];
+        
         var instance = new areaInstance(this.getProperty('id'), pageId);
         instance.setProperty('top', top);
         instance.setProperty('left', left);
         instance.save();
         instance.draw();
+        
+        followUpAction.refresh = true;
+        return followUpAction;
     };
     
     area.prototype.getEdgeWallGapPointsPath = function(pageId) {
@@ -3084,6 +3089,17 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return followUpAction;
     },
     
+    handleAreaRedraw = function() {
+        var followUpAction = [];
+        followUpAction.refresh = true;
+        
+        var a = new area(state.APIAreaMapper.activeArea);
+        a.undraw();
+        a.draw();
+        
+        return followUpAction;
+    },
+    
     //character converter, credits to Aaron from https://github.com/shdwjk/Roll20API/blob/master/APIHeartBeat/APIHeartBeat.js
     ch = function(c) {
         var entities = {
@@ -3278,7 +3294,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 ['add door', 'doorAdd', !hasInstances || (state.APIAreaMapper.activeArea != areaId) || (!hasEdgeWalls && !hasInnerWalls), (state.APIAreaMapper.recordAreaMode == 'doorAdd')],
                 ['remove door', 'doorRemove', !hasInstances || (state.APIAreaMapper.activeArea != areaId) || !hasDoors, (state.APIAreaMapper.recordAreaMode == 'doorRemove')],
                 ['undo (TBA)', 'undo', true || !hasInstances || (state.APIAreaMapper.activeArea != areaId), false],
-                ['redraw (TBA)', 'redraw', true || !hasInstances || (state.APIAreaMapper.activeArea != areaId), false] //TODO: if you're modifying an area with multiple instances, all instances should be redrawn as the area changes
+                ['redraw', 'redraw', !hasInstances || (state.APIAreaMapper.activeArea != areaId), false]
                 //TODO: instance-specific modifications: move, resize, rotate
             ])
             +commandLinks('Related', [
@@ -3533,6 +3549,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     case 'areaInstanceCreate':
                         followUpAction = toggleOrSetAreaRecordMode(chatCommand[1]);
                         followUpAction.ignoreSelection = true;
+                        break;
+                    case 'redraw':
+                        followUpAction = handleAreaRedraw();
                         break;
                     case 'blueprint':
                         followUpAction = toggleBlueprintMode();
