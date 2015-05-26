@@ -3262,17 +3262,101 @@ var APIAreaMapper = APIAreaMapper || (function() {
     },
     
     interfaceAreaList = function(who) {
+        var displayFolder = state.APIAreaMapper.uiWindow.split(' ')[1];
         
+        //find the areas and break them into groups:
+        var areasByFolder = [[],[],[]]; //0: drawn, 1: hidden, 2: archived
+        
+        var drawnCount = 0;
+        var hiddenCount = 0;
+        var archivedCount = 0;
+        
+        //populate drawn areas (with instance count):
+        state.APIAreaMapper.areaInstances.forEach(function(ai) {
+            var areaId = ai[0][1];
+            
+            if(areasByFolder[0][areaId]) {
+                areasByFolder[0][areaId][0]++;
+            } else {
+                drawnCount++;
+                
+                areasByFolder[0][areaId] = [1, ''];
+            }
+            
+            log('areasByFolder[0][' + areaId + ']: ' + areasByFolder[0][areaId]);
+        }, this);
+        
+        //populate area information:
+        state.APIAreaMapper.areas.forEach(function(a) {
+            var areaId,
+                areaName;
+                
+            for(var prop in a) {
+                log('prop: ' + a[prop][0]);
+                switch(a[prop][0]) {
+                    case 'id':
+                        areaId = a[prop][1];
+                        break;
+                    case 'name':
+                        areaName = a[prop][1];
+                        break;
+                    default:
+                        break;
+                }
+            }
+            
+            if(areasByFolder[0][areaId]) {
+                areasByFolder[0][areaId][1] = areaName;
+            } else {
+                hiddenCount++;
+                //TODO: if the area has the archived property, put it in the archive folder instead
+                areasByFolder[1][areaId] = areaName;
+            }
+        }, this);
+        
+        for(var areaId in areasByFolder[0]) {
+            log('drawn areasByFolder[0][' + areaId + ']: ' + areasByFolder[0][areaId]);
+        }
+        
+        var html = '';
+        var folderLinks = [];
+        
+        //TODO: archived folder:
+        switch(displayFolder) {
+            case 'drawn':
+                for(var areaId in areasByFolder[0]) {
+                    folderLinks.push([areasByFolder[0][areaId][1] + ' (' + areasByFolder[0][areaId][0]  + ')', 'manageArea ' + areaId, false, false]);
+                }
+                html += commandLinks('Drawn', folderLinks)
+                    +commandLinks('Other Lists', [
+                            ['Hidden (' + hiddenCount + ')', 'listAreas hidden', !hiddenCount, false],
+                            ['Archived (TBA)', 'listAreas archived', true || !archivedCount, false]
+                        ]);
+                break;
+            case 'hidden':
+                for(var areaId in areasByFolder[1]) {
+                    folderLinks.push([areasByFolder[1][areaId], 'manageArea ' + areaId, false, false]);
+                }
+                html += commandLinks('Hidden', folderLinks)
+                    +commandLinks('Other Lists', [
+                            ['Drawn (' + drawnCount + ')', 'listAreas drawn', !drawnCount, false],
+                            ['Archived (TBA)', 'listAreas archived', true || !archivedCount, false]
+                        ]);
+                break;
+            default:
+                log("Unhandled displayFolder '" + displayFolder + "' in interfaceAreaList().");
+                return;
+        }
+        
+        sendStandardInterface(who, 'Area List', html);
     },
     
     interfaceMainMenu = function(who) {
-        state.APIAreaMapper.uiWindow = 'mainMenu';
-        
         sendStandardInterface(who, 'Area Mapper',
             commandLinks('Main Menu', [
                 ['active area', 'activeArea', !state.APIAreaMapper.activeArea, false],
                 ['create new area', 'areaCreate', false, (state.APIAreaMapper.recordAreaMode == 'areaCreate')],
-                ['list areas (TBA)', 'listAreas', true || !state.APIAreaMapper.areas, false],
+                ['list areas', 'listAreas drawn', !state.APIAreaMapper.areas.length, false],
                 ['asset management (TBA)', 'assetsManage', true, false]
             ])
         );
@@ -3310,6 +3394,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
         if(!(selected && selected.length) || selected.length !== 1) {
             if(!state.APIAreaMapper.uiWindow || state.APIAreaMapper.uiWindow == 'mainMenu') {
                 interfaceMainMenu(who);
+                return;
+            }
+            
+            if(state.APIAreaMapper.uiWindow.indexOf('listAreas') === 0) {
+                interfaceAreaList(who);
                 return;
             }
             
@@ -3384,6 +3473,16 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         break;
                     case 'mainMenu':
                         state.APIAreaMapper.uiWindow = 'mainMenu';
+                        followUpAction.refresh = true;
+                        followUpAction.ignoreSelection = true;
+                        break;
+                    case 'listAreas':
+                        state.APIAreaMapper.uiWindow = 'listAreas ' + chatCommand[2];
+                        followUpAction.refresh = true;
+                        followUpAction.ignoreSelection = true;
+                        break;
+                    case 'manageArea':
+                        state.APIAreaMapper.uiWindow = 'area#' + chatCommand[2];
                         followUpAction.refresh = true;
                         followUpAction.ignoreSelection = true;
                         break;
