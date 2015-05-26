@@ -6,7 +6,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.109,
+    var version = 0.110,
         schemaVersion = 0.032,
         buttonBackgroundColor = '#E92862',
         buttonGreyedColor = '#8D94A9',
@@ -3100,6 +3100,28 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return followUpAction;
     },
     
+    //renames the active area:
+    //may be called without a name, in case where instructions should be supplied instead:
+    handleAreaRename = function(newName) {
+        var followUpAction = [];
+        
+        if('undefined' === typeof(newName) || !newName.length) {
+            //TODO: reword this to use the macro if one can be automatically set up?
+            followUpAction.message = 'To change the active area'+ch("'")+'s name, type "<b>!api-area rename '+ch("lt")+'NEW NAME'+ch("gt")+'</b>".';
+        } else {
+            var a = new area(state.APIAreaMapper.activeArea);
+            a.setProperty('name', newName);
+            a.save();
+            
+            //navigate to the active area, since it was renamed:
+            state.APIAreaMapper.uiWindow = 'area#' + state.APIAreaMapper.activeArea;
+            followUpAction.refresh = true;
+            followUpAction.ignoreSelection = true;
+        }
+        
+        return followUpAction;
+    },
+    
     //character converter, credits to Aaron from https://github.com/shdwjk/Roll20API/blob/master/APIHeartBeat/APIHeartBeat.js
     ch = function(c) {
         var entities = {
@@ -3277,7 +3299,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         sendStandardInterface(who, a.getProperty('name'),
             commandLinks('Manage', [
                 ['activate', 'areaActivate ' + areaId, false, (state.APIAreaMapper.activeArea == areaId)],
-                ['rename (TBA)', 'areaRename', true, false],
+                ['rename', 'rename', (state.APIAreaMapper.activeArea != areaId), false],
                 ['draw instance', 'areaInstanceCreate', (state.APIAreaMapper.activeArea != areaId), (state.APIAreaMapper.recordAreaMode == 'areaInstanceCreate')], //TODO: waits for a path input - basically use the path to generally determine the page, position, and size of the instance; should fail if the page already has an instance
                 ['hide', 'areaHide ' + areaId, !hasInstances, false],
                 ['archive (TBA)', 'areaArchive', true, false] //TODO: hides and archives, highlighted if archived - changing from archived to non-archived unsets the archive flag
@@ -3571,6 +3593,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         break;
                     case 'about':
                         interfaceAbout(msg.who);
+                        break;
+                    case 'rename':
+                        var nameItems = chatCommand;
+                        nameItems.shift();
+                        nameItems.shift();
+                        followUpAction = handleAreaRename(nameItems.join(' '));
                         break;
                     default:
                         break;
