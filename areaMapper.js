@@ -6,7 +6,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.106,
+    var version = 0.107,
         schemaVersion = 0.032,
         buttonBackgroundColor = '#E92862',
         buttonGreyedColor = '#8D94A9',
@@ -239,6 +239,21 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var followUpAction = [];
         followUpAction.refresh = true;
         return followUpAction;
+    };
+    
+    //undraws and destroys all instances:
+    area.prototype.hide = function() {
+        this.undraw();
+        
+        //remove all area instances from state:
+        var areaInstances = state.APIAreaMapper.areaInstances;
+        for(var i = areaInstances.length - 1; i >= 0; i--) {
+            
+            //note: expects areaId to be the first property:
+            if(areaInstances[i][0][1] === this.getProperty('id')) {
+                state.APIAreaMapper.areaInstances.splice(i, 1);        
+            }
+        }
     };
     
     area.prototype.load = function() {
@@ -3058,6 +3073,16 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return a.toggleInteractiveProperty(graphic, interactiveProperty);
     },
     
+    handleAreaHide = function(areaId) {
+        var followUpAction = [];
+        followUpAction.refresh = true;
+        
+        var a = new area(areaId);
+        a.hide();
+        
+        return followUpAction;
+    },
+    
     //character converter, credits to Aaron from https://github.com/shdwjk/Roll20API/blob/master/APIHeartBeat/APIHeartBeat.js
     ch = function(c) {
         var entities = {
@@ -3230,29 +3255,29 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var hasEdgeWalls = a.getProperty('edgeWalls').length;
         var hasInnerWalls = a.getProperty('innerWalls').length;
         var hasDoors = a.getProperty('doors').length;
+        var hasInstances = a.getInstancePageIds().length;
         
         sendStandardInterface(who, a.getProperty('name'),
             commandLinks('Manage', [
                 ['activate', 'areaActivate ' + areaId, false, (state.APIAreaMapper.activeArea == areaId)],
                 ['rename (TBA)', 'areaRename', true, false],
                 ['draw instance (TBA)', 'areaDrawInstance', true || (state.APIAreaMapper.activeArea != areaId), (state.APIAreaMapper.recordAreaMode == 'areaInstanceCreate')], //TODO: waits for a path input - basically use the path to generally determine the page, position, and size of the instance; should fail if the page already has an instance
-                ['hide (TBA)', 'areaHide', true, false], //TODO: removes all instances, greyed if there are no instances
+                ['hide', 'areaHide ' + areaId, !hasInstances, false],
                 ['archive (TBA)', 'areaArchive', true, false] //TODO: hides and archives, highlighted if archived - changing from archived to non-archived unsets the archive flag
             ])
-            //TODO: all modify commands greyed out if area his hidden (has no active instances)
             //TODO: functionally in all of these area path adds, make sure that there is an instance on the same page as the drawn path
             +commandLinks('Modify', [
-                ['blueprint mode', 'blueprint', (state.APIAreaMapper.activeArea != areaId), state.APIAreaMapper.blueprintMode],
-                ['add to area', 'areaAppend', (state.APIAreaMapper.activeArea != areaId), (state.APIAreaMapper.recordAreaMode == 'areaAppend')],
-                ['remove from area', 'areaRemove', (state.APIAreaMapper.activeArea != areaId), (state.APIAreaMapper.recordAreaMode == 'areaRemove')],
-                ['remove edge walls', 'edgeWallRemove', (state.APIAreaMapper.activeArea != areaId) || !hasEdgeWalls, (state.APIAreaMapper.recordAreaMode == 'edgeWallRemove')],
-                ['add edge walls', 'edgeWallGapRemove', (state.APIAreaMapper.activeArea != areaId) || !hasEdgeWallGaps, (state.APIAreaMapper.recordAreaMode == 'edgeWallGapRemove')],
-                ['add inner walls', 'innerWallAdd', (state.APIAreaMapper.activeArea != areaId), (state.APIAreaMapper.recordAreaMode == 'innerWallAdd')],
-                ['remove inner walls', 'innerWallRemove', (state.APIAreaMapper.activeArea != areaId) || !hasInnerWalls, (state.APIAreaMapper.recordAreaMode == 'innerWallRemove')],
-                ['add door', 'doorAdd', (state.APIAreaMapper.activeArea != areaId) || (!hasEdgeWalls && !hasInnerWalls), (state.APIAreaMapper.recordAreaMode == 'doorAdd')],
-                ['remove door', 'doorRemove', (state.APIAreaMapper.activeArea != areaId) || !hasDoors, (state.APIAreaMapper.recordAreaMode == 'doorRemove')],
-                ['undo (TBA)', 'undo', true || (state.APIAreaMapper.activeArea != areaId), false],
-                ['redraw (TBA)', 'redraw', true || (state.APIAreaMapper.activeArea != areaId), false] //TODO: if you're modifying an area with multiple instances, all instances should be redrawn as the area changes
+                ['blueprint mode', 'blueprint', !hasInstances || (state.APIAreaMapper.activeArea != areaId), state.APIAreaMapper.blueprintMode],
+                ['add to area', 'areaAppend', !hasInstances || (state.APIAreaMapper.activeArea != areaId), (state.APIAreaMapper.recordAreaMode == 'areaAppend')],
+                ['remove from area', 'areaRemove', !hasInstances || (state.APIAreaMapper.activeArea != areaId), (state.APIAreaMapper.recordAreaMode == 'areaRemove')],
+                ['remove edge walls', 'edgeWallRemove', !hasInstances || (state.APIAreaMapper.activeArea != areaId) || !hasEdgeWalls, (state.APIAreaMapper.recordAreaMode == 'edgeWallRemove')],
+                ['add edge walls', 'edgeWallGapRemove', !hasInstances || (state.APIAreaMapper.activeArea != areaId) || !hasEdgeWallGaps, (state.APIAreaMapper.recordAreaMode == 'edgeWallGapRemove')],
+                ['add inner walls', 'innerWallAdd', !hasInstances || (state.APIAreaMapper.activeArea != areaId), (state.APIAreaMapper.recordAreaMode == 'innerWallAdd')],
+                ['remove inner walls', 'innerWallRemove', !hasInstances || (state.APIAreaMapper.activeArea != areaId) || !hasInnerWalls, (state.APIAreaMapper.recordAreaMode == 'innerWallRemove')],
+                ['add door', 'doorAdd', !hasInstances || (state.APIAreaMapper.activeArea != areaId) || (!hasEdgeWalls && !hasInnerWalls), (state.APIAreaMapper.recordAreaMode == 'doorAdd')],
+                ['remove door', 'doorRemove', !hasInstances || (state.APIAreaMapper.activeArea != areaId) || !hasDoors, (state.APIAreaMapper.recordAreaMode == 'doorRemove')],
+                ['undo (TBA)', 'undo', true || !hasInstances || (state.APIAreaMapper.activeArea != areaId), false],
+                ['redraw (TBA)', 'redraw', true || !hasInstances || (state.APIAreaMapper.activeArea != areaId), false] //TODO: if you're modifying an area with multiple instances, all instances should be redrawn as the area changes
                 //TODO: instance-specific modifications: move, resize, rotate
             ])
             +commandLinks('Related', [
@@ -3500,6 +3525,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         followUpAction.refresh = true;
                         followUpAction.ignoreSelection = true;
                         break;
+                    case 'areaHide':
+                        followUpAction = handleAreaHide(chatCommand[2]);
                     case 'areaCreate':
                     case 'areaAppend':
                     case 'areaRemove':
