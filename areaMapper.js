@@ -3308,8 +3308,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 
                 areasByFolder[0][areaId] = [1, ''];
             }
-            
-            log('areasByFolder[0][' + areaId + ']: ' + areasByFolder[0][areaId]);
         }, this);
         
         //populate area information:
@@ -3318,7 +3316,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 areaName;
                 
             for(var prop in a) {
-                log('prop: ' + a[prop][0]);
                 switch(a[prop][0]) {
                     case 'id':
                         areaId = a[prop][1];
@@ -3340,10 +3337,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
             }
         }, this);
         
-        for(var areaId in areasByFolder[0]) {
-            log('drawn areasByFolder[0][' + areaId + ']: ' + areasByFolder[0][areaId]);
-        }
-        
         var html = '';
         var folderLinks = [];
         
@@ -3351,7 +3344,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         switch(displayFolder) {
             case 'drawn':
                 for(var areaId in areasByFolder[0]) {
-                    folderLinks.push([areasByFolder[0][areaId][1] + ' (' + areasByFolder[0][areaId][0]  + ')', 'manageArea ' + areaId, false, false]);
+                    folderLinks.push([areasByFolder[0][areaId][1] + ' (' + areasByFolder[0][areaId][0]  + ')', 'manageArea ' + areaId, false, state.APIAreaMapper.activeArea == areaId]);
                 }
                 html += commandLinks('Drawn', folderLinks)
                     +commandLinks('Other Lists', [
@@ -3361,7 +3354,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 break;
             case 'hidden':
                 for(var areaId in areasByFolder[1]) {
-                    folderLinks.push([areasByFolder[1][areaId], 'manageArea ' + areaId, false, false]);
+                    folderLinks.push([areasByFolder[1][areaId], 'manageArea ' + areaId, false, state.APIAreaMapper.activeArea == areaId]);
                 }
                 html += commandLinks('Hidden', folderLinks)
                     +commandLinks('Other Lists', [
