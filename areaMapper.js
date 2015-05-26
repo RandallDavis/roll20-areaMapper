@@ -6,7 +6,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.107,
+    var version = 0.108,
         schemaVersion = 0.032,
         buttonBackgroundColor = '#E92862',
         buttonGreyedColor = '#8D94A9',
@@ -328,6 +328,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         state.APIAreaMapper.areas.push(areaState);
     };
     
+    //draws an instance on the page, if one already exists, it'll be redrawn in the new location:
     area.prototype.createInstance = function(pageId, top, left) {
         var instance = new areaInstance(this.getProperty('id'), pageId);
         instance.setProperty('top', top);
@@ -3261,7 +3262,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             commandLinks('Manage', [
                 ['activate', 'areaActivate ' + areaId, false, (state.APIAreaMapper.activeArea == areaId)],
                 ['rename (TBA)', 'areaRename', true, false],
-                ['draw instance (TBA)', 'areaDrawInstance', true || (state.APIAreaMapper.activeArea != areaId), (state.APIAreaMapper.recordAreaMode == 'areaInstanceCreate')], //TODO: waits for a path input - basically use the path to generally determine the page, position, and size of the instance; should fail if the page already has an instance
+                ['draw instance', 'areaInstanceCreate', (state.APIAreaMapper.activeArea != areaId), (state.APIAreaMapper.recordAreaMode == 'areaInstanceCreate')], //TODO: waits for a path input - basically use the path to generally determine the page, position, and size of the instance; should fail if the page already has an instance
                 ['hide', 'areaHide ' + areaId, !hasInstances, false],
                 ['archive (TBA)', 'areaArchive', true, false] //TODO: hides and archives, highlighted if archived - changing from archived to non-archived unsets the archive flag
             ])
@@ -3307,8 +3308,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 
                 areasByFolder[0][areaId] = [1, ''];
             }
-            
-            log('areasByFolder[0][' + areaId + ']: ' + areasByFolder[0][areaId]);
         }, this);
         
         //populate area information:
@@ -3317,7 +3316,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 areaName;
                 
             for(var prop in a) {
-                log('prop: ' + a[prop][0]);
                 switch(a[prop][0]) {
                     case 'id':
                         areaId = a[prop][1];
@@ -3339,10 +3337,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
             }
         }, this);
         
-        for(var areaId in areasByFolder[0]) {
-            log('drawn areasByFolder[0][' + areaId + ']: ' + areasByFolder[0][areaId]);
-        }
-        
         var html = '';
         var folderLinks = [];
         
@@ -3350,7 +3344,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         switch(displayFolder) {
             case 'drawn':
                 for(var areaId in areasByFolder[0]) {
-                    folderLinks.push([areasByFolder[0][areaId][1] + ' (' + areasByFolder[0][areaId][0]  + ')', 'manageArea ' + areaId, false, false]);
+                    folderLinks.push([areasByFolder[0][areaId][1] + ' (' + areasByFolder[0][areaId][0]  + ')', 'manageArea ' + areaId, false, state.APIAreaMapper.activeArea == areaId]);
                 }
                 html += commandLinks('Drawn', folderLinks)
                     +commandLinks('Other Lists', [
@@ -3360,7 +3354,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 break;
             case 'hidden':
                 for(var areaId in areasByFolder[1]) {
-                    folderLinks.push([areasByFolder[1][areaId], 'manageArea ' + areaId, false, false]);
+                    folderLinks.push([areasByFolder[1][areaId], 'manageArea ' + areaId, false, state.APIAreaMapper.activeArea == areaId]);
                 }
                 html += commandLinks('Hidden', folderLinks)
                     +commandLinks('Other Lists', [
@@ -3536,6 +3530,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     case 'innerWallRemove':
                     case 'doorAdd':
                     case 'doorRemove':
+                    case 'areaInstanceCreate':
                         followUpAction = toggleOrSetAreaRecordMode(chatCommand[1]);
                         followUpAction.ignoreSelection = true;
                         break;
@@ -3670,6 +3665,17 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 
                 var a = new area(state.APIAreaMapper.activeArea);
                 followUpAction = a.doorRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                
+                path.remove();
+                break;
+            case 'areaInstanceCreate':
+                if(!state.APIAreaMapper.activeArea) {
+                    log('An area needs to be active before drawing an instance.');
+                    return;
+                }
+                
+                var a = new area(state.APIAreaMapper.activeArea);
+                followUpAction = a.createInstance(path.get('_pageid'), path.get('top'), path.get('left'));
                 
                 path.remove();
                 break;
