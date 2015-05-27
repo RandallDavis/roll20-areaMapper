@@ -6,8 +6,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.111,
-        schemaVersion = 0.033,
+    var version = 0.112,
+        schemaVersion = 0.034,
         buttonBackgroundColor = '#E92862',
         buttonGreyedColor = '#8D94A9',
         buttonHighlightedColor = '#00FF00',
@@ -25,6 +25,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         openDoorAlertPic = 'https://s3.amazonaws.com/files.d20.io/images/8543205/QBOWp1MHHlJCrPWn9kcVqQ/thumb.png?1427665124',
         padlockAlertPic = 'https://s3.amazonaws.com/files.d20.io/images/8546285/bdyuCfZSGRXr3qrVkcPkAg/thumb.png?1427673372',
         skullAlertPic = 'https://s3.amazonaws.com/files.d20.io/images/8779089/aM1ujMQboacuc2fEMFk7Eg/thumb.png?1428784948',
+        closedChestPic = 'https://s3.amazonaws.com/files.d20.io/images/7962/thumb.png?1336489213',
+        openChestPic = 'https://s3.amazonaws.com/files.d20.io/images/2839308/_RR8niUb3sTQgLSoxDhM4g/thumb.png?1390469385',
         
     checkInstall = function() {
         
@@ -41,7 +43,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 blueprintFloorPolygonColor: '#A3E1E4',
                 blueprintEdgeWallGapsPathColor: '#D13583',
                 blueprintInnerWallsPathColor: '#3535D1',
-                blueprintDoorPathColor: '#EC9B10'
+                blueprintDoorPathColor: '#EC9B10',
+                blueprintChestPathColor: '#666666'
             };
         } 
         
@@ -138,6 +141,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this.initializeCollectionProperty('edgeWallGaps');
         this.initializeCollectionProperty('innerWalls');
         this.initializeCollectionProperty('doors');
+        this.initializeCollectionProperty('chests');
         
         //load existing area:
         if('undefined' !== typeof(id)) {
@@ -162,6 +166,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'edgeWallGaps': //[simple path, top, left, height, width]
             case 'innerWalls': //[simple path, top, left, height, width]
             case 'doors': //[segment position, isOpen, isLocked, isTrapped, isHidden]
+            case 'chests': //[top, left, height, width, rotation, isOpen, isLocked, isTrapped, isHidden]
                 return this['_' + property].push(value) - 1;
             default:
                 return typedObject.prototype.setProperty.call(this, property, value);
@@ -177,6 +182,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'edgeWallGaps':
             case 'innerWalls':
             case 'doors':
+            case 'chests':
                 if('undefined' === typeof(value)) {
                     this['_' + property] = [];
                 } else {
@@ -289,6 +295,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 case 'edgeWallGaps':
                 case 'innerWalls':
                 case 'doors':
+                case 'chests':
                     this.initializeCollectionProperty(areaState[i][0], areaState[i][1]);
                     break;
                 default:
@@ -310,6 +317,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         areaState.push(['edgeWallGaps', this.getProperty('edgeWallGaps')]);
         areaState.push(['innerWalls', this.getProperty('innerWalls')]);
         areaState.push(['doors', this.getProperty('doors')]);
+        areaState.push(['chests', this.getProperty('chests')]);
         
         //remove existing area state:
         var id = this.getProperty('id');
@@ -347,7 +355,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
     };
     
     area.prototype.getEdgeWallGapPointsPath = function(pageId) {
-        
         var topOffset = 0,
             leftOffset = 0;
         
@@ -374,7 +381,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
     };
     
     area.prototype.calculateEdgeWallGaps = function() {
-        
         var g = new graph();
         
         var floorPlan = this.getProperty('floorPlan');
@@ -876,12 +882,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         //place the new door as a segment connecting the two points:
         this.setProperty('doors', [
-            new segment(doorSegmentPoints[0], doorSegmentPoints[1]), //door position
-            0, //is open
-            0, //is locked
-            0, //is trapped
-            0 //is hidden
-        ]);
+                new segment(doorSegmentPoints[0], doorSegmentPoints[1]), //door position
+                0, //is open
+                0, //is locked
+                0, //is trapped
+                0 //is hidden
+            ]);
         
         this.save();
         this.draw();
@@ -924,6 +930,38 @@ var APIAreaMapper = APIAreaMapper || (function() {
             this.draw();
         }
       
+        followUpAction.refresh = true;
+        return followUpAction;
+    };
+    
+    area.prototype.chestAdd = function(rawPath, pageId, top, left, isFromEvent) {
+        var followUpAction = [];
+        var g = new graph();
+        
+        //get instance that addition is relative to:
+        var instance = new areaInstance(this.getProperty('id'), pageId);
+        
+        //get the addition polygon:
+        g.addComplexPolygon(rawPath, top, left, isFromEvent);
+        var addSpIndex = g.convertComplexPolygonToSimplePolygon(0);
+        var addRp = g.getRawPath('simplePolygons', addSpIndex);
+        
+        //create the chest using the polygon's position, width, and height:
+        this.setProperty('chests', [
+                addRp.top - instance.getProperty('top'),
+                addRp.left - instance.getProperty('left'),
+                addRp.height,
+                addRp.width,
+                0, //rotation
+                0, //is open
+                0, //is locked
+                0, //is trapped
+                0 //is hidden
+            ]);
+        
+        this.save();
+        this.draw();
+        
         followUpAction.refresh = true;
         return followUpAction;
     };
@@ -996,7 +1034,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this.initializeCollectionProperty('losWallIds');
         this.initializeCollectionProperty('blueprintWallIds');
         this.initializeCollectionProperty('doorIds');
+        this.initializeCollectionProperty('chestIds');
         this.initializeCollectionProperty('blueprintDoorIds');
+        this.initializeCollectionProperty('blueprintChestIds');
         
         this.load();
     };
@@ -1020,7 +1060,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'losWallIds': //paths
             case 'blueprintWallIds': //paths
             case 'doorIds': //[door token, LoS wall path, feature tag paths]
+            case 'chestIds': //[chest token, feature tag paths]
             case 'blueprintDoorIds': //paths
+            case 'blueprintChestIds': //paths
                 return this['_' + property].push(value) - 1;
             default:
                 return typedObject.prototype.setProperty.call(this, property, value);
@@ -1035,7 +1077,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'losWallIds':
             case 'blueprintWallIds':
             case 'doorIds':
+            case 'chestIds':
             case 'blueprintDoorIds':
+            case 'blueprintChestIds':
                 if('undefined' === typeof(value)) {
                     this['_' + property] = [];
                 } else {
@@ -1086,7 +1130,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 case 'losWallIds':
                 case 'blueprintWallIds':
                 case 'doorIds':
+                case 'chestIds':
                 case 'blueprintDoorIds':
+                case 'blueprintChestIds':
                     this.initializeCollectionProperty(areaInstanceState[i][0], areaInstanceState[i][1]);
                     break;
                 default:
@@ -1110,7 +1156,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
         areaInstanceState.push(['edgeWallGapIds', this.getProperty('edgeWallGapIds')]);
         areaInstanceState.push(['blueprintWallIds', this.getProperty('blueprintWallIds')]);
         areaInstanceState.push(['doorIds', this.getProperty('doorIds')]);
+        areaInstanceState.push(['chestIds', this.getProperty('chestIds')]);
         areaInstanceState.push(['blueprintDoorIds', this.getProperty('blueprintDoorIds')]);
+        areaInstanceState.push(['blueprintChestIds', this.getProperty('blueprintChestIds')]);
         
         //remove existing area instance state:
         var areaInstances = state.APIAreaMapper.areaInstances;
@@ -1187,11 +1235,30 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }, this);
         this.initializeCollectionProperty('doorIds');
         
+        //delete chests:
+        this.getProperty('chestIds').forEach(function(cId) {
+            
+            //delete chest token:
+            deleteObject('graphic', cId[0]);
+            
+            //delete feature tag paths:
+            cId[1].forEach(function(ftId) {
+                deleteObject('path', ftId);
+            }, this);
+        }, this);
+        this.initializeCollectionProperty('chestIds');
+        
         //delete blueprint doors:
         this.getProperty('blueprintDoorIds').forEach(function(wId) {
             deleteObject('path', wId);
         }, this);
         this.initializeCollectionProperty('blueprintDoorIds');
+        
+        //delete blueprint chests:
+        this.getProperty('blueprintChestIds').forEach(function(cId) {
+            deleteObject('path', cId);
+        }, this);
+        this.initializeCollectionProperty('blueprintChestIds');
         
         this.save();
     };
@@ -1261,6 +1328,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
         for(var i = 0; i < a.getProperty('doors').length; i++) {
             this.drawInteractiveObject('doors', i);
         }
+        
+        //draw chests:
+        for(var i = 0; i < a.getProperty('chests').length; i++) {
+            this.drawInteractiveObject('chests', i);
+        }
        
         this.save();
     };
@@ -1273,9 +1345,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var a = new area(this.getProperty('areaId'));
         var g = new graph();
         
+        var master = a.getProperty(objectType)[masterIndex];
+        
         switch(objectType) {
             case 'doors':
-                var master = a.getProperty(objectType)[masterIndex];
                 var dIndex = g.addSimplePathFromSegment(master[0], this.getProperty('top'), this.getProperty('left'));
                 var s = g.getProperty('simplePaths')[dIndex].segments[0];
                 var doorProperty = [];
@@ -1292,7 +1365,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     
                     //delete door:
                     if(!featureTagsOnly) {
-                        //note: there is no behavioral handling of hidden doors
+                        //note: there is no behavioral difference in handling of hidden doors
                             
                         //delete the old door image:
                         deleteObject('graphic', this.getProperty('doorIds')[masterIndex][0]);
@@ -1310,6 +1383,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     }
                 }
                 
+                //door token:
                 var door;
                 
                 //keep existing door:
@@ -1370,6 +1444,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     this.setProperty('doorIds', doorProperty);
                 }
                 break;
+            case 'chests':
+                //TODO
+                break;
             default:
                 log('Unsupported objectType of ' + objectType + ' in areaInstance.drawInteractiveObject().');
                 return 'There was a problem; check the log for details.';
@@ -1413,6 +1490,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
             var rp = g.getRawPath('simplePaths', dI);
             var door = createPathObject(this.getProperty('pageId'), 'objects', state.APIAreaMapper.blueprintDoorPathColor, 'transparent', rp.rawPath, rp.top, rp.left, rp.height, rp.width, 2);
             this.setProperty('blueprintWallIds', door.id);
+        }, this);
+        
+        //draw blueprint chests:
+        a.getProperty('chests').forEach(function(c) {
+            var chest = createRectanglePathObject(this.getProperty('pageId'), 'objects', state.APIAreaMapper.blueprintChestPathColor, state.APIAreaMapper.blueprintChestPathColor, c[0] + top, c[1] + left, c[2], c[3], c[4]);
+            this.setProperty('blueprintChestIds', chest.id);    
         }, this);
         
         this.save();
@@ -2924,6 +3007,22 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return obj;
     },
     
+    createRectanglePathObject = function(pageId, layer, strokeColor, fillColor, top, left, height, width, rotation) {
+        return createPathObject(
+                pageId,
+                layer,
+                strokeColor,
+                fillColor,
+                getRectanglePath(height, width),
+                top,
+                left,
+                height,
+                width,
+                1,
+                rotation
+            );
+    },
+    
     drawFeatureTag = function(graphic, tagBand, color) {
         var tagStrokeWidth = 4;
      
@@ -3312,6 +3411,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var hasEdgeWalls = a.getProperty('edgeWalls').length;
         var hasInnerWalls = a.getProperty('innerWalls').length;
         var hasDoors = a.getProperty('doors').length;
+        var hasChests = a.getProperty('chests').length;
         var hasInstances = a.getInstancePageIds().length;
         var isArchived = a.getProperty('archived');
         
@@ -3334,6 +3434,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 ['remove inner walls', 'innerWallRemove', !hasInstances || (state.APIAreaMapper.activeArea != areaId) || !hasInnerWalls, (state.APIAreaMapper.recordAreaMode == 'innerWallRemove')],
                 ['add door', 'doorAdd', !hasInstances || (state.APIAreaMapper.activeArea != areaId) || (!hasEdgeWalls && !hasInnerWalls), (state.APIAreaMapper.recordAreaMode == 'doorAdd')],
                 ['remove door', 'doorRemove', !hasInstances || (state.APIAreaMapper.activeArea != areaId) || !hasDoors, (state.APIAreaMapper.recordAreaMode == 'doorRemove')],
+                ['add chest', 'chestAdd', !hasInstances || (state.APIAreaMapper.activeArea != areaId), (state.APIAreaMapper.recordAreaMode == 'chestAdd')],
+                ['remove chest (TBA)', 'chestRemove', !hasInstances || true || (state.APIAreaMapper.activeArea != areaId) || !hasChests, (state.APIAreaMapper.recordAreaMode == 'chestRemove')],
                 ['undo (TBA)', 'undo', true || !hasInstances || (state.APIAreaMapper.activeArea != areaId), false],
                 ['redraw', 'redraw', !hasInstances || (state.APIAreaMapper.activeArea != areaId), false]
                 //TODO: instance-specific modifications: move, resize, rotate
@@ -3606,6 +3708,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     case 'innerWallRemove':
                     case 'doorAdd':
                     case 'doorRemove':
+                    case 'chestAdd':
                     case 'areaInstanceCreate':
                         followUpAction = toggleOrSetAreaRecordMode(chatCommand[1]);
                         followUpAction.ignoreSelection = true;
@@ -3750,6 +3853,17 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 
                 var a = new area(state.APIAreaMapper.activeArea);
                 followUpAction = a.doorRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                
+                path.remove();
+                break;
+            case 'chestAdd':
+                if(!state.APIAreaMapper.activeArea) {
+                    log('An area needs to be active before adding chests.');
+                    return;
+                }
+                
+                var a = new area(state.APIAreaMapper.activeArea);
+                followUpAction = a.chestAdd(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
                 
                 path.remove();
                 break;
