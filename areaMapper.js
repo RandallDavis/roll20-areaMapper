@@ -6,8 +6,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.110,
-        schemaVersion = 0.032,
+    var version = 0.111,
+        schemaVersion = 0.033,
         buttonBackgroundColor = '#E92862',
         buttonGreyedColor = '#8D94A9',
         buttonHighlightedColor = '#00FF00',
@@ -155,6 +155,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'floorPlan': //simple polygon
             case 'width':
             case 'height':
+            case 'archived':
                 this['_' + property] = value;
                 break;
             case 'edgeWalls': //[simple path, top, left, height, width]
@@ -232,6 +233,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         this.setProperty('width', rp.width);
         this.setProperty('height', rp.height);
+        this.setProperty('archived', 0);
         this.save();
         
         this.createInstance(pageId, rp.top, rp.left);
@@ -280,6 +282,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 case 'floorPlan':
                 case 'width':
                 case 'height':
+                case 'archived':
                     this.setProperty(areaState[i][0], areaState[i][1]);
                     break;
                 case 'edgeWalls':
@@ -302,6 +305,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         areaState.push(['floorPlan', this.getProperty('floorPlan')]);
         areaState.push(['width', this.getProperty('width')]);
         areaState.push(['height', this.getProperty('height')]);
+        areaState.push(['archived', this.getProperty('archived')]);
         areaState.push(['edgeWalls', this.getProperty('edgeWalls')]);
         areaState.push(['edgeWallGaps', this.getProperty('edgeWallGaps')]);
         areaState.push(['innerWalls', this.getProperty('innerWalls')]);
@@ -3089,6 +3093,20 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return followUpAction;
     },
     
+    handleAreaArchive = function(areaId) {
+        var followUpAction = [];
+        followUpAction.refresh = true;
+        
+        var a = new area(areaId);
+        
+        //hide the area in case there are any instances:
+        a.hide();
+        a.setProperty('archived', (a.getProperty('archived') + 1) % 2);
+        a.save();
+        
+        return followUpAction;
+    },
+    
     handleAreaRedraw = function() {
         var followUpAction = [];
         followUpAction.refresh = true;
@@ -3295,14 +3313,15 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var hasInnerWalls = a.getProperty('innerWalls').length;
         var hasDoors = a.getProperty('doors').length;
         var hasInstances = a.getInstancePageIds().length;
+        var isArchived = a.getProperty('archived');
         
         sendStandardInterface(who, a.getProperty('name'),
             commandLinks('Manage', [
                 ['activate', 'areaActivate ' + areaId, false, (state.APIAreaMapper.activeArea == areaId)],
                 ['rename', 'rename', (state.APIAreaMapper.activeArea != areaId), false],
-                ['draw instance', 'areaInstanceCreate', (state.APIAreaMapper.activeArea != areaId), (state.APIAreaMapper.recordAreaMode == 'areaInstanceCreate')], //TODO: waits for a path input - basically use the path to generally determine the page, position, and size of the instance; should fail if the page already has an instance
+                ['draw instance', 'areaInstanceCreate', isArchived || (state.APIAreaMapper.activeArea != areaId), (state.APIAreaMapper.recordAreaMode == 'areaInstanceCreate')],
                 ['hide', 'areaHide ' + areaId, !hasInstances, false],
-                ['archive (TBA)', 'areaArchive', true, false] //TODO: hides and archives, highlighted if archived - changing from archived to non-archived unsets the archive flag
+                ['archive', 'areaArchive ' + areaId, false, isArchived]
             ])
             //TODO: functionally in all of these area path adds, make sure that there is an instance on the same page as the drawn path
             +commandLinks('Modify', [
@@ -3351,7 +3370,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         //populate area information:
         state.APIAreaMapper.areas.forEach(function(a) {
             var areaId,
-                areaName;
+                areaName,
+                areaArchived;
                 
             for(var prop in a) {
                 switch(a[prop][0]) {
@@ -3361,6 +3381,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     case 'name':
                         areaName = a[prop][1];
                         break;
+                    case 'archived':
+                        areaArchived = a[prop][1];
+                        break;
                     default:
                         break;
                 }
@@ -3368,9 +3391,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
             
             if(areasByFolder[0][areaId]) {
                 areasByFolder[0][areaId][1] = areaName;
+            } else if(areaArchived) {
+                archivedCount++;
+                areasByFolder[2][areaId] = areaName;
             } else {
                 hiddenCount++;
-                //TODO: if the area has the archived property, put it in the archive folder instead
                 areasByFolder[1][areaId] = areaName;
             }
         }, this);
@@ -3378,7 +3403,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var html = '';
         var folderLinks = [];
         
-        //TODO: archived folder:
         switch(displayFolder) {
             case 'drawn':
                 for(var areaId in areasByFolder[0]) {
@@ -3387,7 +3411,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 html += commandLinks('Drawn', folderLinks)
                     +commandLinks('Other Lists', [
                             ['Hidden (' + hiddenCount + ')', 'listAreas hidden', !hiddenCount, false],
-                            ['Archived (TBA)', 'listAreas archived', true || !archivedCount, false]
+                            ['Archived (' + archivedCount + ')', 'listAreas archived', !archivedCount, false]
                         ]);
                 break;
             case 'hidden':
@@ -3397,7 +3421,17 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 html += commandLinks('Hidden', folderLinks)
                     +commandLinks('Other Lists', [
                             ['Drawn (' + drawnCount + ')', 'listAreas drawn', !drawnCount, false],
-                            ['Archived (TBA)', 'listAreas archived', true || !archivedCount, false]
+                            ['Archived (' + archivedCount + ')', 'listAreas archived', !archivedCount, false]
+                        ]);
+                break;
+            case 'archived':
+                for(var areaId in areasByFolder[2]) {
+                    folderLinks.push([areasByFolder[2][areaId], 'manageArea ' + areaId, false, state.APIAreaMapper.activeArea == areaId]);
+                }
+                html += commandLinks('Hidden', folderLinks)
+                    +commandLinks('Other Lists', [
+                            ['Drawn (' + drawnCount + ')', 'listAreas drawn', !drawnCount, false],
+                            ['Hidden (' + hiddenCount + ')', 'listAreas hidden', !hiddenCount, false]
                         ]);
                 break;
             default:
@@ -3559,6 +3593,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         break;
                     case 'areaHide':
                         followUpAction = handleAreaHide(chatCommand[2]);
+                        break;
+                    case 'areaArchive':
+                        followUpAction = handleAreaArchive(chatCommand[2]);
+                        break;
                     case 'areaCreate':
                     case 'areaAppend':
                     case 'areaRemove':
