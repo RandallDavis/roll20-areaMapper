@@ -3319,7 +3319,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             commandLinks('Manage', [
                 ['activate', 'areaActivate ' + areaId, false, (state.APIAreaMapper.activeArea == areaId)],
                 ['rename', 'rename', (state.APIAreaMapper.activeArea != areaId), false],
-                ['draw instance', 'areaInstanceCreate', isArchived || (state.APIAreaMapper.activeArea != areaId), (state.APIAreaMapper.recordAreaMode == 'areaInstanceCreate')], //TODO: waits for a path input - basically use the path to generally determine the page, position, and size of the instance; should fail if the page already has an instance
+                ['draw instance', 'areaInstanceCreate', isArchived || (state.APIAreaMapper.activeArea != areaId), (state.APIAreaMapper.recordAreaMode == 'areaInstanceCreate')],
                 ['hide', 'areaHide ' + areaId, !hasInstances, false],
                 ['archive', 'areaArchive ' + areaId, false, isArchived]
             ])
@@ -3370,7 +3370,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         //populate area information:
         state.APIAreaMapper.areas.forEach(function(a) {
             var areaId,
-                areaName;
+                areaName,
+                areaArchived;
                 
             for(var prop in a) {
                 switch(a[prop][0]) {
@@ -3380,6 +3381,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     case 'name':
                         areaName = a[prop][1];
                         break;
+                    case 'archived':
+                        areaArchived = a[prop][1];
+                        break;
                     default:
                         break;
                 }
@@ -3387,9 +3391,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
             
             if(areasByFolder[0][areaId]) {
                 areasByFolder[0][areaId][1] = areaName;
+            } else if(areaArchived) {
+                archivedCount++;
+                areasByFolder[2][areaId] = areaName;
             } else {
                 hiddenCount++;
-                //TODO: if the area has the archived property, put it in the archive folder instead
                 areasByFolder[1][areaId] = areaName;
             }
         }, this);
@@ -3397,7 +3403,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var html = '';
         var folderLinks = [];
         
-        //TODO: archived folder:
         switch(displayFolder) {
             case 'drawn':
                 for(var areaId in areasByFolder[0]) {
@@ -3406,7 +3411,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 html += commandLinks('Drawn', folderLinks)
                     +commandLinks('Other Lists', [
                             ['Hidden (' + hiddenCount + ')', 'listAreas hidden', !hiddenCount, false],
-                            ['Archived (TBA)', 'listAreas archived', true || !archivedCount, false]
+                            ['Archived (' + archivedCount + ')', 'listAreas archived', !archivedCount, false]
                         ]);
                 break;
             case 'hidden':
@@ -3416,7 +3421,17 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 html += commandLinks('Hidden', folderLinks)
                     +commandLinks('Other Lists', [
                             ['Drawn (' + drawnCount + ')', 'listAreas drawn', !drawnCount, false],
-                            ['Archived (TBA)', 'listAreas archived', true || !archivedCount, false]
+                            ['Archived (' + archivedCount + ')', 'listAreas archived', !archivedCount, false]
+                        ]);
+                break;
+            case 'archived':
+                for(var areaId in areasByFolder[2]) {
+                    folderLinks.push([areasByFolder[2][areaId], 'manageArea ' + areaId, false, state.APIAreaMapper.activeArea == areaId]);
+                }
+                html += commandLinks('Hidden', folderLinks)
+                    +commandLinks('Other Lists', [
+                            ['Drawn (' + drawnCount + ')', 'listAreas drawn', !drawnCount, false],
+                            ['Hidden (' + hiddenCount + ')', 'listAreas hidden', !hiddenCount, false]
                         ]);
                 break;
             default:
