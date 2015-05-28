@@ -1445,7 +1445,90 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 }
                 break;
             case 'chests':
-                //TODO
+                var chestProperty = [];
+                
+                //if the number of objects in the area and the instance are equal, then this is modifying an existing object:
+                var existingChest = this.getProperty('chestIds').length === a.getProperty(objectType).length;
+                 
+                if(existingChest) {
+                    
+                    //delete feature tags:
+                    this.getProperty('chestIds')[masterIndex][1].forEach(function(ftId) {
+                        deleteObject('path', ftId);
+                    }, this);
+                    
+                    //delete chest:
+                    if(!featureTagsOnly) {
+                        //note: there is no behavioral difference in handling of hidden chests
+                            
+                        //delete the old chest image:
+                        deleteObject('graphic', this.getProperty('chestIds')[masterIndex][0]);
+                        
+                        //delete the old chest feature tags:
+                        this.getProperty('chestIds')[masterIndex][1].forEach(function(ftId) {
+                            deleteObject('path', ftId);
+                        }, this);
+                    
+                        //clear properties out to be prudent, but they will be overwritten soon anyway:
+                        this.getProperty('chestIds')[masterIndex] = ['',[]];
+                    }
+                }
+                
+                //chest token:
+                var chest;
+                
+                //keep existing door:
+                if(featureTagsOnly) {
+                    chest = getObj('graphic', this.getProperty('chestIds')[masterIndex][0]);
+                    chestProperty.push(this.getProperty('chestIds')[masterIndex][0]); //chest token ID
+                }
+                //create a new chest:
+                else {
+                    
+                    var chestTop = master[0] + this.getProperty('top');
+                    var chestLeft = master[1] + this.getProperty('left');
+                    
+                    //TODO: this segment mechanism doesn't cover rotations other than 0:
+                    //draw the chest (on the object or gm layer depending on it being hidden):
+                    chest = createTokenObject(
+                        (master[5] ? closedChestPic : openChestPic), 
+                        this.getProperty('pageId'), 
+                        (master[8] ? 'gmlayer' : 'objects'),
+                        new segment(
+                                new point(chestLeft, chestTop),
+                                new point(chestLeft + master[3], chestTop + master[2])));
+                       
+                    //set chest privs to players unless the door is hidden:
+                    if(!master[8]) {
+                        chest.set("controlledby", "all");
+                    }
+                    
+                    chestProperty.push(chest.id);
+                }
+                
+                //draw feature tags around the chest:
+                var featureTagColors = [];
+                if(master[6]) {
+                    featureTagColors.push(lockedTagColor);
+                }
+                if(master[7]) {
+                    featureTagColors.push(trappedTagColor);
+                }
+                if(master[8]) {
+                    featureTagColors.push(hiddenTagColor);
+                }
+                var tagIds = drawFeatureTags(chest, featureTagColors);
+                
+                chestProperty.push(tagIds);
+                
+                //if this is replacing an existing image, write it back into the appropriate slot:
+                if(existingChest) {
+                    this.getProperty('chestIds')[masterIndex] = chestProperty;
+                }
+                //if it's a new image, push it to the end (which will line up with the master's index):
+                else {
+                    this.setProperty('chestIds', chestProperty);
+                }
                 break;
             default:
                 log('Unsupported objectType of ' + objectType + ' in areaInstance.drawInteractiveObject().');
@@ -1509,14 +1592,25 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var graphicType;
         var graphicIndex;
         
-        //see if the graphic is being managed:
+        //see if the graphic is a managed door:
         var doorIds = this.getProperty('doorIds');
-        
         for(var i = 0; i < doorIds.length; i++) {
             if(graphic.id === doorIds[i][0]) {
                 graphicType = 'doors';
                 graphicIndex = i;
                 break;
+            }
+        }
+        
+        //see if the graphic is a managed chest:
+        if(!graphicType) {
+            var chestIds = this.getProperty('chestIds');
+            for(var i = 0; i < chestIds.length; i++) {
+                if(graphic.id === chestIds[i][0]) {
+                    graphicType = 'chests';
+                    graphicIndex = i;
+                    break;
+                }
             }
         }
         
@@ -1534,65 +1628,75 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var a = new area(this.getProperty('areaId'));
         var g = new graph();
         
-        switch(objectType) {
-            case 'doors':
-                var master = a.getProperty(objectType)[masterIndex];
-                var dIndex = g.addSimplePathFromSegment(master[0], this.getProperty('top'), this.getProperty('left'));
-                var s = g.getProperty('simplePaths')[dIndex].segments[0];
-                var sMidpoint = s.midpoint();
+        var handleInteraction = function(master, openIndex, lockedIndex, trappedIndex, visualAlertPoint, openPic, closedPic, lockedPic, trappedPic) {
+            
+            //handle locked object:
+            if(master[lockedIndex]) {
+                
+                //lock visual alert:
+                setTimeout(
+                    APIVisualAlert.visualAlert(
+                        lockedPic,
+                        visualAlertPoint.x,
+                        visualAlertPoint.y,
+                        1.0,
+                        1),
+                    5);
+            }
+            //process toggle:
+            else {
+                if(master[trappedIndex]) {
                     
-                //handle locked object:
-                if(master[2]) {
-                    
-                    //lock visual alert:
+                    //trap visual alert:
                     setTimeout(
                         APIVisualAlert.visualAlert(
-                            padlockAlertPic,
-                            sMidpoint.x,
-                            sMidpoint.y,
+                            trappedPic,
+                            visualAlertPoint.x,
+                            visualAlertPoint.y,
                             1.0,
-                            1),
+                            2),
                         5);
-                }
-                //process toggle:
-                else {
-                    if(master[3]) {
-                        
-                        //trap visual alert:
-                        setTimeout(
-                            APIVisualAlert.visualAlert(
-                                skullAlertPic,
-                                sMidpoint.x,
-                                sMidpoint.y,
-                                1.0,
-                                2),
-                            5);
-                        
-                        master[3] = 0;
-                    }
                     
-                    //toggle door state:
-                    master[1] = (master[1] + 1) % 2;
-                    
-                    //door toggle visual alert:
-                    setTimeout(
-                        APIVisualAlert.visualAlert(
-                            master[1] ? openDoorAlertPic : closedDoorAlertPic,
-                            sMidpoint.x,
-                            sMidpoint.y,
-                            1.0,
-                            0),
-                        5);
+                    master[trappedIndex] = 0;
                 }
                 
-                //update the master:
-                a.getProperty(objectType)[masterIndex] = master;
-                a.save();
+                //toggle object state:
+                master[openIndex] = (master[openIndex] + 1) % 2;
+                
+                //door toggle visual alert:
+                setTimeout(
+                    APIVisualAlert.visualAlert(
+                        master[openIndex] ? openPic : closedPic,
+                        visualAlertPoint.x,
+                        visualAlertPoint.y,
+                        1.0,
+                        0),
+                    5);
+            }
+        };
+        
+        var master = a.getProperty(objectType)[masterIndex];
+        
+        switch(objectType) {
+            case 'doors':
+                var dIndex = g.addSimplePathFromSegment(master[0], this.getProperty('top'), this.getProperty('left'));
+                var s = g.getProperty('simplePaths')[dIndex].segments[0];
+                handleInteraction(master, 1, 2, 3, s.midpoint(), openDoorAlertPic, closedDoorAlertPic, padlockAlertPic, skullAlertPic);
+                break;
+            case 'chests':
+                var chestTop = master[0] + this.getProperty('top');
+                var chestLeft = master[1] + this.getProperty('left');
+                var chestCenter = new point(chestLeft + (master[3] / 2), chestTop + (master[2] / 2));
+                handleInteraction(master, 5, 6, 7, chestCenter, openDoorAlertPic, closedDoorAlertPic, padlockAlertPic, skullAlertPic);
                 break;
             default:
-                log('Unsupported objectType of ' + objectType + ' in areaInstance.drawInteractiveObject().');
-                break;
+                log('Unsupported objectType of ' + objectType + ' in areaInstance.handleInteractiveObjectInteraction().');
+                return;
         }
+        
+        //update the master:
+        a.getProperty(objectType)[masterIndex] = master;
+        a.save();
         
         //draw the object in the area, so that it propagates to all instances:
         a.drawInteractiveObject(objectType, masterIndex);
@@ -1628,6 +1732,24 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     return;
                 }
                 break;
+            case 'chests':
+                var chestTop = graphicMaster[0] + this.getProperty('top');
+                var chestLeft = graphicMaster[1] + this.getProperty('left');
+                
+                var p = (new segment(
+                    new point(
+                        chestLeft,
+                        chestTop),
+                    new point(
+                        chestLeft + graphicMaster[3],
+                        chestTop + graphicMaster[2]))).midpoint();
+                
+                //compare position to point, using epsilon:
+                if((Math.abs(graphic.get('left') - p.x) < positionEpsilon)
+                        && (Math.abs(graphic.get('top') - p.y) < positionEpsilon)) {
+                    return;
+                }
+                break;
             default:
                 log('Unhandled graphic type of ' + managedGraphic.graphicType + ' in areaInstance.handleGraphicChange().');
                 break;
@@ -1639,7 +1761,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     areaInstance.prototype.toggleInteractiveProperty = function(graphic, property) {
         var followUpAction = [];
-        
         var managedGraphic = this.findManagedGraphic(graphic);
         
         if(!managedGraphic) {
@@ -1650,49 +1771,61 @@ var APIAreaMapper = APIAreaMapper || (function() {
         a = new area(this.getProperty('areaId'));
         var graphicMaster = a.getProperty(managedGraphic.graphicType)[managedGraphic.graphicIndex];
         
+        var changeProperty = function(master, property, followUpAction, openIndex, lockIndex, trapIndex, hideIndex) {
+            var redraw = false;
+            switch(property) {
+                case 'open':
+                    graphicMaster[openIndex] = (graphicMaster[openIndex] + 1) % 2;
+                    redraw = true;
+                    break;
+                case 'lock':
+                    graphicMaster[lockIndex] = (graphicMaster[lockIndex] + 1) % 2;
+                    followUpAction.refresh = true;
+                    break;
+                case 'trap':
+                    graphicMaster[trapIndex] = (graphicMaster[trapIndex] + 1) % 2;
+                    followUpAction.refresh = true;
+                    break;
+                case 'hide':
+                    graphicMaster[hideIndex] = (graphicMaster[hideIndex] + 1) % 2;
+                    redraw = true;
+                    break;
+                default:
+                    log('Unhandled property type of ' + property + ' in areaInstance.toggleInteractiveProperty().');
+                    followUpAction.message = 'There was a problem; see the log for details.';
+                    break;
+            }
+            return redraw;
+        }
+        
+        var redraw = false;
+        
         switch(managedGraphic.graphicType) {
             case 'doors':
-                var redraw = false;
-                
-                switch(property) {
-                    case 'open':
-                        graphicMaster[1] = (graphicMaster[1] + 1) % 2;
-                        redraw = true;
-                        break;
-                    case 'lock':
-                        graphicMaster[2] = (graphicMaster[2] + 1) % 2;
-                        followUpAction.refresh = true;
-                        break;
-                    case 'trap':
-                        graphicMaster[3] = (graphicMaster[3] + 1) % 2;
-                        followUpAction.refresh = true;
-                        break;
-                    case 'hide':
-                        graphicMaster[4] = (graphicMaster[4] + 1) % 2;
-                        redraw = true;
-                        break;
-                    default:
-                        log('Unhandled property type of ' + property + ' in areaInstance.toggleInteractiveProperty().');
-                        followUpAction.message = 'There was a problem; see the log for details.';
-                        return followUpAction;
-                }
-                
-                //update the master:
-                a.getProperty(managedGraphic.graphicType)[managedGraphic.graphicIndex] = graphicMaster;
-                a.save();
-                
-                //redraw the door or just its features across all instances of the area:
-                var errorMessage = a.drawInteractiveObject(managedGraphic.graphicType, managedGraphic.graphicIndex, !redraw);
-                followUpAction.message = errorMessage;
-                if(!followUpAction.message && redraw) {
-                    followUpAction.message = 'The graphic has been replaced with a new one. Please select it for futher modifications.';
-                }
-          
+                redraw = changeProperty(graphicMaster, property, followUpAction, 1, 2, 3, 4);
+                break;
+            case 'chests':
+                redraw = changeProperty(graphicMaster, property, followUpAction, 5, 6, 7, 8);
                 break;
             default:
                 log('Unhandled graphic type of ' + managedGraphic.graphicType + ' in areaInstance.toggleInteractiveProperty().');
                 followUpAction.message = 'There was a problem; see the log for details.';
-                return followUpAction;
+                break;
+        }
+        
+        if(followUpAction.message) {
+            return followUpAction;
+        }
+        
+        //update the master:
+        a.getProperty(managedGraphic.graphicType)[managedGraphic.graphicIndex] = graphicMaster;
+        a.save();
+        
+        //redraw the door or just its features across all instances of the area:
+        var errorMessage = a.drawInteractiveObject(managedGraphic.graphicType, managedGraphic.graphicIndex, !redraw);
+        followUpAction.message = errorMessage;
+        if(!followUpAction.message && redraw) {
+            followUpAction.message = 'The graphic has been replaced with a new one. Please select it for futher modifications.';
         }
         
         this.save();
@@ -3398,6 +3531,20 @@ var APIAreaMapper = APIAreaMapper || (function() {
         );
     },
     
+    interfaceChest = function(who, managedGraphic) {
+        state.APIAreaMapper.uiWindow = 'chest'; //TODO: real chest id - see note below
+        //TODO: when a chest image is changed, rather than send a notification about reselecting, have it be implied to have the new graphic selected and call this method; also will have to store a specific selected door ID in the uiWindow state so that it can be a special rule that if it exists, the untuitive interface considers that to be a selection
+        
+        sendStandardInterface(who, 'Area Mapper',
+            commandLinks('Chest Management', [
+                ['open', 'interactiveObjectOpen', false, managedGraphic.properties[5]],
+                ['lock', 'interactiveObjectLock', false, managedGraphic.properties[6]],
+                ['trap', 'interactiveObjectTrap', false, managedGraphic.properties[7]],
+                ['hide', 'interactiveObjectHide', false, managedGraphic.properties[8]]
+            ])
+        );
+    },
+    
     interfaceAreaManagement = function(who, areaId) {
         var a = new area(areaId);
         
@@ -3621,6 +3768,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
         switch(managedGraphicProperties.graphicType) {
             case 'doors':
                 interfaceDoor(who, managedGraphicProperties);
+                break;
+            case 'chests':
+                interfaceChest(who, managedGraphicProperties);
                 break;
             default:
                 log('Unhandled graphicType of ' + managedGraphicProperties.graphicType + ' in intuit().');
