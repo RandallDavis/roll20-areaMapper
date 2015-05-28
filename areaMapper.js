@@ -1491,7 +1491,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     //TODO: this segment mechanism doesn't cover rotations other than 0:
                     //draw the chest (on the object or gm layer depending on it being hidden):
                     chest = createTokenObject(
-                        (master[5] ? closedChestPic : openChestPic), 
+                        (master[5] ? openChestPic : closedChestPic), 
                         this.getProperty('pageId'), 
                         (master[8] ? 'gmlayer' : 'objects'),
                         new segment(
