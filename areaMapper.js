@@ -52,8 +52,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
     },
     
     resetTemporaryState = function() {
-        state.APIAreaMapper.tempIgnoreDrawingEvents = false;
-        state.APIAreaMapper.recordAreaMode = false;
+        delete state.APIAreaMapper.tempIgnoreDrawingEvents;
+        delete state.APIAreaMapper.recordAreaMode;
         delete state.APIAreaMapper.playerId;
         delete state.APIAreaMapper.playerName;
         delete state.APIAreaMapper.uiWindow;
@@ -3373,7 +3373,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 break;
             default:
                 log("Unhandled property of '" + property + "' in toggleInteractiveProperty().");
-                //TODO: return a failure message:
                 return;
         }
         
@@ -3874,6 +3873,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
             var followUpAction = []; //might get clobbered
             var chatCommand = msg.content.split(' ');
             
+            var retainRecordAreaMode = false;
+            
             if(chatCommand.length === 1) {
                 followUpAction = intuit(msg.selected, msg.who);
             } else {
@@ -3929,6 +3930,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     case 'chestAdd':
                     case 'chestRemove':
                     case 'areaInstanceCreate':
+                        retainRecordAreaMode = true;
                         followUpAction = toggleOrSetAreaRecordMode(chatCommand[1]);
                         followUpAction.ignoreSelection = true;
                         break;
@@ -3936,9 +3938,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         followUpAction = toggleChestReposition();
                         break;
                     case 'redraw':
+                        retainRecordAreaMode = true;
                         followUpAction = handleAreaRedraw();
                         break;
                     case 'blueprint':
+                        retainRecordAreaMode = true;
                         followUpAction = toggleBlueprintMode();
                         followUpAction.ignoreSelection = true;
                         break;
@@ -3966,6 +3970,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     default:
                         break;
                 }
+            }
+            
+            if(!retainRecordAreaMode) {
+                delete state.APIAreaMapper.recordAreaMode;
             }
             
             processFollowUpAction(followUpAction, msg.who, msg.selected);
