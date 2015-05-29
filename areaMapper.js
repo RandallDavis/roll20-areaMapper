@@ -6,7 +6,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.114,
+    var version = 0.115,
         schemaVersion = 0.034,
         buttonBackgroundColor = '#E92862',
         buttonGreyedColor = '#8D94A9',
@@ -17,11 +17,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
         lockedTagColor = '#E5DB50',
         trappedTagColor = '#E2274C',
         hiddenTagColor = '#277EE2',
-        wallImageUrl = 'https://s3.amazonaws.com/files.d20.io/images/9585786/x1-hhxavuLoUjMsgA5vYdA/thumb.png?1432007204',
-        floorImageUrl = 'https://s3.amazonaws.com/files.d20.io/images/48971/thumb.jpg?1340229647',
-        //TODO: rename these to pic:
-        closedDoorImageUrl = 'https://s3.amazonaws.com/files.d20.io/images/6951/thumb.png?1336359665',
-        openDoorImageUrl = 'https://s3.amazonaws.com/files.d20.io/images/7068/thumb.png?1336366825',
+        wallImagePic = 'https://s3.amazonaws.com/files.d20.io/images/9585786/x1-hhxavuLoUjMsgA5vYdA/thumb.png?1432007204',
+        floorImagePic = 'https://s3.amazonaws.com/files.d20.io/images/48971/thumb.jpg?1340229647',
+        closedDoorImagePic = 'https://s3.amazonaws.com/files.d20.io/images/6951/thumb.png?1336359665',
+        openDoorImagePic = 'https://s3.amazonaws.com/files.d20.io/images/7068/thumb.png?1336366825',
         closedDoorAlertPic = 'https://s3.amazonaws.com/files.d20.io/images/8543193/5XhwOpMaBUS_5B444UNC5Q/thumb.png?1427665106',
         openDoorAlertPic = 'https://s3.amazonaws.com/files.d20.io/images/8543205/QBOWp1MHHlJCrPWn9kcVqQ/thumb.png?1427665124',
         padlockAlertPic = 'https://s3.amazonaws.com/files.d20.io/images/8546285/bdyuCfZSGRXr3qrVkcPkAg/thumb.png?1427673372',
@@ -1319,7 +1318,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var a = new area(this.getProperty('areaId'));
         
         //draw new floor tile:
-        var floorTile = createTokenObject(floorImageUrl, this.getProperty('pageId'), 'map', new segment(new point(left, top), new point(left + a.getProperty('width'), top + a.getProperty('height'))));
+        var floorTile = createTokenObject(floorImagePic, this.getProperty('pageId'), 'map', new segment(new point(left, top), new point(left + a.getProperty('width'), top + a.getProperty('height'))));
         this.setProperty('floorTileId', floorTile.id);
         
         //draw floor tile mask:
@@ -1338,7 +1337,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             //draw wall tokens:
             var ewIndex = g.addSimplePath(ew[0], top + ew[1], left + ew[2]);
             g.getProperty('simplePaths')[ewIndex].segments.forEach(function(s) {
-                this.setProperty('wallIds', createTokenObjectFromSegment(wallImageUrl, this.getProperty('pageId'), 'objects', s, 20).id);
+                this.setProperty('wallIds', createTokenObjectFromSegment(wallImagePic, this.getProperty('pageId'), 'objects', s, 20).id);
             }, this);
             
             //draw line of sight blocking wall:
@@ -1352,7 +1351,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             //draw wall tokens:
             var iwIndex = g.addSimplePath(iw[0], top + iw[1], left + iw[2]);
             g.getProperty('simplePaths')[iwIndex].segments.forEach(function(s) {
-                this.setProperty('wallIds', createTokenObjectFromSegment(wallImageUrl, this.getProperty('pageId'), 'objects', s, 20).id);
+                this.setProperty('wallIds', createTokenObjectFromSegment(wallImagePic, this.getProperty('pageId'), 'objects', s, 20).id);
             }, this);
             
             //draw line of sight blocking wall:
@@ -1436,9 +1435,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     door = 
                         master[4]
                             ? (master[1]
-                                ? createTokenObjectFromSegment(openDoorImageUrl, this.getProperty('pageId'), 'objects', s, 30, true)
-                                : createTokenObjectFromSegment(wallImageUrl, this.getProperty('pageId'), 'objects', s, 20, false))
-                            : createTokenObjectFromSegment((master[1] ? openDoorImageUrl : closedDoorImageUrl), this.getProperty('pageId'), 'objects', s, 30, true);
+                                ? createTokenObjectFromSegment(openDoorImagePic, this.getProperty('pageId'), 'objects', s, 30, true)
+                                : createTokenObjectFromSegment(wallImagePic, this.getProperty('pageId'), 'objects', s, 20, false))
+                            : createTokenObjectFromSegment((master[1] ? openDoorImagePic : closedDoorImagePic), this.getProperty('pageId'), 'objects', s, 30, true);
                     
                     //set door privs to players unless the door is hidden:
                     if(!master[4]) {
