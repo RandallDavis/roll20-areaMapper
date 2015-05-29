@@ -1524,7 +1524,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     var chestTop = master[0] + this.getProperty('top');
                     var chestLeft = master[1] + this.getProperty('left');
                     
-                    //TODO: this segment mechanism doesn't cover rotations other than 0:
                     //draw the chest (on the object or gm layer depending on it being hidden):
                     chest = createTokenObject(
                         (master[5] ? openChestPic : closedChestPic), 
@@ -1532,7 +1531,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         (master[8] ? 'gmlayer' : 'objects'),
                         new segment(
                                 new point(chestLeft, chestTop),
-                                new point(chestLeft + master[3], chestTop + master[2])));
+                                new point(chestLeft + master[3], chestTop + master[2])),
+                        master[4]);
                        
                     //set chest privs to players unless the door is hidden:
                     if(!master[8]) {
@@ -3192,7 +3192,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
             _path: path,
             rotation: rotation
         });
-        //toFront(obj);
         
         state.APIAreaMapper.tempIgnoreDrawingEvents = false;
         
@@ -3263,7 +3262,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
             height: alternateWidthAndHeight ? width : height,
             rotation: segment.angleDegrees(segment.a) + (alternateWidthAndHeight ? 0 : 90)
         });
-        //toFront(obj);
         
         state.APIAreaMapper.tempIgnoreDrawingEvents = false;
         
@@ -3271,7 +3269,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
     },
     
     //creates a token object using a segment to define its dimensions:
-    createTokenObject = function(imgsrc, pageId, layer, segment) {
+    createTokenObject = function(imgsrc, pageId, layer, segment, rotation) {
+        if('undefined' === typeof(rotation)) {
+            rotation = 0;
+        }
+        
         state.APIAreaMapper.tempIgnoreDrawingEvents = true;
         
         var obj = createObj('graphic', {
@@ -3282,9 +3284,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
             left: segment.b.x + ((segment.a.x - segment.b.x) / 2),
             height: segment.b.y - segment.a.y,
             width: segment.b.x - segment.a.x,
-            rotation: 0
+            rotation: rotation
         });
-        //toFront(obj);
         
         state.APIAreaMapper.tempIgnoreDrawingEvents = false;
         
