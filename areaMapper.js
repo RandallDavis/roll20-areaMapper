@@ -4035,140 +4035,55 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         var followUpAction;
         
-        //TODO: a lot of these log entries can become notifications
-        switch(state.APIAreaMapper.recordAreaMode) {
-            case 'areaCreate':
-                var a = new area();
-                followUpAction = a.create(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
-                state.APIAreaMapper.activeArea = a.getProperty('id');
-                state.APIAreaMapper.uiWindow = 'area#' + state.APIAreaMapper.activeArea;
-                delete state.APIAreaMapper.recordAreaMode;
-               
-                path.remove();
-                break;
-            case 'areaAppend':
-                if(!state.APIAreaMapper.activeArea) {
-                    log('An area needs to be active before appending.');
-                    return;
-                }
-                
-                var a = new area(state.APIAreaMapper.activeArea);
-                followUpAction = a.floorPlanAppend(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+        if(state.APIAreaMapper.recordAreaMode == 'areaCreate') {
+            var a = new area();
+            followUpAction = a.create(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+            state.APIAreaMapper.activeArea = a.getProperty('id');
+            state.APIAreaMapper.uiWindow = 'area#' + state.APIAreaMapper.activeArea;
+            delete state.APIAreaMapper.recordAreaMode;
+            path.remove();
+        } else if(state.APIAreaMapper.activeArea) {
+            var a = new area(state.APIAreaMapper.activeArea);
             
-                path.remove();
-                break;
-            case 'areaRemove':
-                if(!state.APIAreaMapper.activeArea) {
-                    log('An area needs to be active before doing removals.');
+            switch(state.APIAreaMapper.recordAreaMode) {
+                case 'areaAppend':
+                    followUpAction = a.floorPlanAppend(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                    break;
+                case 'areaRemove':
+                    followUpAction = a.floorPlanRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                    break;
+                case 'edgeWallRemove':
+                    followUpAction = a.edgeWallRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                    break;
+                case 'edgeWallGapRemove':
+                    followUpAction = a.edgeWallGapRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                    break;
+                case 'innerWallAdd':
+                    followUpAction = a.innerWallAdd(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                    break;
+                case 'innerWallRemove':
+                    followUpAction = a.innerWallRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                    break;
+                case 'doorAdd':
+                    followUpAction = a.doorAdd(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                    break;
+                case 'doorRemove':
+                    followUpAction = a.doorRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                    break;
+                case 'chestAdd':
+                    followUpAction = a.chestAdd(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                    break;
+                case 'chestRemove':
+                    followUpAction = a.chestRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                    break;
+                case 'areaInstanceCreate':
+                    followUpAction = a.createInstance(path.get('_pageid'), path.get('top'), path.get('left'));
+                    break;
+                default:
                     return;
-                }
-                
-                var a = new area(state.APIAreaMapper.activeArea);
-                followUpAction = a.floorPlanRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
-         
-                path.remove();
-                break;
-            case 'edgeWallRemove':
-                if(!state.APIAreaMapper.activeArea) {
-                    log('An area needs to be active before doing edge wall removals.');
-                    return;
-                }
-                
-                var a = new area(state.APIAreaMapper.activeArea);
-                followUpAction = a.edgeWallRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
-                
-                path.remove();
-                break;
-            case 'edgeWallGapRemove':
-                if(!state.APIAreaMapper.activeArea) {
-                    log('An area needs to be active before doing edge wall additions.');
-                    return;
-                }
-                
-                var a = new area(state.APIAreaMapper.activeArea);
-                followUpAction = a.edgeWallGapRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
-                
-                path.remove();
-                break;
-            case 'innerWallAdd':
-                if(!state.APIAreaMapper.activeArea) {
-                    log('An area needs to be active before adding inner walls.');
-                    return;
-                }
-                
-                var a = new area(state.APIAreaMapper.activeArea);
-                followUpAction = a.innerWallAdd(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
-                
-                path.remove();
-                break;
-            case 'innerWallRemove':
-                if(!state.APIAreaMapper.activeArea) {
-                    log('An area needs to be active before removing inner walls.');
-                    return;
-                }
-                
-                var a = new area(state.APIAreaMapper.activeArea);
-                followUpAction = a.innerWallRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
-                
-                path.remove();
-                break;
-            case 'doorAdd':
-                if(!state.APIAreaMapper.activeArea) {
-                    log('An area needs to be active before adding doors.');
-                    return;
-                }
-                
-                var a = new area(state.APIAreaMapper.activeArea);
-                followUpAction = a.doorAdd(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
-                
-                path.remove();
-                break;
-            case 'doorRemove':
-                if(!state.APIAreaMapper.activeArea) {
-                    log('An area needs to be active before removing doors.');
-                    return;
-                }
-                
-                var a = new area(state.APIAreaMapper.activeArea);
-                followUpAction = a.doorRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
-                
-                path.remove();
-                break;
-            case 'chestAdd':
-                if(!state.APIAreaMapper.activeArea) {
-                    log('An area needs to be active before adding chests.');
-                    return;
-                }
-                
-                var a = new area(state.APIAreaMapper.activeArea);
-                followUpAction = a.chestAdd(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
-                
-                path.remove();
-                break;
-            case 'chestRemove':
-                if(!state.APIAreaMapper.activeArea) {
-                    log('An area needs to be active before removing chests.');
-                    return;
-                }
-                
-                var a = new area(state.APIAreaMapper.activeArea);
-                followUpAction = a.chestRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
-                
-                path.remove();
-                break;
-            case 'areaInstanceCreate':
-                if(!state.APIAreaMapper.activeArea) {
-                    log('An area needs to be active before drawing an instance.');
-                    return;
-                }
-                
-                var a = new area(state.APIAreaMapper.activeArea);
-                followUpAction = a.createInstance(path.get('_pageid'), path.get('top'), path.get('left'));
-                
-                path.remove();
-                break;
-            default:
-                return;
+            }
+            
+            path.remove();
         }
         
         processFollowUpAction(followUpAction);
