@@ -6,7 +6,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.113,
+    var version = 0.114,
         schemaVersion = 0.034,
         buttonBackgroundColor = '#E92862',
         buttonGreyedColor = '#8D94A9',
@@ -58,6 +58,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         delete state.APIAreaMapper.playerId;
         delete state.APIAreaMapper.playerName;
         delete state.APIAreaMapper.uiWindow;
+        delete state.APIAreaMapper.chestReposition;
         
         //reset the handout:
         if(state.APIAreaMapper.handoutUi) {
@@ -1751,6 +1752,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var positionEpsilon = 0.001;
         a = new area(this.getProperty('areaId'));
         var graphicMaster = a.getProperty(managedGraphic.graphicType)[managedGraphic.graphicIndex];
+        var specialInteraction = false;
         
         switch(managedGraphic.graphicType) {
             case 'doors':
@@ -1769,21 +1771,34 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 }
                 break;
             case 'chests':
-                var chestTop = graphicMaster[0] + this.getProperty('top');
-                var chestLeft = graphicMaster[1] + this.getProperty('left');
-                
-                var p = (new segment(
-                    new point(
-                        chestLeft,
-                        chestTop),
-                    new point(
-                        chestLeft + graphicMaster[3],
-                        chestTop + graphicMaster[2]))).midpoint();
-                
-                //compare position to point, using epsilon:
-                if((Math.abs(graphic.get('left') - p.x) < positionEpsilon)
-                        && (Math.abs(graphic.get('top') - p.y) < positionEpsilon)) {
-                    return;
+                if(state.APIAreaMapper.chestReposition) {
+                    specialInteraction = true;
+                    
+                    graphicMaster[0] = graphic.get('top') - this.getProperty('top') - (graphic.get('height') / 2);
+                    graphicMaster[1] = graphic.get('left') - this.getProperty('left') - (graphic.get('width') / 2);
+                    graphicMaster[2] = graphic.get('height');
+                    graphicMaster[3] = graphic.get('width');
+                    graphicMaster[4] = graphic.get('rotation');
+                    
+                    a.getProperty(managedGraphic.graphicType)[managedGraphic.graphicIndex] = graphicMaster;
+                    a.save();
+                } else {
+                    var chestTop = graphicMaster[0] + this.getProperty('top');
+                    var chestLeft = graphicMaster[1] + this.getProperty('left');
+                    
+                    var p = (new segment(
+                        new point(
+                            chestLeft,
+                            chestTop),
+                        new point(
+                            chestLeft + graphicMaster[3],
+                            chestTop + graphicMaster[2]))).midpoint();
+                    
+                    //compare position to point, using epsilon:
+                    if((Math.abs(graphic.get('left') - p.x) < positionEpsilon)
+                            && (Math.abs(graphic.get('top') - p.y) < positionEpsilon)) {
+                        return;
+                    }
                 }
                 break;
             default:
@@ -1791,7 +1806,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 break;
         }
         
-        this.handleInteractiveObjectInteraction(managedGraphic.graphicType, managedGraphic.graphicIndex);
+        //handle true interactions if there was no special case:
+        if(!specialInteraction) {
+            this.handleInteractiveObjectInteraction(managedGraphic.graphicType, managedGraphic.graphicIndex);
+        }
+        
         this.save();
     };
     
@@ -3296,6 +3315,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return followUpAction;
     },
     
+    toggleChestReposition = function() {
+        state.APIAreaMapper.chestReposition = !state.APIAreaMapper.chestReposition;
+        
+        var followUpAction = [];
+        followUpAction.refresh = true;
+        return followUpAction;
+    },
+    
     toggleBlueprintMode = function() {
         state.APIAreaMapper.blueprintMode = !state.APIAreaMapper.blueprintMode;
         
@@ -3580,7 +3607,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 ['open', 'interactiveObjectOpen', false, managedGraphic.properties[5]],
                 ['lock', 'interactiveObjectLock', false, managedGraphic.properties[6]],
                 ['trap', 'interactiveObjectTrap', false, managedGraphic.properties[7]],
-                ['hide', 'interactiveObjectHide', false, managedGraphic.properties[8]]
+                ['hide', 'interactiveObjectHide', false, managedGraphic.properties[8]],
+                ['reposition', 'chestReposition', false, state.APIAreaMapper.chestReposition] //this is a global setting for repositioning all chests
             ])
         );
     },
@@ -3903,6 +3931,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     case 'areaInstanceCreate':
                         followUpAction = toggleOrSetAreaRecordMode(chatCommand[1]);
                         followUpAction.ignoreSelection = true;
+                        break;
+                    case 'chestReposition':
+                        followUpAction = toggleChestReposition();
                         break;
                     case 'redraw':
                         followUpAction = handleAreaRedraw();
