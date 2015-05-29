@@ -6,7 +6,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.112,
+    var version = 0.113,
         schemaVersion = 0.034,
         buttonBackgroundColor = '#E92862',
         buttonGreyedColor = '#8D94A9',
@@ -19,6 +19,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         hiddenTagColor = '#277EE2',
         wallImageUrl = 'https://s3.amazonaws.com/files.d20.io/images/9585786/x1-hhxavuLoUjMsgA5vYdA/thumb.png?1432007204',
         floorImageUrl = 'https://s3.amazonaws.com/files.d20.io/images/48971/thumb.jpg?1340229647',
+        //TODO: rename these to pic:
         closedDoorImageUrl = 'https://s3.amazonaws.com/files.d20.io/images/6951/thumb.png?1336359665',
         openDoorImageUrl = 'https://s3.amazonaws.com/files.d20.io/images/7068/thumb.png?1336366825',
         closedDoorAlertPic = 'https://s3.amazonaws.com/files.d20.io/images/8543193/5XhwOpMaBUS_5B444UNC5Q/thumb.png?1427665106',
@@ -966,6 +967,40 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return followUpAction;
     };
     
+    area.prototype.chestRemove = function(rawPath, pageId, top, left, isFromEvent) {
+        var followUpAction = [];
+        
+        var g = new graph();
+        g.addComplexPolygon(rawPath, top, left, isFromEvent);
+        var removeSpIndex = g.convertComplexPolygonToSimplePolygon(0);
+        
+        //get instance that removal is relative to:
+        var instance = new areaInstance(this.getProperty('id'), pageId);
+        
+        var oldChests = this.getProperty('chests');
+        var chests = [];
+        
+        oldChests.forEach(function(c) {
+            var chestTop = c[0] + instance.getProperty('top');
+            var chestLeft = c[1] + instance.getProperty('left');
+            var chestCenter = new point(chestLeft + (c[3] / 2), chestTop + (c[2] / 2));
+            
+            if(!g.hasInsidePoint('simplePolygons', removeSpIndex, chestCenter)) {
+                chests.push(c);
+            }
+        }, this);
+        
+        if(chests.length < oldChests.length) {
+            this.initializeCollectionProperty('chests', chests);
+            
+            this.save();
+            this.draw();
+        }
+      
+        followUpAction.refresh = true;
+        return followUpAction;
+    };
+    
     area.prototype.getInstancePageIds = function() {
         var instancePageIds = [];
     
@@ -1687,6 +1722,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 var chestTop = master[0] + this.getProperty('top');
                 var chestLeft = master[1] + this.getProperty('left');
                 var chestCenter = new point(chestLeft + (master[3] / 2), chestTop + (master[2] / 2));
+                //TODO: use chest-specific open / close pics:
                 handleInteraction(master, 5, 6, 7, chestCenter, openDoorAlertPic, closedDoorAlertPic, padlockAlertPic, skullAlertPic);
                 break;
             default:
@@ -2539,7 +2575,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     inheritPrototype(simplePolygon, simplePath);
     
     //tests if the point is inside the polygon:
-    simplePolygon.prototype.hasInside = function(p) {
+    simplePolygon.prototype.hasInsidePoint = function(p) {
         
         //use an arbitrarily long horizontal segment that goes into negatives (because of relative coordinates):
         var horizontalSegment = new segment(new point(-1000000000, p.y), new point(1000000000, p.y));
@@ -2579,14 +2615,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     //only tests segment's endpoints:
     simplePolygon.prototype.hasInsideSegment = function(s) {
-        return (this.hasInside(s.a) && this.hasInside(s.b));
+        return (this.hasInsidePoint(s.a) && this.hasInsidePoint(s.b));
     };
     
     simplePolygon.prototype.hasInsideEntirePath = function(sp) {
         var pointsPath = sp.getPointsPath();
         
         for(var i = 0; i < pointsPath.length; i++) {
-            if(!this.hasInside(pointsPath[i])) {
+            if(!this.hasInsidePoint(pointsPath[i])) {
                 return false;
             }
         }
@@ -2599,7 +2635,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var pointsPath = this.getPointsPath();
       
         for(var i = 0; i < pointsPath.length; i++) {
-            if(!sp.hasInside(pointsPath[i])) {
+            if(!sp.hasInsidePoint(pointsPath[i])) {
                 return i;
             }
         }
@@ -2612,7 +2648,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var containedPoints = [];
         
         sp.getPointsPath().forEach(function(p) {
-            if(this.hasInside(p)) {
+            if(this.hasInsidePoint(p)) {
                 containedPoints.push(p);
             }
         }, this);
@@ -2660,7 +2696,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         if(!intersectingSegments.length) {
             
             //sp is fully contained in this:
-            if(this.hasInside(sp.points[0][0])) {
+            if(this.hasInsidePoint(sp.points[0][0])) {
                 intersectingPaths.push(sp.getPointsPath());
             }
         } else {
@@ -2672,7 +2708,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 if(!s[1]) {
                     
                     //test the midpoint of the segment to see if it's contained in this polygon:
-                    if(this.hasInside(s[0].midpoint())) {
+                    if(this.hasInsidePoint(s[0].midpoint())) {
                         var intersectingPath = [];
                         
                         intersectingPath.push(s[0].a);
@@ -2688,7 +2724,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                             sWalkingIndex %= sp.segments.length;
                         }
                         
-                        while(sWalkingIndex !== sIndex && sWalkingIndex < sp.segments.length && this.hasInside(sp.segments[sWalkingIndex].midpoint())) {
+                        while(sWalkingIndex !== sIndex && sWalkingIndex < sp.segments.length && this.hasInsidePoint(sp.segments[sWalkingIndex].midpoint())) {
                             var seg = sp.segments[sWalkingIndex];
                             intersectingPath.push(seg.b);
                             
@@ -2714,7 +2750,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                                 sWalkingIndex = (sWalkingIndex + sp.segments.length) % sp.segments.length;
                             }
                             
-                            while(sWalkingIndex !== sIndex && sWalkingIndex >= 0 && this.hasInside(sp.segments[sWalkingIndex].midpoint())) {
+                            while(sWalkingIndex !== sIndex && sWalkingIndex >= 0 && this.hasInsidePoint(sp.segments[sWalkingIndex].midpoint())) {
                                 var seg = sp.segments[sWalkingIndex];
                                 intersectingPath.unshift(seg.a);
                                     
@@ -3041,11 +3077,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
             return this.convertComplexPolygonToSimplePolygon(cpIndex);
         } 
         //polygon 2 is fully contained within polygon 1, so return polygon 1:
-        else if(op1.hasInside(op2.points[0][0])) {
+        else if(op1.hasInsidePoint(op2.points[0][0])) {
             return index1;
         }
         //polygon 1 is fully contained within polygon 2, so return polygon 2:
-        else if(op2.hasInside(op1.points[0][0])) {
+        else if(op2.hasInsidePoint(op1.points[0][0])) {
             return index2;
         }
         //the polygons are siblings, so merging cannot be done:
@@ -3081,9 +3117,13 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return this.getProperty(pathType1)[index1].getIntersectingPaths(this.getProperty(pathType2)[index2]);
     };
     
+    graph.prototype.hasInsidePoint = function(pathType, index, p) {
+        return this.getProperty(pathType)[index].hasInsidePoint(p);
+    };
+    
     graph.prototype.hasInsideSegment = function(pathType, index, s) {
         return this.getProperty(pathType)[index].hasInsideSegment(s);
-    }
+    };
     
     graph.prototype.hasInsideEntirePath = function(pathType1, index1, pathType2, index2) {
         return this.getProperty(pathType1)[index1].hasInsideEntirePath(this.getProperty(pathType2)[index2]);
@@ -3582,7 +3622,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 ['add door', 'doorAdd', !hasInstances || (state.APIAreaMapper.activeArea != areaId) || (!hasEdgeWalls && !hasInnerWalls), (state.APIAreaMapper.recordAreaMode == 'doorAdd')],
                 ['remove door', 'doorRemove', !hasInstances || (state.APIAreaMapper.activeArea != areaId) || !hasDoors, (state.APIAreaMapper.recordAreaMode == 'doorRemove')],
                 ['add chest', 'chestAdd', !hasInstances || (state.APIAreaMapper.activeArea != areaId), (state.APIAreaMapper.recordAreaMode == 'chestAdd')],
-                ['remove chest (TBA)', 'chestRemove', !hasInstances || true || (state.APIAreaMapper.activeArea != areaId) || !hasChests, (state.APIAreaMapper.recordAreaMode == 'chestRemove')],
+                ['remove chest', 'chestRemove', !hasInstances || (state.APIAreaMapper.activeArea != areaId) || !hasChests, (state.APIAreaMapper.recordAreaMode == 'chestRemove')],
                 ['undo (TBA)', 'undo', true || !hasInstances || (state.APIAreaMapper.activeArea != areaId), false],
                 ['redraw', 'redraw', !hasInstances || (state.APIAreaMapper.activeArea != areaId), false]
                 //TODO: instance-specific modifications: move, resize, rotate
@@ -3859,6 +3899,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     case 'doorAdd':
                     case 'doorRemove':
                     case 'chestAdd':
+                    case 'chestRemove':
                     case 'areaInstanceCreate':
                         followUpAction = toggleOrSetAreaRecordMode(chatCommand[1]);
                         followUpAction.ignoreSelection = true;
@@ -4014,6 +4055,17 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 
                 var a = new area(state.APIAreaMapper.activeArea);
                 followUpAction = a.chestAdd(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                
+                path.remove();
+                break;
+            case 'chestRemove':
+                if(!state.APIAreaMapper.activeArea) {
+                    log('An area needs to be active before removing chests.');
+                    return;
+                }
+                
+                var a = new area(state.APIAreaMapper.activeArea);
+                followUpAction = a.chestRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
                 
                 path.remove();
                 break;
