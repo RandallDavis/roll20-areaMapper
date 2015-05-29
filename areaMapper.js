@@ -3611,8 +3611,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     },
     
     interfaceDoor = function(who, managedGraphic) {
-        state.APIAreaMapper.uiWindow = 'door'; //TODO: real door id - see note below
-        //TODO: when a door image is changed, rather than send a notification about reselecting, have it be implied to have the new graphic selected and call this method; also will have to store a specific selected door ID in the uiWindow state so that it can be a special rule that if it exists, the untuitive interface considers that to be a selection
+        state.APIAreaMapper.uiWindow = 'door';
         
         sendStandardInterface(who, 'Area Mapper',
             commandLinks('Door Management', [
@@ -3625,8 +3624,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     },
     
     interfaceChest = function(who, managedGraphic) {
-        state.APIAreaMapper.uiWindow = 'chest'; //TODO: real chest id - see note below
-        //TODO: when a chest image is changed, rather than send a notification about reselecting, have it be implied to have the new graphic selected and call this method; also will have to store a specific selected door ID in the uiWindow state so that it can be a special rule that if it exists, the untuitive interface considers that to be a selection
+        state.APIAreaMapper.uiWindow = 'chest';
         
         sendStandardInterface(who, 'Area Mapper',
             commandLinks('Chest Management', [
