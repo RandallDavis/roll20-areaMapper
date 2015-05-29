@@ -29,6 +29,6 @@ This requires another script I wrote for its visual alert animations. It can be 
 - Areas will certainly need a Z-order so that superimposing can be handled logically. Normally, you'd expect floors to be at the base layer, then walls, then doors, then objects, basically as a merging / layering between all of the areas. Another optional approach could be to situationally have different areas be on different "floors", and ditch the merging logic and impose a semi-transparent graying effect on floors that are below the active floor.
 
 ##### Implementation:
-- All of the polygon logic should be handled as a clustered graph algorithm. For fun, don't do research on others' approaches to this, but do it from scratch.
+- All of the polygon logic should be handled as graph algorithms. For fun, don't do research on others' approaches to this, but do it from scratch.
 
 ![graph algorithms!](http://i.imgur.com/QUJJXA5.jpg)
