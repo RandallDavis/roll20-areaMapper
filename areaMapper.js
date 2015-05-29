@@ -57,6 +57,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         delete state.APIAreaMapper.playerId;
         delete state.APIAreaMapper.playerName;
         delete state.APIAreaMapper.uiWindow;
+        delete state.APIAreaMapper.falseSelection;
         delete state.APIAreaMapper.chestReposition;
         
         //reset the handout:
@@ -163,9 +164,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'archived':
                 this['_' + property] = value;
                 break;
+            //TODO: consider using a DTO for these; this will remove direct referencing of positions within arrays:
             case 'edgeWalls': //[simple path, top, left, height, width]
             case 'edgeWallGaps': //[simple path, top, left, height, width]
             case 'innerWalls': //[simple path, top, left, height, width]
+            //TODO: consider polymorphic DTOs for managed objects; managed -> interactive -> door/chest; this will remove the direct referencing of positions within arrays:
             case 'doors': //[segment position, isOpen, isLocked, isTrapped, isHidden]
             case 'chests': //[top, left, height, width, rotation, isOpen, isLocked, isTrapped, isHidden]
                 return this['_' + property].push(value) - 1;
@@ -266,6 +269,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
     };
     
     area.prototype.load = function() {
+        
+        //note: each area's state is stored in an array of key/value pairs
+        
         var id = this.getProperty('id');
         var areas = state.APIAreaMapper.areas;
         var areaState;
@@ -1051,10 +1057,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
     };
     
     //draws an interactive object in all instances:
-    area.prototype.drawInteractiveObject = function(objectType, masterIndex, featureTagsOnly) {
+    area.prototype.drawInteractiveObject = function(objectType, masterIndex, featureTagsOnly, selectedObject) {
         this.getInstancePageIds().forEach(function(pageId) {
             var instance = new areaInstance(this.getProperty('id'), pageId)
-            instance.drawInteractiveObject(objectType, masterIndex, featureTagsOnly);
+            instance.drawInteractiveObject(objectType, masterIndex, featureTagsOnly, selectedObject);
         }, this);
     };
     
@@ -1094,6 +1100,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'edgeWallGapIds': //paths
             case 'losWallIds': //paths
             case 'blueprintWallIds': //paths
+            //TODO: consider using polymorphic DTOs for these to remove direct referencing of positions within arrays:
             case 'doorIds': //[door token, LoS wall path, feature tag paths]
             case 'chestIds': //[chest token, feature tag paths]
             case 'blueprintDoorIds': //paths
@@ -1128,6 +1135,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
     };
     
     areaInstance.prototype.load = function() {
+        
+        //note: each areaInstance's state is stored in an array of key/value pairs
+        
         var areaId = this.getProperty('areaId');
         var pageId = this.getProperty('pageId');
         
@@ -1373,15 +1383,16 @@ var APIAreaMapper = APIAreaMapper || (function() {
     };
     
     //draws an interactive object, which may replace an existing one:
-    areaInstance.prototype.drawInteractiveObject = function(objectType, masterIndex, featureTagsOnly) {
+    areaInstance.prototype.drawInteractiveObject = function(objectType, masterIndex, featureTagsOnly, selectedObject) {
         
-        //note: featureTagsOnly is only legal if this is an existing object
+        //note: featureTagsOnly is expected to be true only when this is an existing object
         
         var a = new area(this.getProperty('areaId'));
         var g = new graph();
         
         var master = a.getProperty(objectType)[masterIndex];
         
+        //TODO: normalize this code?
         switch(objectType) {
             case 'doors':
                 var dIndex = g.addSimplePathFromSegment(master[0], this.getProperty('top'), this.getProperty('left'));
@@ -1390,6 +1401,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 
                 //if the number of objects in the area and the instance are equal, then this is modifying an existing object:
                 var existingDoor = this.getProperty('doorIds').length === a.getProperty(objectType).length;
+                var existingDoorIsSelected = false;
                 
                 if(existingDoor) {
                     
@@ -1401,6 +1413,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     //delete door:
                     if(!featureTagsOnly) {
                         //note: there is no behavioral difference in handling of hidden doors
+                        
+                        //the selectedObject will only be provided for the instance that was modified by the user:
+                        existingDoorIsSelected = selectedObject && (this.getProperty('doorIds')[masterIndex][0] === selectedObject.id);
                             
                         //delete the old door image:
                         deleteObject('graphic', this.getProperty('doorIds')[masterIndex][0]);
@@ -1473,6 +1488,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 //if this is replacing an existing image, write it back into the appropriate slot:
                 if(existingDoor) {
                     this.getProperty('doorIds')[masterIndex] = doorProperty;
+                    
+                    //if the selected door was replaced, store the new door as a false selection:
+                    if(existingDoorIsSelected) {
+                        state.APIAreaMapper.falseSelection = door.id;
+                    }
                 }
                 //if it's a new image, push it to the end (which will line up with the master's index):
                 else {
@@ -1484,7 +1504,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 
                 //if the number of objects in the area and the instance are equal, then this is modifying an existing object:
                 var existingChest = this.getProperty('chestIds').length === a.getProperty(objectType).length;
-                 
+                var existingChestIsSelected = false;
+                
                 if(existingChest) {
                     
                     //delete feature tags:
@@ -1495,7 +1516,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     //delete chest:
                     if(!featureTagsOnly) {
                         //note: there is no behavioral difference in handling of hidden chests
-                            
+                        
+                        //the selectedObject will only be provided for the instance that was modified by the user:
+                        existingChestIsSelected = selectedObject && (this.getProperty('chestIds')[masterIndex][0] === selectedObject.id);
+                        
                         //delete the old chest image:
                         deleteObject('graphic', this.getProperty('chestIds')[masterIndex][0]);
                         
@@ -1559,6 +1583,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 //if this is replacing an existing image, write it back into the appropriate slot:
                 if(existingChest) {
                     this.getProperty('chestIds')[masterIndex] = chestProperty;
+                    
+                    //if the selected chest was replaced, store the new chest as a false selection:
+                    if(existingChestIsSelected) {
+                        state.APIAreaMapper.falseSelection = chest.id;
+                    }
                 }
                 //if it's a new image, push it to the end (which will line up with the master's index):
                 else {
@@ -1659,7 +1688,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return returnObj;
     };
     
-    areaInstance.prototype.handleInteractiveObjectInteraction = function(objectType, masterIndex) {
+    areaInstance.prototype.handleInteractiveObjectInteraction = function(objectType, masterIndex, selectedObject) {
         var a = new area(this.getProperty('areaId'));
         var g = new graph();
         
@@ -1735,7 +1764,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         a.save();
         
         //draw the object in the area, so that it propagates to all instances:
-        a.drawInteractiveObject(objectType, masterIndex);
+        a.drawInteractiveObject(objectType, masterIndex, false, selectedObject);
     };
     
     areaInstance.prototype.handleGraphicChange = function(graphic) {
@@ -1763,7 +1792,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         graphicMaster[0].b.x + this.getProperty('left'),
                         graphicMaster[0].b.y + this.getProperty('top')))).midpoint();
                 
-                //compare position to point, using epsilon:
+                //compare position to point, using epsilon, to see if it moved:
                 if((Math.abs(graphic.get('left') - p.x) < positionEpsilon)
                         && (Math.abs(graphic.get('top') - p.y) < positionEpsilon)) {
                     return;
@@ -1773,6 +1802,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 if(state.APIAreaMapper.chestReposition) {
                     specialInteraction = true;
                     
+                    //update the chest's position / rotation / dimensions in the master area:
                     graphicMaster[0] = graphic.get('top') - this.getProperty('top') - (graphic.get('height') / 2);
                     graphicMaster[1] = graphic.get('left') - this.getProperty('left') - (graphic.get('width') / 2);
                     graphicMaster[2] = graphic.get('height');
@@ -1793,7 +1823,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                             chestLeft + graphicMaster[3],
                             chestTop + graphicMaster[2]))).midpoint();
                     
-                    //compare position to point, using epsilon:
+                    //compare position to point, using epsilon, to see if it moved:
                     if((Math.abs(graphic.get('left') - p.x) < positionEpsilon)
                             && (Math.abs(graphic.get('top') - p.y) < positionEpsilon)) {
                         return;
@@ -1807,7 +1837,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         //handle true interactions if there was no special case:
         if(!specialInteraction) {
-            this.handleInteractiveObjectInteraction(managedGraphic.graphicType, managedGraphic.graphicIndex);
+            this.handleInteractiveObjectInteraction(managedGraphic.graphicType, managedGraphic.graphicIndex, graphic);
         }
         
         this.save();
@@ -1815,6 +1845,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     areaInstance.prototype.toggleInteractiveProperty = function(graphic, property) {
         var followUpAction = [];
+        
         var managedGraphic = this.findManagedGraphic(graphic);
         
         if(!managedGraphic) {
@@ -1876,11 +1907,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         a.save();
         
         //redraw the door or just its features across all instances of the area:
-        var errorMessage = a.drawInteractiveObject(managedGraphic.graphicType, managedGraphic.graphicIndex, !redraw);
+        var errorMessage = a.drawInteractiveObject(managedGraphic.graphicType, managedGraphic.graphicIndex, !redraw, graphic);
         followUpAction.message = errorMessage;
-        if(!followUpAction.message && redraw) {
-            followUpAction.message = 'The graphic has been replaced with a new one. Please select it for futher modifications.';
-        }
         
         this.save();
         
@@ -3340,17 +3368,13 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var followUpAction = [];
         followUpAction.refresh = true;
         
-        if(!selected || !selected.length) {
-            followUpAction.Message = 'An object needs to be selected.';
-            return followUpAction;
-        }
-        
         if(selected.length > 1) {
             followUpAction.Message = 'Only one object should be selected.';
             return followUpAction;
         }
-     
-        var graphic = getObj('graphic', selected[0]._id);
+        
+        var graphic = getSelectedGraphic(selected);
+        
         if(!graphic) {
             followUpAction.Message = 'Unable to find the selected object.';
             return followUpAction;
@@ -3378,7 +3402,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         var a = new area(state.APIAreaMapper.activeArea);
         
-        return a.toggleInteractiveProperty(graphic, interactiveProperty);
+        var returnedFollowUpAction = a.toggleInteractiveProperty(graphic, interactiveProperty);
+        
+        followUpAction.message = returnedFollowUpAction.message;
+        return followUpAction;
     },
     
     handleAreaHide = function(areaId) {
@@ -3794,6 +3821,22 @@ var APIAreaMapper = APIAreaMapper || (function() {
         );
     },
     
+    //gets the selected graphic, and failing that, will use a false selection:
+    getSelectedGraphic = function(selected) {
+        var graphic = getObj('graphic', selected[0]._id);
+        
+        //if the truly selected graphic is reachable, delete any false selections:
+        if(graphic) {
+            delete state.APIAreaMapper.falseSelection;
+        }
+        //if the graphic wasn't reachable, attempt to find a false selection, if there is one:
+        else if(state.APIAreaMapper.falseSelection) {
+            graphic = getObj('graphic', state.APIAreaMapper.falseSelection);
+        }
+        
+        return graphic;
+    },
+    
     //note: this should be callable based on selections from the selector tool:
     intuit = function(selected, who) {
         var followUpAction = [];
@@ -3818,7 +3861,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
             return;
         }
        
-        var graphic = getObj('graphic', selected[0]._id);
+        var graphic = getSelectedGraphic(selected);
+        
         if(!graphic) {
             followUpAction.message = 'The selected item is not a reachable graphic.';
             return followUpAction;
@@ -3874,6 +3918,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             var chatCommand = msg.content.split(' ');
             
             var retainRecordAreaMode = false;
+            var retainFalseSelection = false;
             
             if(chatCommand.length === 1) {
                 followUpAction = intuit(msg.selected, msg.who);
@@ -3950,6 +3995,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     case 'interactiveObjectLock':
                     case 'interactiveObjectTrap':
                     case 'interactiveObjectHide':
+                        retainFalseSelection = true;
                         followUpAction = toggleInteractiveProperty(msg.selected, msg.who, chatCommand[1]);
                         break;
                     case 'settings':
@@ -3974,6 +4020,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
             
             if(!retainRecordAreaMode) {
                 delete state.APIAreaMapper.recordAreaMode;
+            }
+            
+            if(!retainFalseSelection) {
+                delete state.APIAreaMapper.falseSelection;
             }
             
             processFollowUpAction(followUpAction, msg.who, msg.selected);
