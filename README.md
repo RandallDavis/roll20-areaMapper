@@ -32,10 +32,3 @@ This requires another script I wrote for its visual alert animations. It can be 
 - All of the polygon logic should be handled as a clustered graph algorithm. For fun, don't do research on others' approaches to this, but do it from scratch.
 
 ![graph algorithms!](http://i.imgur.com/QUJJXA5.jpg)
-
-##### Details that need to be explained to users:
-- When drawing inner walls, paths are ignored if they aren't fully contained in the floorplan.
-- When removing edge wall gaps, only complete gaps that are contained in the removal polygon are removed.
-- In all edge wall logic, a heuristic is used for intersection / reversal-of-intersection logic that determines each path's orientation. This is done to speed up the algorithm. There is a trade-off between the number of points that are considered on the floorplan edge, such that the more points considered the less accuracy in the heuristic, but the more features that can be had with overlapping paths. The main thing that needs to be conveyed is that when removing edge walls, it is often better to use polygons that capture fewer points - if an instruction is being ignored, it's probably capturing too many overlapping points from different paths.
-- Freehand drawing is supported, but having the vast number of points has a severe impact on performance (as well as the size of the state object). Freehand paths will also make it difficult to do precision actions, such as adding doors.
-- Chest repositioning affects all chests in the active area.
