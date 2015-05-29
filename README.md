@@ -4,7 +4,7 @@ This is an open source script that's used on the Roll20 API platform (https://ro
 
 A fundamental aspect of this is the use of the drawing tool as a primary mode for receiving user input. This approach required several polygon graph algorithms, which were both enticing and rewarding to solve.
 
-##### Progress so far (click below for a video):
+##### Progress as of version 0.1 (click below for a video):
 <a href="http://www.youtube.com/watch?feature=player_embedded&v=QOcWWKUHCmQ" target="_blank"><img src="http://img.youtube.com/vi/QOcWWKUHCmQ/0.jpg" 
 alt="Tutorial" width="100%" height="100%" border="10" /></a>
 
