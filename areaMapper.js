@@ -1509,7 +1509,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
         //TODO: normalize this code (after making DTOs):
         switch(objectType) {
             case 'doors':
-                var dIndex = g.addSimplePathFromSegment(master[0], this.getProperty('top'), this.getProperty('left'));
+                var doorState = new door(master);
+                
+                var dIndex = g.addSimplePathFromSegment(doorState.getProperty('positionSegment'), this.getProperty('top'), this.getProperty('left'));
                 var s = g.getProperty('simplePaths')[dIndex].segments[0];
                 var doorProperty = [];
                 
@@ -1548,11 +1550,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 }
                 
                 //door token:
-                var door;
+                var doorToken;
                 
                 //keep existing door:
                 if(featureTagsOnly) {
-                    door = getObj('graphic', this.getProperty('doorIds')[masterIndex][0]);
+                    doorToken = getObj('graphic', this.getProperty('doorIds')[masterIndex][0]);
                     doorProperty.push(this.getProperty('doorIds')[masterIndex][0]); //door token ID
                     doorProperty.push(this.getProperty('doorIds')[masterIndex][1]); //door LoS path ID
                 }
@@ -1561,41 +1563,41 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 
                     //TODO: replace open hidden door image with something unique:
                     //draw the door (hidden or standard):
-                    door = 
-                        master[4]
-                            ? (master[1]
+                    doorToken = 
+                        doorState.getProperty('isHidden')
+                            ? (doorState.getProperty('isOpen')
                                 ? createTokenObjectFromSegment(openDoorImagePic, this.getProperty('pageId'), 'objects', s, 30, true)
                                 : createTokenObjectFromSegment(wallImagePic, this.getProperty('pageId'), 'objects', s, 20, false))
-                            : createTokenObjectFromSegment((master[1] ? openDoorImagePic : closedDoorImagePic), this.getProperty('pageId'), 'objects', s, 30, true);
+                            : createTokenObjectFromSegment((doorState.getProperty('isOpen') ? openDoorImagePic : closedDoorImagePic), this.getProperty('pageId'), 'objects', s, 30, true);
                     
                     //set door privs to players unless the door is hidden:
-                    if(!master[4]) {
-                        door.set("controlledby", "all");
+                    if(!doorState.getProperty('isHidden')) {
+                        doorToken.set("controlledby", "all");
                     }
                     
                     //draw line of sight blocking wall if the door is closed:
                     var doorLosId = '';
-                    if(!master[1]) {
+                    if(!doorState.getProperty('isOpen')) {
                         var rp = g.getRawPath('simplePaths', dIndex);
                         doorLosId = createPathObject(this.getProperty('pageId'), 'walls', '#ff0000', 'transparent', rp.rawPath, rp.top, rp.left, rp.height, rp.width, 1).id;
                     }
                     
-                    doorProperty.push(door.id);
+                    doorProperty.push(doorToken.id);
                     doorProperty.push(doorLosId);
                 }
                 
                 //draw feature tags around the door:
                 var featureTagColors = [];
-                if(master[2]) {
+                if(doorState.getProperty('isLocked')) {
                     featureTagColors.push(lockedTagColor);
                 }
-                if(master[3]) {
+                if(doorState.getProperty('isTrapped')) {
                     featureTagColors.push(trappedTagColor);
                 }
-                if(master[4]) {
+                if(doorState.getProperty('isHidden')) {
                     featureTagColors.push(hiddenTagColor);
                 }
-                var tagIds = drawFeatureTags(door, featureTagColors);
+                var tagIds = drawFeatureTags(doorToken, featureTagColors);
                 
                 doorProperty.push(tagIds);
                 
@@ -1605,7 +1607,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     
                     //if the selected door was replaced, store the new door as a false selection:
                     if(existingDoorIsSelected) {
-                        state.APIAreaMapper.falseSelection = door.id;
+                        state.APIAreaMapper.falseSelection = doorToken.id;
                     }
                 }
                 //if it's a new image, push it to the end (which will line up with the master's index):
