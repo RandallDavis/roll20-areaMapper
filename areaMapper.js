@@ -6,8 +6,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.115,
-        schemaVersion = 0.034,
+    var version = 0.116,
+        schemaVersion = 0.035,
         buttonBackgroundColor = '#E92862',
         buttonGreyedColor = '#8D94A9',
         buttonHighlightedColor = '#00FF00',
@@ -135,6 +135,125 @@ var APIAreaMapper = APIAreaMapper || (function() {
     /* core - end */
     
     /* area - begin */
+    
+    var interactiveObject = function(isOpen, isLocked, isTrapped, isHidden) {
+        typedObject.call(this);
+        this._type.push('interactiveObject');
+        
+        if('undefined' === typeof(isOpen)) {
+            isOpen = 0;
+        }
+        
+        if('undefined' === typeof(isLocked)) {
+            isLocked = 0;
+        }
+        
+        if('undefined' === typeof(isTrapped)) {
+            isTrapped = 0;
+        }
+        
+        if('undefined' === typeof(isHidden)) {
+            isHidden = 0;
+        }
+        
+        this._isOpen = isOpen;
+        this._isLocked = isLocked;
+        this._isTrapped = isTrapped;
+        this._isHidden = isHidden;
+    };
+    
+    inheritPrototype(interactiveObject, typedObject);
+    
+    interactiveObject.prototype.setProperty = function(property, value) {
+        switch(property) {
+            case 'isOpen':
+            case 'isLocked':
+            case 'isTrapped':
+            case 'isHidden':
+                this['_' + property] = value;
+                break;
+            default:
+                return typedObject.prototype.setProperty.call(this, property, value);
+                break;
+        }
+        
+        return null;
+    };
+    
+    interactiveObject.prototype.getStateObject = function() {
+        return [this._isOpen, this._isLocked, this._isTrapped, this._isHidden];
+    };
+    
+    
+    var door = function(stateObject) {
+        if('undefined' === typeof(stateObject)) {
+            stateObject = new Array(5);
+        }
+        
+        interactiveObject.call(this, stateObject[1], stateObject[2], stateObject[3], stateObject[4]);
+        this._type.push('door');
+        this._positionSegment = stateObject[0];
+    };
+    
+    inheritPrototype(door, interactiveObject);
+    
+    door.prototype.setProperty = function(property, value) {
+        switch(property) {
+            case 'positionSegment':
+                this['_' + property] = value;
+                break;
+            default:
+                return interactiveObject.prototype.setProperty.call(this, property, value);
+                break;
+        }
+        
+        return null;
+    };
+    
+    door.prototype.getStateObject = function() {
+        var stateObject = [this._positionSegment];
+        return stateObject.concat(interactiveObject.prototype.getStateObject.call(this));
+    };
+    
+    
+    var chest = function(stateObject) {
+        if('undefined' === typeof(stateObject)) {
+            stateObject = new Array(9);
+        }
+        
+        interactiveObject.call(this, stateObject[5], stateObject[6], stateObject[7], stateObject[8]);
+        this._type.push('chest');
+        this._top = stateObject[0];
+        this._left = stateObject[1];
+        this._height = stateObject[2];
+        this._width = stateObject[3];
+        this._rotation = stateObject[4];
+    };
+    
+    inheritPrototype(chest, interactiveObject);
+    
+    chest.prototype.setProperty = function(property, value) {
+        switch(property) {
+            case 'top':
+            case 'left':
+            case 'height':
+            case 'width':
+            case 'rotation':
+                this['_' + property] = value;
+                break;
+            default:
+                return interactiveObject.prototype.setProperty.call(this, property, value);
+                break;
+        }
+        
+        return null;
+    };
+    
+    chest.prototype.getStateObject = function() {
+        var stateObject = [this._top, this._left, this._height, this._width, this._rotation];
+        return stateObject.concat(interactiveObject.prototype.getStateObject.call(this));
+    };
+    
     
     var area = function(id) {
         typedObject.call(this);
@@ -888,13 +1007,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }, this);
         
         //place the new door as a segment connecting the two points:
-        this.setProperty('doors', [
-                new segment(doorSegmentPoints[0], doorSegmentPoints[1]), //door position
-                0, //is open
-                0, //is locked
-                0, //is trapped
-                0 //is hidden
-            ]);
+        var doorState = new door();
+        doorState.setProperty('positionSegment', new segment(doorSegmentPoints[0], doorSegmentPoints[1]));
+        this.setProperty('doors', doorState.getStateObject());
         
         this.save();
         this.draw();
@@ -916,13 +1031,15 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var oldDoors = this.getProperty('doors');
         var doors = [];
         for(var i = 0; i < oldDoors.length; i++) {
+            var oldDoorPositionSegment = new door(oldDoors[i]).getProperty('positionSegment');
+            
             var s = new segment(
                 new point(
-                    oldDoors[i][0].a.x + instance.getProperty('left'),
-                    oldDoors[i][0].a.y + instance.getProperty('top')),
+                    oldDoorPositionSegment.a.x + instance.getProperty('left'),
+                    oldDoorPositionSegment.a.y + instance.getProperty('top')),
                 new point(
-                    oldDoors[i][0].b.x + instance.getProperty('left'),
-                    oldDoors[i][0].b.y + instance.getProperty('top'))
+                    oldDoorPositionSegment.b.x + instance.getProperty('left'),
+                    oldDoorPositionSegment.b.y + instance.getProperty('top'))
             );
             
             if(!g.hasInsideSegment('simplePolygons', removeSpIndex, s)) {
@@ -954,17 +1071,13 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var addRp = g.getRawPath('simplePolygons', addSpIndex);
         
         //create the chest using the polygon's position, width, and height:
-        this.setProperty('chests', [
-                addRp.top - instance.getProperty('top'),
-                addRp.left - instance.getProperty('left'),
-                addRp.height,
-                addRp.width,
-                0, //rotation
-                0, //is open
-                0, //is locked
-                0, //is trapped
-                0 //is hidden
-            ]);
+        var chestState = new chest();
+        chestState.setProperty('top', addRp.top - instance.getProperty('top'));
+        chestState.setProperty('left', addRp.left - instance.getProperty('left'));
+        chestState.setProperty('height', addRp.height);
+        chestState.setProperty('width', addRp.width);
+        chestState.setProperty('rotation', 0);
+        this.setProperty('chests', chestState.getStateObject());
         
         this.save();
         this.draw();
@@ -987,9 +1100,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var chests = [];
         
         oldChests.forEach(function(c) {
-            var chestTop = c[0] + instance.getProperty('top');
-            var chestLeft = c[1] + instance.getProperty('left');
-            var chestCenter = new point(chestLeft + (c[3] / 2), chestTop + (c[2] / 2));
+            var chestState = new chest(c);
+            var chestTop = chestState.getProperty('top') + instance.getProperty('top');
+            var chestLeft = chestState.getProperty('left') + instance.getProperty('left');
+            var chestCenter = new point(chestLeft + (chestState.getProperty('width') / 2), chestTop + (chestState.getProperty('height') / 2));
             
             if(!g.hasInsidePoint('simplePolygons', removeSpIndex, chestCenter)) {
                 chests.push(c);
