@@ -6,7 +6,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.114,
+    var version = 0.115,
         schemaVersion = 0.034,
         buttonBackgroundColor = '#E92862',
         buttonGreyedColor = '#8D94A9',
@@ -17,11 +17,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
         lockedTagColor = '#E5DB50',
         trappedTagColor = '#E2274C',
         hiddenTagColor = '#277EE2',
-        wallImageUrl = 'https://s3.amazonaws.com/files.d20.io/images/9585786/x1-hhxavuLoUjMsgA5vYdA/thumb.png?1432007204',
-        floorImageUrl = 'https://s3.amazonaws.com/files.d20.io/images/48971/thumb.jpg?1340229647',
-        //TODO: rename these to pic:
-        closedDoorImageUrl = 'https://s3.amazonaws.com/files.d20.io/images/6951/thumb.png?1336359665',
-        openDoorImageUrl = 'https://s3.amazonaws.com/files.d20.io/images/7068/thumb.png?1336366825',
+        wallImagePic = 'https://s3.amazonaws.com/files.d20.io/images/9585786/x1-hhxavuLoUjMsgA5vYdA/thumb.png?1432007204',
+        floorImagePic = 'https://s3.amazonaws.com/files.d20.io/images/48971/thumb.jpg?1340229647',
+        closedDoorImagePic = 'https://s3.amazonaws.com/files.d20.io/images/6951/thumb.png?1336359665',
+        openDoorImagePic = 'https://s3.amazonaws.com/files.d20.io/images/7068/thumb.png?1336366825',
         closedDoorAlertPic = 'https://s3.amazonaws.com/files.d20.io/images/8543193/5XhwOpMaBUS_5B444UNC5Q/thumb.png?1427665106',
         openDoorAlertPic = 'https://s3.amazonaws.com/files.d20.io/images/8543205/QBOWp1MHHlJCrPWn9kcVqQ/thumb.png?1427665124',
         padlockAlertPic = 'https://s3.amazonaws.com/files.d20.io/images/8546285/bdyuCfZSGRXr3qrVkcPkAg/thumb.png?1427673372',
@@ -53,11 +52,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
     },
     
     resetTemporaryState = function() {
-        state.APIAreaMapper.tempIgnoreDrawingEvents = false;
-        state.APIAreaMapper.recordAreaMode = false;
+        delete state.APIAreaMapper.tempIgnoreDrawingEvents;
+        delete state.APIAreaMapper.recordAreaMode;
         delete state.APIAreaMapper.playerId;
         delete state.APIAreaMapper.playerName;
         delete state.APIAreaMapper.uiWindow;
+        delete state.APIAreaMapper.falseSelection;
         delete state.APIAreaMapper.chestReposition;
         
         //reset the handout:
@@ -164,9 +164,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'archived':
                 this['_' + property] = value;
                 break;
+            //TODO: consider using a DTO for these; this will remove direct referencing of positions within arrays:
             case 'edgeWalls': //[simple path, top, left, height, width]
             case 'edgeWallGaps': //[simple path, top, left, height, width]
             case 'innerWalls': //[simple path, top, left, height, width]
+            //TODO: consider polymorphic DTOs for managed objects; areaObject -> interactiveObject -> door/chest; this will remove the direct referencing of positions within arrays:
             case 'doors': //[segment position, isOpen, isLocked, isTrapped, isHidden]
             case 'chests': //[top, left, height, width, rotation, isOpen, isLocked, isTrapped, isHidden]
                 return this['_' + property].push(value) - 1;
@@ -267,6 +269,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
     };
     
     area.prototype.load = function() {
+        
+        //note: each area's state is stored in an array of key/value pairs
+        
         var id = this.getProperty('id');
         var areas = state.APIAreaMapper.areas;
         var areaState;
@@ -1052,10 +1057,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
     };
     
     //draws an interactive object in all instances:
-    area.prototype.drawInteractiveObject = function(objectType, masterIndex, featureTagsOnly) {
+    area.prototype.drawInteractiveObject = function(objectType, masterIndex, featureTagsOnly, selectedObject) {
         this.getInstancePageIds().forEach(function(pageId) {
             var instance = new areaInstance(this.getProperty('id'), pageId)
-            instance.drawInteractiveObject(objectType, masterIndex, featureTagsOnly);
+            instance.drawInteractiveObject(objectType, masterIndex, featureTagsOnly, selectedObject);
         }, this);
     };
     
@@ -1095,6 +1100,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'edgeWallGapIds': //paths
             case 'losWallIds': //paths
             case 'blueprintWallIds': //paths
+            //TODO: consider using polymorphic DTOs for these to remove direct referencing of positions within arrays:
             case 'doorIds': //[door token, LoS wall path, feature tag paths]
             case 'chestIds': //[chest token, feature tag paths]
             case 'blueprintDoorIds': //paths
@@ -1129,6 +1135,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
     };
     
     areaInstance.prototype.load = function() {
+        
+        //note: each areaInstance's state is stored in an array of key/value pairs
+        
         var areaId = this.getProperty('areaId');
         var pageId = this.getProperty('pageId');
         
@@ -1319,7 +1328,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var a = new area(this.getProperty('areaId'));
         
         //draw new floor tile:
-        var floorTile = createTokenObject(floorImageUrl, this.getProperty('pageId'), 'map', new segment(new point(left, top), new point(left + a.getProperty('width'), top + a.getProperty('height'))));
+        var floorTile = createTokenObject(floorImagePic, this.getProperty('pageId'), 'map', new segment(new point(left, top), new point(left + a.getProperty('width'), top + a.getProperty('height'))));
         this.setProperty('floorTileId', floorTile.id);
         
         //draw floor tile mask:
@@ -1338,7 +1347,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             //draw wall tokens:
             var ewIndex = g.addSimplePath(ew[0], top + ew[1], left + ew[2]);
             g.getProperty('simplePaths')[ewIndex].segments.forEach(function(s) {
-                this.setProperty('wallIds', createTokenObjectFromSegment(wallImageUrl, this.getProperty('pageId'), 'objects', s, 20).id);
+                this.setProperty('wallIds', createTokenObjectFromSegment(wallImagePic, this.getProperty('pageId'), 'objects', s, 20).id);
             }, this);
             
             //draw line of sight blocking wall:
@@ -1352,7 +1361,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             //draw wall tokens:
             var iwIndex = g.addSimplePath(iw[0], top + iw[1], left + iw[2]);
             g.getProperty('simplePaths')[iwIndex].segments.forEach(function(s) {
-                this.setProperty('wallIds', createTokenObjectFromSegment(wallImageUrl, this.getProperty('pageId'), 'objects', s, 20).id);
+                this.setProperty('wallIds', createTokenObjectFromSegment(wallImagePic, this.getProperty('pageId'), 'objects', s, 20).id);
             }, this);
             
             //draw line of sight blocking wall:
@@ -1374,15 +1383,16 @@ var APIAreaMapper = APIAreaMapper || (function() {
     };
     
     //draws an interactive object, which may replace an existing one:
-    areaInstance.prototype.drawInteractiveObject = function(objectType, masterIndex, featureTagsOnly) {
+    areaInstance.prototype.drawInteractiveObject = function(objectType, masterIndex, featureTagsOnly, selectedObject) {
         
-        //note: featureTagsOnly is only legal if this is an existing object
+        //note: featureTagsOnly is expected to be true only when this is an existing object
         
         var a = new area(this.getProperty('areaId'));
         var g = new graph();
         
         var master = a.getProperty(objectType)[masterIndex];
         
+        //TODO: normalize this code (after making DTOs):
         switch(objectType) {
             case 'doors':
                 var dIndex = g.addSimplePathFromSegment(master[0], this.getProperty('top'), this.getProperty('left'));
@@ -1391,6 +1401,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 
                 //if the number of objects in the area and the instance are equal, then this is modifying an existing object:
                 var existingDoor = this.getProperty('doorIds').length === a.getProperty(objectType).length;
+                var existingDoorIsSelected = false;
                 
                 if(existingDoor) {
                     
@@ -1402,6 +1413,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     //delete door:
                     if(!featureTagsOnly) {
                         //note: there is no behavioral difference in handling of hidden doors
+                        
+                        //the selectedObject will only be provided for the instance that was modified by the user:
+                        existingDoorIsSelected = selectedObject && (this.getProperty('doorIds')[masterIndex][0] === selectedObject.id);
                             
                         //delete the old door image:
                         deleteObject('graphic', this.getProperty('doorIds')[masterIndex][0]);
@@ -1436,9 +1450,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     door = 
                         master[4]
                             ? (master[1]
-                                ? createTokenObjectFromSegment(openDoorImageUrl, this.getProperty('pageId'), 'objects', s, 30, true)
-                                : createTokenObjectFromSegment(wallImageUrl, this.getProperty('pageId'), 'objects', s, 20, false))
-                            : createTokenObjectFromSegment((master[1] ? openDoorImageUrl : closedDoorImageUrl), this.getProperty('pageId'), 'objects', s, 30, true);
+                                ? createTokenObjectFromSegment(openDoorImagePic, this.getProperty('pageId'), 'objects', s, 30, true)
+                                : createTokenObjectFromSegment(wallImagePic, this.getProperty('pageId'), 'objects', s, 20, false))
+                            : createTokenObjectFromSegment((master[1] ? openDoorImagePic : closedDoorImagePic), this.getProperty('pageId'), 'objects', s, 30, true);
                     
                     //set door privs to players unless the door is hidden:
                     if(!master[4]) {
@@ -1474,6 +1488,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 //if this is replacing an existing image, write it back into the appropriate slot:
                 if(existingDoor) {
                     this.getProperty('doorIds')[masterIndex] = doorProperty;
+                    
+                    //if the selected door was replaced, store the new door as a false selection:
+                    if(existingDoorIsSelected) {
+                        state.APIAreaMapper.falseSelection = door.id;
+                    }
                 }
                 //if it's a new image, push it to the end (which will line up with the master's index):
                 else {
@@ -1485,7 +1504,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 
                 //if the number of objects in the area and the instance are equal, then this is modifying an existing object:
                 var existingChest = this.getProperty('chestIds').length === a.getProperty(objectType).length;
-                 
+                var existingChestIsSelected = false;
+                
                 if(existingChest) {
                     
                     //delete feature tags:
@@ -1496,7 +1516,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     //delete chest:
                     if(!featureTagsOnly) {
                         //note: there is no behavioral difference in handling of hidden chests
-                            
+                        
+                        //the selectedObject will only be provided for the instance that was modified by the user:
+                        existingChestIsSelected = selectedObject && (this.getProperty('chestIds')[masterIndex][0] === selectedObject.id);
+                        
                         //delete the old chest image:
                         deleteObject('graphic', this.getProperty('chestIds')[masterIndex][0]);
                         
@@ -1560,6 +1583,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 //if this is replacing an existing image, write it back into the appropriate slot:
                 if(existingChest) {
                     this.getProperty('chestIds')[masterIndex] = chestProperty;
+                    
+                    //if the selected chest was replaced, store the new chest as a false selection:
+                    if(existingChestIsSelected) {
+                        state.APIAreaMapper.falseSelection = chest.id;
+                    }
                 }
                 //if it's a new image, push it to the end (which will line up with the master's index):
                 else {
@@ -1660,7 +1688,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return returnObj;
     };
     
-    areaInstance.prototype.handleInteractiveObjectInteraction = function(objectType, masterIndex) {
+    areaInstance.prototype.handleInteractiveObjectInteraction = function(objectType, masterIndex, selectedObject) {
         var a = new area(this.getProperty('areaId'));
         var g = new graph();
         
@@ -1736,7 +1764,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         a.save();
         
         //draw the object in the area, so that it propagates to all instances:
-        a.drawInteractiveObject(objectType, masterIndex);
+        a.drawInteractiveObject(objectType, masterIndex, false, selectedObject);
     };
     
     areaInstance.prototype.handleGraphicChange = function(graphic) {
@@ -1764,7 +1792,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         graphicMaster[0].b.x + this.getProperty('left'),
                         graphicMaster[0].b.y + this.getProperty('top')))).midpoint();
                 
-                //compare position to point, using epsilon:
+                //compare position to point, using epsilon, to see if it moved:
                 if((Math.abs(graphic.get('left') - p.x) < positionEpsilon)
                         && (Math.abs(graphic.get('top') - p.y) < positionEpsilon)) {
                     return;
@@ -1774,6 +1802,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 if(state.APIAreaMapper.chestReposition) {
                     specialInteraction = true;
                     
+                    //update the chest's position / rotation / dimensions in the master area:
                     graphicMaster[0] = graphic.get('top') - this.getProperty('top') - (graphic.get('height') / 2);
                     graphicMaster[1] = graphic.get('left') - this.getProperty('left') - (graphic.get('width') / 2);
                     graphicMaster[2] = graphic.get('height');
@@ -1794,7 +1823,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                             chestLeft + graphicMaster[3],
                             chestTop + graphicMaster[2]))).midpoint();
                     
-                    //compare position to point, using epsilon:
+                    //compare position to point, using epsilon, to see if it moved:
                     if((Math.abs(graphic.get('left') - p.x) < positionEpsilon)
                             && (Math.abs(graphic.get('top') - p.y) < positionEpsilon)) {
                         return;
@@ -1808,7 +1837,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         //handle true interactions if there was no special case:
         if(!specialInteraction) {
-            this.handleInteractiveObjectInteraction(managedGraphic.graphicType, managedGraphic.graphicIndex);
+            this.handleInteractiveObjectInteraction(managedGraphic.graphicType, managedGraphic.graphicIndex, graphic);
         }
         
         this.save();
@@ -1816,6 +1845,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     areaInstance.prototype.toggleInteractiveProperty = function(graphic, property) {
         var followUpAction = [];
+        
         var managedGraphic = this.findManagedGraphic(graphic);
         
         if(!managedGraphic) {
@@ -1877,11 +1907,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         a.save();
         
         //redraw the door or just its features across all instances of the area:
-        var errorMessage = a.drawInteractiveObject(managedGraphic.graphicType, managedGraphic.graphicIndex, !redraw);
+        var errorMessage = a.drawInteractiveObject(managedGraphic.graphicType, managedGraphic.graphicIndex, !redraw, graphic);
         followUpAction.message = errorMessage;
-        if(!followUpAction.message && redraw) {
-            followUpAction.message = 'The graphic has been replaced with a new one. Please select it for futher modifications.';
-        }
         
         this.save();
         
@@ -3341,17 +3368,13 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var followUpAction = [];
         followUpAction.refresh = true;
         
-        if(!selected || !selected.length) {
-            followUpAction.Message = 'An object needs to be selected.';
-            return followUpAction;
-        }
-        
         if(selected.length > 1) {
             followUpAction.Message = 'Only one object should be selected.';
             return followUpAction;
         }
-     
-        var graphic = getObj('graphic', selected[0]._id);
+        
+        var graphic = getSelectedGraphic(selected);
+        
         if(!graphic) {
             followUpAction.Message = 'Unable to find the selected object.';
             return followUpAction;
@@ -3374,13 +3397,15 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 break;
             default:
                 log("Unhandled property of '" + property + "' in toggleInteractiveProperty().");
-                //TODO: return a failure message:
                 return;
         }
         
         var a = new area(state.APIAreaMapper.activeArea);
         
-        return a.toggleInteractiveProperty(graphic, interactiveProperty);
+        var returnedFollowUpAction = a.toggleInteractiveProperty(graphic, interactiveProperty);
+        
+        followUpAction.message = returnedFollowUpAction.message;
+        return followUpAction;
     },
     
     handleAreaHide = function(areaId) {
@@ -3586,8 +3611,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     },
     
     interfaceDoor = function(who, managedGraphic) {
-        state.APIAreaMapper.uiWindow = 'door'; //TODO: real door id - see note below
-        //TODO: when a door image is changed, rather than send a notification about reselecting, have it be implied to have the new graphic selected and call this method; also will have to store a specific selected door ID in the uiWindow state so that it can be a special rule that if it exists, the untuitive interface considers that to be a selection
+        state.APIAreaMapper.uiWindow = 'door';
         
         sendStandardInterface(who, 'Area Mapper',
             commandLinks('Door Management', [
@@ -3600,8 +3624,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     },
     
     interfaceChest = function(who, managedGraphic) {
-        state.APIAreaMapper.uiWindow = 'chest'; //TODO: real chest id - see note below
-        //TODO: when a chest image is changed, rather than send a notification about reselecting, have it be implied to have the new graphic selected and call this method; also will have to store a specific selected door ID in the uiWindow state so that it can be a special rule that if it exists, the untuitive interface considers that to be a selection
+        state.APIAreaMapper.uiWindow = 'chest';
         
         sendStandardInterface(who, 'Area Mapper',
             commandLinks('Chest Management', [
@@ -3796,6 +3819,22 @@ var APIAreaMapper = APIAreaMapper || (function() {
         );
     },
     
+    //gets the selected graphic, and failing that, will use a false selection:
+    getSelectedGraphic = function(selected) {
+        var graphic = getObj('graphic', selected[0]._id);
+        
+        //if the truly selected graphic is reachable, delete any false selections:
+        if(graphic) {
+            delete state.APIAreaMapper.falseSelection;
+        }
+        //if the graphic wasn't reachable, attempt to find a false selection, if there is one:
+        else if(state.APIAreaMapper.falseSelection) {
+            graphic = getObj('graphic', state.APIAreaMapper.falseSelection);
+        }
+        
+        return graphic;
+    },
+    
     //note: this should be callable based on selections from the selector tool:
     intuit = function(selected, who) {
         var followUpAction = [];
@@ -3820,7 +3859,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
             return;
         }
        
-        var graphic = getObj('graphic', selected[0]._id);
+        var graphic = getSelectedGraphic(selected);
+        
         if(!graphic) {
             followUpAction.message = 'The selected item is not a reachable graphic.';
             return followUpAction;
@@ -3874,6 +3914,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
             
             var followUpAction = []; //might get clobbered
             var chatCommand = msg.content.split(' ');
+            
+            var retainRecordAreaMode = false;
+            var retainFalseSelection = false;
             
             if(chatCommand.length === 1) {
                 followUpAction = intuit(msg.selected, msg.who);
@@ -3930,6 +3973,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     case 'chestAdd':
                     case 'chestRemove':
                     case 'areaInstanceCreate':
+                        retainRecordAreaMode = true;
                         followUpAction = toggleOrSetAreaRecordMode(chatCommand[1]);
                         followUpAction.ignoreSelection = true;
                         break;
@@ -3937,9 +3981,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         followUpAction = toggleChestReposition();
                         break;
                     case 'redraw':
+                        retainRecordAreaMode = true;
                         followUpAction = handleAreaRedraw();
                         break;
                     case 'blueprint':
+                        retainRecordAreaMode = true;
                         followUpAction = toggleBlueprintMode();
                         followUpAction.ignoreSelection = true;
                         break;
@@ -3947,6 +3993,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     case 'interactiveObjectLock':
                     case 'interactiveObjectTrap':
                     case 'interactiveObjectHide':
+                        retainFalseSelection = true;
                         followUpAction = toggleInteractiveProperty(msg.selected, msg.who, chatCommand[1]);
                         break;
                     case 'settings':
@@ -3969,6 +4016,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 }
             }
             
+            if(!retainRecordAreaMode) {
+                delete state.APIAreaMapper.recordAreaMode;
+            }
+            
+            if(!retainFalseSelection) {
+                delete state.APIAreaMapper.falseSelection;
+            }
+            
             processFollowUpAction(followUpAction, msg.who, msg.selected);
         }
     },
@@ -3980,140 +4035,55 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         var followUpAction;
         
-        //TODO: a lot of these log entries can become notifications
-        switch(state.APIAreaMapper.recordAreaMode) {
-            case 'areaCreate':
-                var a = new area();
-                followUpAction = a.create(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
-                state.APIAreaMapper.activeArea = a.getProperty('id');
-                state.APIAreaMapper.uiWindow = 'area#' + state.APIAreaMapper.activeArea;
-                delete state.APIAreaMapper.recordAreaMode;
-               
-                path.remove();
-                break;
-            case 'areaAppend':
-                if(!state.APIAreaMapper.activeArea) {
-                    log('An area needs to be active before appending.');
-                    return;
-                }
-                
-                var a = new area(state.APIAreaMapper.activeArea);
-                followUpAction = a.floorPlanAppend(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+        if(state.APIAreaMapper.recordAreaMode == 'areaCreate') {
+            var a = new area();
+            followUpAction = a.create(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+            state.APIAreaMapper.activeArea = a.getProperty('id');
+            state.APIAreaMapper.uiWindow = 'area#' + state.APIAreaMapper.activeArea;
+            delete state.APIAreaMapper.recordAreaMode;
+            path.remove();
+        } else if(state.APIAreaMapper.activeArea) {
+            var a = new area(state.APIAreaMapper.activeArea);
             
-                path.remove();
-                break;
-            case 'areaRemove':
-                if(!state.APIAreaMapper.activeArea) {
-                    log('An area needs to be active before doing removals.');
+            switch(state.APIAreaMapper.recordAreaMode) {
+                case 'areaAppend':
+                    followUpAction = a.floorPlanAppend(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                    break;
+                case 'areaRemove':
+                    followUpAction = a.floorPlanRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                    break;
+                case 'edgeWallRemove':
+                    followUpAction = a.edgeWallRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                    break;
+                case 'edgeWallGapRemove':
+                    followUpAction = a.edgeWallGapRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                    break;
+                case 'innerWallAdd':
+                    followUpAction = a.innerWallAdd(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                    break;
+                case 'innerWallRemove':
+                    followUpAction = a.innerWallRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                    break;
+                case 'doorAdd':
+                    followUpAction = a.doorAdd(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                    break;
+                case 'doorRemove':
+                    followUpAction = a.doorRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                    break;
+                case 'chestAdd':
+                    followUpAction = a.chestAdd(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                    break;
+                case 'chestRemove':
+                    followUpAction = a.chestRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                    break;
+                case 'areaInstanceCreate':
+                    followUpAction = a.createInstance(path.get('_pageid'), path.get('top'), path.get('left'));
+                    break;
+                default:
                     return;
-                }
-                
-                var a = new area(state.APIAreaMapper.activeArea);
-                followUpAction = a.floorPlanRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
-         
-                path.remove();
-                break;
-            case 'edgeWallRemove':
-                if(!state.APIAreaMapper.activeArea) {
-                    log('An area needs to be active before doing edge wall removals.');
-                    return;
-                }
-                
-                var a = new area(state.APIAreaMapper.activeArea);
-                followUpAction = a.edgeWallRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
-                
-                path.remove();
-                break;
-            case 'edgeWallGapRemove':
-                if(!state.APIAreaMapper.activeArea) {
-                    log('An area needs to be active before doing edge wall additions.');
-                    return;
-                }
-                
-                var a = new area(state.APIAreaMapper.activeArea);
-                followUpAction = a.edgeWallGapRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
-                
-                path.remove();
-                break;
-            case 'innerWallAdd':
-                if(!state.APIAreaMapper.activeArea) {
-                    log('An area needs to be active before adding inner walls.');
-                    return;
-                }
-                
-                var a = new area(state.APIAreaMapper.activeArea);
-                followUpAction = a.innerWallAdd(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
-                
-                path.remove();
-                break;
-            case 'innerWallRemove':
-                if(!state.APIAreaMapper.activeArea) {
-                    log('An area needs to be active before removing inner walls.');
-                    return;
-                }
-                
-                var a = new area(state.APIAreaMapper.activeArea);
-                followUpAction = a.innerWallRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
-                
-                path.remove();
-                break;
-            case 'doorAdd':
-                if(!state.APIAreaMapper.activeArea) {
-                    log('An area needs to be active before adding doors.');
-                    return;
-                }
-                
-                var a = new area(state.APIAreaMapper.activeArea);
-                followUpAction = a.doorAdd(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
-                
-                path.remove();
-                break;
-            case 'doorRemove':
-                if(!state.APIAreaMapper.activeArea) {
-                    log('An area needs to be active before removing doors.');
-                    return;
-                }
-                
-                var a = new area(state.APIAreaMapper.activeArea);
-                followUpAction = a.doorRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
-                
-                path.remove();
-                break;
-            case 'chestAdd':
-                if(!state.APIAreaMapper.activeArea) {
-                    log('An area needs to be active before adding chests.');
-                    return;
-                }
-                
-                var a = new area(state.APIAreaMapper.activeArea);
-                followUpAction = a.chestAdd(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
-                
-                path.remove();
-                break;
-            case 'chestRemove':
-                if(!state.APIAreaMapper.activeArea) {
-                    log('An area needs to be active before removing chests.');
-                    return;
-                }
-                
-                var a = new area(state.APIAreaMapper.activeArea);
-                followUpAction = a.chestRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
-                
-                path.remove();
-                break;
-            case 'areaInstanceCreate':
-                if(!state.APIAreaMapper.activeArea) {
-                    log('An area needs to be active before drawing an instance.');
-                    return;
-                }
-                
-                var a = new area(state.APIAreaMapper.activeArea);
-                followUpAction = a.createInstance(path.get('_pageid'), path.get('top'), path.get('left'));
-                
-                path.remove();
-                break;
-            default:
-                return;
+            }
+            
+            path.remove();
         }
         
         processFollowUpAction(followUpAction);
