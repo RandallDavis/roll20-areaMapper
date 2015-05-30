@@ -1510,7 +1510,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
         switch(objectType) {
             case 'doors':
                 var doorState = new door(master);
-                
                 var dIndex = g.addSimplePathFromSegment(doorState.getProperty('positionSegment'), this.getProperty('top'), this.getProperty('left'));
                 var s = g.getProperty('simplePaths')[dIndex].segments[0];
                 var doorProperty = [];
@@ -1549,7 +1548,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     }
                 }
                 
-                //door token:
                 var doorToken;
                 
                 //keep existing door:
@@ -1616,6 +1614,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 }
                 break;
             case 'chests':
+                var chestState = new chest(master);
                 var chestProperty = [];
                 
                 //if the number of objects in the area and the instance are equal, then this is modifying an existing object:
@@ -1649,50 +1648,49 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     }
                 }
                 
-                //chest token:
-                var chest;
+                var chestToken;
                 
                 //keep existing door:
                 if(featureTagsOnly) {
-                    chest = getObj('graphic', this.getProperty('chestIds')[masterIndex][0]);
+                    chestToken = getObj('graphic', this.getProperty('chestIds')[masterIndex][0]);
                     chestProperty.push(this.getProperty('chestIds')[masterIndex][0]); //chest token ID
                 }
                 //create a new chest:
                 else {
                     
-                    var chestTop = master[0] + this.getProperty('top');
-                    var chestLeft = master[1] + this.getProperty('left');
+                    var chestTop = chestState.getProperty('top') + this.getProperty('top');
+                    var chestLeft = chestState.getProperty('left') + this.getProperty('left');
                     
                     //draw the chest (on the object or gm layer depending on it being hidden):
-                    chest = createTokenObject(
-                        (master[5] ? openChestPic : closedChestPic), 
+                    chestToken = createTokenObject(
+                        (chestState.getProperty('isOpen') ? openChestPic : closedChestPic), 
                         this.getProperty('pageId'), 
-                        (master[8] ? 'gmlayer' : 'objects'),
+                        (chestState.getProperty('isHidden') ? 'gmlayer' : 'objects'),
                         new segment(
                                 new point(chestLeft, chestTop),
-                                new point(chestLeft + master[3], chestTop + master[2])),
-                        master[4]);
+                                new point(chestLeft + chestState.getProperty('width'), chestTop + chestState.getProperty('height'))),
+                        chestState.getProperty('rotation'));
                        
                     //set chest privs to players unless the door is hidden:
-                    if(!master[8]) {
-                        chest.set("controlledby", "all");
+                    if(!chestState.getProperty('isHidden')) {
+                        chestToken.set("controlledby", "all");
                     }
                     
-                    chestProperty.push(chest.id);
+                    chestProperty.push(chestToken.id);
                 }
                 
                 //draw feature tags around the chest:
                 var featureTagColors = [];
-                if(master[6]) {
+                if(chestState.getProperty('isLocked')) {
                     featureTagColors.push(lockedTagColor);
                 }
-                if(master[7]) {
+                if(chestState.getProperty('isTrapped')) {
                     featureTagColors.push(trappedTagColor);
                 }
-                if(master[8]) {
+                if(chestState.getProperty('isHidden')) {
                     featureTagColors.push(hiddenTagColor);
                 }
-                var tagIds = drawFeatureTags(chest, featureTagColors);
+                var tagIds = drawFeatureTags(chestToken, featureTagColors);
                 
                 chestProperty.push(tagIds);
                 
@@ -1702,7 +1700,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     
                     //if the selected chest was replaced, store the new chest as a false selection:
                     if(existingChestIsSelected) {
-                        state.APIAreaMapper.falseSelection = chest.id;
+                        state.APIAreaMapper.falseSelection = chestToken.id;
                     }
                 }
                 //if it's a new image, push it to the end (which will line up with the master's index):
@@ -1808,10 +1806,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var a = new area(this.getProperty('areaId'));
         var g = new graph();
         
-        var handleInteraction = function(master, openIndex, lockedIndex, trappedIndex, visualAlertPoint, openPic, closedPic, lockedPic, trappedPic) {
+        var handleInteraction = function(interactiveObject, visualAlertPoint, openPic, closedPic, lockedPic, trappedPic) {
             
             //handle locked object:
-            if(master[lockedIndex]) {
+            if(interactiveObject.getProperty('isLocked')) {
                 
                 //lock visual alert:
                 setTimeout(
@@ -1825,7 +1823,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             }
             //process toggle:
             else {
-                if(master[trappedIndex]) {
+                if(interactiveObject.getProperty('isTrapped')) {
                     
                     //trap visual alert:
                     setTimeout(
@@ -1837,16 +1835,16 @@ var APIAreaMapper = APIAreaMapper || (function() {
                             2),
                         5);
                     
-                    master[trappedIndex] = 0;
+                    interactiveObject.setProperty('isLocked', 0);
                 }
                 
                 //toggle object state:
-                master[openIndex] = (master[openIndex] + 1) % 2;
+                interactiveObject.setProperty('isOpen', (interactiveObject.getProperty('isOpen') + 1) % 2);
                 
                 //door toggle visual alert:
                 setTimeout(
                     APIVisualAlert.visualAlert(
-                        master[openIndex] ? openPic : closedPic,
+                        interactiveObject.getProperty('isOpen') ? openPic : closedPic,
                         visualAlertPoint.x,
                         visualAlertPoint.y,
                         1.0,
@@ -1859,16 +1857,20 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         switch(objectType) {
             case 'doors':
-                var dIndex = g.addSimplePathFromSegment(master[0], this.getProperty('top'), this.getProperty('left'));
+                var doorState = new door(master);
+                var dIndex = g.addSimplePathFromSegment(doorState.getProperty('positionSegment'), this.getProperty('top'), this.getProperty('left'));
                 var s = g.getProperty('simplePaths')[dIndex].segments[0];
-                handleInteraction(master, 1, 2, 3, s.midpoint(), openDoorAlertPic, closedDoorAlertPic, padlockAlertPic, skullAlertPic);
+                handleInteraction(doorState, s.midpoint(), openDoorAlertPic, closedDoorAlertPic, padlockAlertPic, skullAlertPic);
+                master = doorState.getStateObject();
                 break;
             case 'chests':
-                var chestTop = master[0] + this.getProperty('top');
-                var chestLeft = master[1] + this.getProperty('left');
-                var chestCenter = new point(chestLeft + (master[3] / 2), chestTop + (master[2] / 2));
+                var chestState = new chest(master);
+                var chestTop = chestState.getProperty('top') + this.getProperty('top');
+                var chestLeft = chestState.getProperty('left') + this.getProperty('left');
+                var chestCenter = new point(chestLeft + (chestState.getProperty('width') / 2), chestTop + (chestState.getProperty('height') / 2));
                 //TODO: use chest-specific open / close pics:
-                handleInteraction(master, 5, 6, 7, chestCenter, openDoorAlertPic, closedDoorAlertPic, padlockAlertPic, skullAlertPic);
+                handleInteraction(chestState, chestCenter, openDoorAlertPic, closedDoorAlertPic, padlockAlertPic, skullAlertPic);
+                master = chestState.getStateObject();
                 break;
             default:
                 log('Unsupported objectType of ' + objectType + ' in areaInstance.handleInteractiveObjectInteraction().');
@@ -1972,30 +1974,32 @@ var APIAreaMapper = APIAreaMapper || (function() {
         a = new area(this.getProperty('areaId'));
         var graphicMaster = a.getProperty(managedGraphic.graphicType)[managedGraphic.graphicIndex];
         
-        var changeProperty = function(master, property, followUpAction, openIndex, lockIndex, trapIndex, hideIndex) {
+        var changeProperty = function(interactiveObject, property, followUpAction) {
             var redraw = false;
+            var toggledProperty;
             switch(property) {
                 case 'open':
-                    graphicMaster[openIndex] = (graphicMaster[openIndex] + 1) % 2;
+                    toggledProperty = 'isOpen';
                     redraw = true;
                     break;
                 case 'lock':
-                    graphicMaster[lockIndex] = (graphicMaster[lockIndex] + 1) % 2;
+                    toggledProperty = 'isLocked';
                     followUpAction.refresh = true;
                     break;
                 case 'trap':
-                    graphicMaster[trapIndex] = (graphicMaster[trapIndex] + 1) % 2;
+                    toggledProperty = 'isTrapped';
                     followUpAction.refresh = true;
                     break;
                 case 'hide':
-                    graphicMaster[hideIndex] = (graphicMaster[hideIndex] + 1) % 2;
+                    toggledProperty = 'isHidden';
                     redraw = true;
                     break;
                 default:
                     log('Unhandled property type of ' + property + ' in areaInstance.toggleInteractiveProperty().');
                     followUpAction.message = 'There was a problem; see the log for details.';
-                    break;
+                    return;
             }
+            interactiveObject.setProperty(toggledProperty, (interactiveObject.getProperty(toggledProperty) + 1) % 2);
             return redraw;
         }
         
@@ -2003,10 +2007,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         switch(managedGraphic.graphicType) {
             case 'doors':
-                redraw = changeProperty(graphicMaster, property, followUpAction, 1, 2, 3, 4);
+                var doorState = new door(graphicMaster);
+                redraw = changeProperty(doorState, property, followUpAction);
+                graphicMaster = doorState.getStateObject();
                 break;
             case 'chests':
-                redraw = changeProperty(graphicMaster, property, followUpAction, 5, 6, 7, 8);
+                var chestState = new chest(graphicMaster);
+                redraw = changeProperty(chestState, property, followUpAction);
+                graphicMaster = chestState.getStateObject();
                 break;
             default:
                 log('Unhandled graphic type of ' + managedGraphic.graphicType + ' in areaInstance.toggleInteractiveProperty().');
