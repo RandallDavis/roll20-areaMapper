@@ -168,7 +168,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'edgeWalls': //[simple path, top, left, height, width]
             case 'edgeWallGaps': //[simple path, top, left, height, width]
             case 'innerWalls': //[simple path, top, left, height, width]
-            //TODO: consider polymorphic DTOs for managed objects; managed -> interactive -> door/chest; this will remove the direct referencing of positions within arrays:
+            //TODO: consider polymorphic DTOs for managed objects; areaObject -> interactiveObject -> door/chest; this will remove the direct referencing of positions within arrays:
             case 'doors': //[segment position, isOpen, isLocked, isTrapped, isHidden]
             case 'chests': //[top, left, height, width, rotation, isOpen, isLocked, isTrapped, isHidden]
                 return this['_' + property].push(value) - 1;
@@ -1392,7 +1392,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         var master = a.getProperty(objectType)[masterIndex];
         
-        //TODO: normalize this code?
+        //TODO: normalize this code (after making DTOs):
         switch(objectType) {
             case 'doors':
                 var dIndex = g.addSimplePathFromSegment(master[0], this.getProperty('top'), this.getProperty('left'));
