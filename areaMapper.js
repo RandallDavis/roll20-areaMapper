@@ -6,20 +6,15 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.117,
+    var version = 0.118,
         schemaVersion = 0.035,
         buttonBackgroundColor = '#E92862',
         buttonGreyedColor = '#8D94A9',
-        
-        //TODO: remove:
-        buttonHighlightedColor = '#00FF00',
-        
         buttonHighlightLinkColor = '#D6F510',
         buttonHighlightInactiveColor = '#858789',
         buttonHighlightActiveColor = '#1810F5',
         buttonHighlightPositiveColor = '#29FF4D',
         buttonHighlightNegativeColor = '#8629FF',
-        
         mainBackgroundColor = '#3D8FE1',
         headerBackgroundColor = '#386EA5',
         notificationBackgroundColor = '#64EED7',
@@ -1843,7 +1838,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                             2),
                         5);
                     
-                    interactiveObject.setProperty('isLocked', 0);
+                    interactiveObject.setProperty('isTrapped', 0);
                 }
                 
                 //toggle object state:
@@ -3847,7 +3842,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             +uiCommands('Modify', [
                     ['active', 'blueprint mode', 'blueprint', !hasInstances || (state.APIAreaMapper.activeArea != areaId), state.APIAreaMapper.blueprintMode],
                     modeCommand('floorplan', ['endRecordAreaMode', 'areaAppend', 'areaRemove'], !hasInstances || (state.APIAreaMapper.activeArea != areaId), state.APIAreaMapper.recordAreaMode),
-                    modeCommand('edge walls', ['endRecordAreaMode', 'edgeWallRemove', 'edgeWallGapRemove'], !hasInstances || (state.APIAreaMapper.activeArea != areaId), state.APIAreaMapper.recordAreaMode),
+                    modeCommand('edge walls', ['endRecordAreaMode', 'edgeWallGapRemove', 'edgeWallRemove'], !hasInstances || (state.APIAreaMapper.activeArea != areaId), state.APIAreaMapper.recordAreaMode),
                     modeCommand('inner walls', ['endRecordAreaMode', 'innerWallAdd', 'innerWallRemove'], !hasInstances || (state.APIAreaMapper.activeArea != areaId), state.APIAreaMapper.recordAreaMode),
                     modeCommand('doors', ['endRecordAreaMode', 'doorAdd', 'doorRemove'], !hasInstances || (state.APIAreaMapper.activeArea != areaId), state.APIAreaMapper.recordAreaMode),
                     modeCommand('chests', ['endRecordAreaMode', 'chestAdd', 'chestRemove'], !hasInstances || (state.APIAreaMapper.activeArea != areaId), state.APIAreaMapper.recordAreaMode),
