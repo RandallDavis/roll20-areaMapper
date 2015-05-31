@@ -6,7 +6,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.118,
+    var version = 0.119,
         schemaVersion = 0.035,
         buttonBackgroundColor = '#E92862',
         buttonGreyedColor = '#8D94A9',
@@ -1932,6 +1932,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     
                     a.getProperty(managedGraphic.graphicType)[managedGraphic.graphicIndex] = graphicMaster;
                     a.save();
+                    
+                    //draw the object in the area, so that it propagates to all instances:
+                    a.drawInteractiveObject(managedGraphic.graphicType, managedGraphic.graphicIndex, false, graphic);
                 } else {
                     var chestTop = graphicMaster[0] + this.getProperty('top');
                     var chestLeft = graphicMaster[1] + this.getProperty('left');
@@ -1960,8 +1963,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
         if(!specialInteraction) {
             this.handleInteractiveObjectInteraction(managedGraphic.graphicType, managedGraphic.graphicIndex, graphic);
         }
-        
-        this.save();
     };
     
     areaInstance.prototype.toggleInteractiveProperty = function(graphic, property) {
@@ -4153,6 +4154,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         followUpAction.refresh = true;
                         break;
                     case 'chestReposition':
+                        retainFalseSelection = true;
                         followUpAction = toggleChestReposition();
                         break;
                     case 'redraw':
