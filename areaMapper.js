@@ -6,7 +6,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.123,
+    var version = 0.124,
         schemaVersion = 0.035,
         buttonBackgroundColor = '#CC1869',
         buttonGreyedColor = '#8D94A9',
@@ -3995,9 +3995,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         sendStandardInterface(who, 'Area Mapper',
             uiSection('Main Menu', null, [
                     ['navigationActive', 'active area', 'activeArea', !state.APIAreaMapper.activeArea, false],
-                    ['active', 'create new area', 'areaCreate', false, (state.APIAreaMapper.recordAreaMode == 'areaCreate')],
                     ['navigation', 'list areas', 'listAreas drawn', !state.APIAreaMapper.areas.length, false],
-                    ['navigation', 'asset management (TBA)', 'assetsManage', true, false]
+                    ['active', 'create new area', 'areaCreate', false, (state.APIAreaMapper.recordAreaMode == 'areaCreate')]
                 ])
         );
     },
@@ -4005,7 +4004,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
     interfaceSettings = function(who) {
         sendStandardInterface(who, 'Area Mapper',
             uiSection('Settings', null, [
-                    ['active', 'handout UI', 'handoutUi', false, state.APIAreaMapper.handoutUi]
+                    ['active', 'handout UI', 'handoutUi', false, state.APIAreaMapper.handoutUi],
+                    ['navigation', 'assets (TBA)', 'assets', true, false]
                 ])
         );
     },
@@ -4028,7 +4028,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                             +'A border of ' + colorBlock(buttonHighlightInactiveColor) + ' is a link that can have state, but is currently inactive. Clicking the link will change its state.<br/>'
                             +'A border of ' + colorBlock(buttonHighlightActiveColor) + ' is a link that is is currently in an active state. Clicking the link will deactivate it.<br/>'
                             +'A border of ' + colorBlock(buttonHighlightPositiveColor) + ' is a link that is in a '+ch("'")+'positive'+ch("'")+' state (such as adding something). Clicking the link will put it into a '+ch("'")+'negative'+ch("'")+' state.<br/>'
-                            +'A border of ' + colorBlock(buttonHighlightNegativeColor) + ' is a link that is in a '+ch("'")+'negative'+ch("'")+' state (such as adding something). Clicking the link will put it into an inactive state.<br/>'
+                            +'A border of ' + colorBlock(buttonHighlightNegativeColor) + ' is a link that is in a '+ch("'")+'negative'+ch("'")+' state (such as removing something). Clicking the link will put it into an inactive state.<br/>'
                             +'A border of ' + colorBlock(buttonHighlightActiveColor) + ' surrounded by ' + colorBlock(buttonHighlightLinkColor) + ' is a link that is used for navigation. This is indicating that the link represents something that is in an active state.', 
                         []);
                     break;
