@@ -6,7 +6,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.119,
+    var version = 0.121,
         schemaVersion = 0.035,
         buttonBackgroundColor = '#E92862',
         buttonGreyedColor = '#8D94A9',
@@ -3833,11 +3833,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         sendStandardInterface(who, a.getProperty('name'),
             uiCommands('Manage', [
-                    ['active', 'activate', 'areaActivate ' + areaId, false, (state.APIAreaMapper.activeArea == areaId)],
+                    ['active', 'active', 'areaActivate ' + areaId, false, (state.APIAreaMapper.activeArea == areaId)],
                     ['navigation', 'rename', 'rename', (state.APIAreaMapper.activeArea != areaId), false],
                     ['active', 'draw instance', 'areaInstanceCreate', isArchived || (state.APIAreaMapper.activeArea != areaId), (state.APIAreaMapper.recordAreaMode == 'areaInstanceCreate')],
                     ['navigation', 'hide', 'areaHide ' + areaId, !hasInstances, false],
-                    ['navigation', 'archive', 'areaArchive ' + areaId, false, isArchived]
+                    ['active', 'archive', 'areaArchive ' + areaId, false, isArchived],
+                    ['navigation', 'redraw', 'redraw', !hasInstances || (state.APIAreaMapper.activeArea != areaId), false]
                 ])
             //TODO: functionally in all of these area path adds, make sure that there is an instance on the same page as the drawn path
             +uiCommands('Modify', [
@@ -3847,13 +3848,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     modeCommand('inner walls', ['endRecordAreaMode', 'innerWallAdd', 'innerWallRemove'], !hasInstances || (state.APIAreaMapper.activeArea != areaId), state.APIAreaMapper.recordAreaMode),
                     modeCommand('doors', ['endRecordAreaMode', 'doorAdd', 'doorRemove'], !hasInstances || (state.APIAreaMapper.activeArea != areaId), state.APIAreaMapper.recordAreaMode),
                     modeCommand('chests', ['endRecordAreaMode', 'chestAdd', 'chestRemove'], !hasInstances || (state.APIAreaMapper.activeArea != areaId), state.APIAreaMapper.recordAreaMode),
-                    ['navigationActive', 'undo (TBA)', 'undo', true || !hasInstances || (state.APIAreaMapper.activeArea != areaId), false],
-                    ['navigation', 'redraw', 'redraw', !hasInstances || (state.APIAreaMapper.activeArea != areaId), false]
+                    ['navigation', 'undo (TBA)', 'undo', true || !hasInstances || (state.APIAreaMapper.activeArea != areaId), false]
                 ])
             //TODO: instance-specific modifications: move, resize, rotate
-            +uiCommands('Related', [
-                    ['navigation', 'active area', 'activeArea', !state.APIAreaMapper.activeArea || (state.APIAreaMapper.activeArea == areaId), false]
-                ])
         );
     },
     
