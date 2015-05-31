@@ -6,9 +6,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.122,
+    var version = 0.123,
         schemaVersion = 0.035,
-        buttonBackgroundColor = '#E92862',
+        buttonBackgroundColor = '#CC1869',
         buttonGreyedColor = '#8D94A9',
         buttonHighlightLinkColor = '#D6F510',
         buttonHighlightInactiveColor = '#858789',
@@ -3679,7 +3679,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                             +uiSection('General', null, [
                                 ['navigation', 'run script', '', false, false],
                                 ['navigation', 'main menu', 'mainMenu', false, false],
-                                ['navigation', 'help (TBA)', 'help', false, false],
+                                ['navigation', 'help', 'help', false, false],
                                 ['navigation', 'about', 'about', false, false],
                                 ['navigation', 'settings', 'settings', false, false]
                             ])
@@ -3957,8 +3957,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 for(var areaId in areasByFolder[0]) {
                     folderLinks.push(['navigationActive', areasByFolder[0][areaId][1] + ' (' + areasByFolder[0][areaId][0]  + ')', 'manageArea ' + areaId, false, state.APIAreaMapper.activeArea == areaId]);
                 }
-                html += uiSection('Drawn', null, folderLinks)
-                    +uiSection('Other Lists', null, [
+                html += uiSection('Drawn', 'The numbers in parentheses represent the number of drawn instances.', folderLinks)
+                    +uiSection('Other Lists', 'The numbers in parentheses represent the number of areas in the list.', [
                             ['navigation', 'Hidden (' + hiddenCount + ')', 'listAreas hidden', !hiddenCount, false],
                             ['navigation', 'Archived (' + archivedCount + ')', 'listAreas archived', !archivedCount, false]
                         ]);
@@ -3968,7 +3968,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     folderLinks.push(['navigation', areasByFolder[1][areaId], 'manageArea ' + areaId, false, state.APIAreaMapper.activeArea == areaId]);
                 }
                 html += uiSection('Hidden', null, folderLinks)
-                    +uiSection('Other Lists', null, [
+                    +uiSection('Other Lists', 'The numbers in parentheses represent the number of areas in the list.', [
                             ['navigation', 'Drawn (' + drawnCount + ')', 'listAreas drawn', !drawnCount, false],
                             ['navigation', 'Archived (' + archivedCount + ')', 'listAreas archived', !archivedCount, false]
                         ]);
@@ -3978,7 +3978,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     folderLinks.push(['navigation', areasByFolder[2][areaId], 'manageArea ' + areaId, false, state.APIAreaMapper.activeArea == areaId]);
                 }
                 html += uiSection('Hidden', null, folderLinks)
-                    +uiSection('Other Lists', null, [
+                    +uiSection('Other Lists', 'The numbers in parentheses represent the number of areas in the list.', [
                             ['navigation', 'Drawn (' + drawnCount + ')', 'listAreas drawn', !drawnCount, false],
                             ['navigation', 'Hidden (' + hiddenCount + ')', 'listAreas hidden', !hiddenCount, false]
                         ]);
@@ -4010,12 +4010,45 @@ var APIAreaMapper = APIAreaMapper || (function() {
         );
     },
     
-    interfaceHelp = function(who) {
+    interfaceHelp = function(who, topic) {
+        var helpText = '';
+        
+        if('undefined' !== typeof(topic) && topic.length) {
+            switch(topic) {
+                case 'commandLinks':
+                    var colorBlock = function(color) {
+                        return '<span style="border:0px solid white;display:inline-block;background-color:' + color + ';padding:7px 15px;"> </span>';
+                    };
+                    
+                    helpText = uiSection('Help - Command Links', 
+                        'Command links are color coded to indicate what they do.</p><p>'
+                            +'A main section of ' + colorBlock(buttonBackgroundColor) + ' is an active link that can be clicked.<br/>'
+                            +'A main section of ' + colorBlock(buttonGreyedColor) + ' is an inactive link and cannot be clicked.</p><p>'
+                            +'A border of ' + colorBlock(buttonHighlightLinkColor) + ' is a link that does something once or is used for navigation.<br/>'
+                            +'A border of ' + colorBlock(buttonHighlightInactiveColor) + ' is a link that can have state, but is currently inactive. Clicking the link will change its state.<br/>'
+                            +'A border of ' + colorBlock(buttonHighlightActiveColor) + ' is a link that is is currently in an active state. Clicking the link will deactivate it.<br/>'
+                            +'A border of ' + colorBlock(buttonHighlightPositiveColor) + ' is a link that is in a '+ch("'")+'positive'+ch("'")+' state (such as adding something). Clicking the link will put it into a '+ch("'")+'negative'+ch("'")+' state.<br/>'
+                            +'A border of ' + colorBlock(buttonHighlightNegativeColor) + ' is a link that is in a '+ch("'")+'negative'+ch("'")+' state (such as adding something). Clicking the link will put it into an inactive state.<br/>'
+                            +'A border of ' + colorBlock(buttonHighlightActiveColor) + ' surrounded by ' + colorBlock(buttonHighlightLinkColor) + ' is a link that is used for navigation. This is indicating that the link represents something that is in an active state.', 
+                        []);
+                    break;
+                case 'handoutUi':
+                    //TODO
+                    helpText = 'TBA';
+                    break;
+                default:
+                    break;
+            }
+        }
+        
         sendStandardInterface(who, 'Area Mapper',
-            '<p><b>Help</b></p>'
-            +'<p>TBA</p>'
+            helpText.length
+                ? helpText
+                : uiSection('Help Topics', null, [
+                        ['navigation', 'command links', 'help commandLinks', false, false],
+                        ['navigation', 'handout UI', 'help handoutUi', false, false]
+                    ])
         );
-        //TODO
     },
     
     interfaceAbout = function(who) {
@@ -4213,7 +4246,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         interfaceSettings(msg.who);
                         break;
                     case 'help':
-                        interfaceHelp(msg.who);
+                        if(chatCommand.length < 3) {
+                            interfaceHelp(msg.who);
+                        } else {
+                            interfaceHelp(msg.who, chatCommand[2]);
+                        }
                         break;
                     case 'about':
                         interfaceAbout(msg.who);
