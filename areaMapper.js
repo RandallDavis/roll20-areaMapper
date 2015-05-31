@@ -6,7 +6,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.121,
+    var version = 0.122,
         schemaVersion = 0.035,
         buttonBackgroundColor = '#E92862',
         buttonGreyedColor = '#8D94A9',
@@ -3676,7 +3676,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     +'<span style="padding-left:10px;display:inline-block;width: 100%;margin-top:3px;margin-bottom:3px;padding-right:'+rightPadding+';">'
                         +'<span style="border-top: 1px solid '+headerBackgroundColor+';display:inline-block;width: 100%;margin-top:10px;border-bottom: 1px solid '+headerBackgroundColor+';">'
                             +'<div style="margin-top:10px;"></div>'
-                            +uiCommands('General', [
+                            +uiSection('General', null, [
                                 ['navigation', 'run script', '', false, false],
                                 ['navigation', 'main menu', 'mainMenu', false, false],
                                 ['navigation', 'help (TBA)', 'help', false, false],
@@ -3752,8 +3752,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return link;
     },
     
-    uiCommands = function(header, commands) {
+    uiSection = function(header, text, commands) {
         var html = '<p><b>' + header + '</b></p><p>';
+        
+        if(text !== null) {
+            html += text + '</p><p>';
+        }
         
         commands.forEach(function(c) {
             html += uiCommand(c) + ' ';
@@ -3777,7 +3781,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         state.APIAreaMapper.uiWindow = 'door';
         
         sendStandardInterface(who, 'Area Mapper',
-            uiCommands('Door Management', [
+            uiSection('Door Management', null, [
                     ['active', 'open', 'interactiveObjectOpen', false, managedGraphic.properties[1]],
                     ['active', 'lock', 'interactiveObjectLock', false, managedGraphic.properties[2]],
                     ['active', 'trap', 'interactiveObjectTrap', false, managedGraphic.properties[3]],
@@ -3790,7 +3794,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         state.APIAreaMapper.uiWindow = 'chest';
         
         sendStandardInterface(who, 'Area Mapper',
-            uiCommands('Chest Management', [
+            uiSection('Chest Management', null, [
                     ['active', 'open', 'interactiveObjectOpen', false, managedGraphic.properties[5]],
                     ['active', 'lock', 'interactiveObjectLock', false, managedGraphic.properties[6]],
                     ['active', 'trap', 'interactiveObjectTrap', false, managedGraphic.properties[7]],
@@ -3829,20 +3833,55 @@ var APIAreaMapper = APIAreaMapper || (function() {
             return 0;
         };
         
-        var floorPlanState = getModeState(state.APIAreaMapper.recordAreaMode, 'areaAppend', 'areaRemove');
+        var instructions = null;
+        
+        switch(state.APIAreaMapper.recordAreaMode) {
+            case 'areaAppend':
+                instructions = 'Use a drawing tool to add to the floorplan.';
+                break;
+            case 'areaRemove':
+                instructions = 'Use a drawing tool to remove from the floorplan.';
+                break;
+            case 'edgeWallGapRemove':
+                instructions = 'Use a drawing tool to remove gaps in edge walls. Entire gaps must be captured.';
+                break;
+            case 'edgeWallRemove':
+                instructions = 'Use a drawing tool to remove edge walls.';
+                break;
+            case 'innerWallAdd':
+                instructions = 'Use a drawing tool to add inner walls. Walls must be fully contained within the floorplan.';
+                break;
+            case 'innerWallRemove':
+                instructions = 'Use a drawing tool to remove inner walls.';
+                break;
+            case 'doorAdd':
+                instructions = 'Use a drawing tool to add a door by selecting two wall sections that the door should connect.';
+                break;
+            case 'doorRemove':
+                instructions = 'Use a drawing tool to remove doors. Entire doors must be captured.';
+                break;
+            case 'chestAdd':
+                instructions = 'Use a drawing tool to create a chest. The position, height, and width of the drawing will be used.';
+                break;
+            case 'chestRemove':
+                instructions = 'Use a drawing tool to remove chests. Chest centers must be captured.';
+                break;
+            default:
+                break;
+        }
         
         sendStandardInterface(who, a.getProperty('name'),
-            uiCommands('Manage', [
+            uiSection('Manage', null, [
                     ['active', 'active', 'areaActivate ' + areaId, false, (state.APIAreaMapper.activeArea == areaId)],
                     ['navigation', 'rename', 'rename', (state.APIAreaMapper.activeArea != areaId), false],
                     ['active', 'draw instance', 'areaInstanceCreate', isArchived || (state.APIAreaMapper.activeArea != areaId), (state.APIAreaMapper.recordAreaMode == 'areaInstanceCreate')],
                     ['navigation', 'hide', 'areaHide ' + areaId, !hasInstances, false],
                     ['active', 'archive', 'areaArchive ' + areaId, false, isArchived],
+                    ['active', 'blueprint mode', 'blueprint', !hasInstances || (state.APIAreaMapper.activeArea != areaId), state.APIAreaMapper.blueprintMode],
                     ['navigation', 'redraw', 'redraw', !hasInstances || (state.APIAreaMapper.activeArea != areaId), false]
                 ])
             //TODO: functionally in all of these area path adds, make sure that there is an instance on the same page as the drawn path
-            +uiCommands('Modify', [
-                    ['active', 'blueprint mode', 'blueprint', !hasInstances || (state.APIAreaMapper.activeArea != areaId), state.APIAreaMapper.blueprintMode],
+            +uiSection('Modify', instructions, [
                     modeCommand('floorplan', ['endRecordAreaMode', 'areaAppend', 'areaRemove'], !hasInstances || (state.APIAreaMapper.activeArea != areaId), state.APIAreaMapper.recordAreaMode),
                     modeCommand('edge walls', ['endRecordAreaMode', 'edgeWallGapRemove', 'edgeWallRemove'], !hasInstances || (state.APIAreaMapper.activeArea != areaId), state.APIAreaMapper.recordAreaMode),
                     modeCommand('inner walls', ['endRecordAreaMode', 'innerWallAdd', 'innerWallRemove'], !hasInstances || (state.APIAreaMapper.activeArea != areaId), state.APIAreaMapper.recordAreaMode),
@@ -3918,8 +3957,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 for(var areaId in areasByFolder[0]) {
                     folderLinks.push(['navigationActive', areasByFolder[0][areaId][1] + ' (' + areasByFolder[0][areaId][0]  + ')', 'manageArea ' + areaId, false, state.APIAreaMapper.activeArea == areaId]);
                 }
-                html += uiCommands('Drawn', folderLinks)
-                    +uiCommands('Other Lists', [
+                html += uiSection('Drawn', null, folderLinks)
+                    +uiSection('Other Lists', null, [
                             ['navigation', 'Hidden (' + hiddenCount + ')', 'listAreas hidden', !hiddenCount, false],
                             ['navigation', 'Archived (' + archivedCount + ')', 'listAreas archived', !archivedCount, false]
                         ]);
@@ -3928,8 +3967,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 for(var areaId in areasByFolder[1]) {
                     folderLinks.push(['navigation', areasByFolder[1][areaId], 'manageArea ' + areaId, false, state.APIAreaMapper.activeArea == areaId]);
                 }
-                html += uiCommands('Hidden', folderLinks)
-                    +uiCommands('Other Lists', [
+                html += uiSection('Hidden', null, folderLinks)
+                    +uiSection('Other Lists', null, [
                             ['navigation', 'Drawn (' + drawnCount + ')', 'listAreas drawn', !drawnCount, false],
                             ['navigation', 'Archived (' + archivedCount + ')', 'listAreas archived', !archivedCount, false]
                         ]);
@@ -3938,8 +3977,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 for(var areaId in areasByFolder[2]) {
                     folderLinks.push(['navigation', areasByFolder[2][areaId], 'manageArea ' + areaId, false, state.APIAreaMapper.activeArea == areaId]);
                 }
-                html += uiCommands('Hidden', folderLinks)
-                    +uiCommands('Other Lists', [
+                html += uiSection('Hidden', null, folderLinks)
+                    +uiSection('Other Lists', null, [
                             ['navigation', 'Drawn (' + drawnCount + ')', 'listAreas drawn', !drawnCount, false],
                             ['navigation', 'Hidden (' + hiddenCount + ')', 'listAreas hidden', !hiddenCount, false]
                         ]);
@@ -3954,7 +3993,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     interfaceMainMenu = function(who) {
         sendStandardInterface(who, 'Area Mapper',
-            uiCommands('Main Menu', [
+            uiSection('Main Menu', null, [
                     ['navigationActive', 'active area', 'activeArea', !state.APIAreaMapper.activeArea, false],
                     ['active', 'create new area', 'areaCreate', false, (state.APIAreaMapper.recordAreaMode == 'areaCreate')],
                     ['navigation', 'list areas', 'listAreas drawn', !state.APIAreaMapper.areas.length, false],
@@ -3965,7 +4004,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     interfaceSettings = function(who) {
         sendStandardInterface(who, 'Area Mapper',
-            uiCommands('Settings', [
+            uiSection('Settings', null, [
                     ['active', 'handout UI', 'handoutUi', false, state.APIAreaMapper.handoutUi]
                 ])
         );
