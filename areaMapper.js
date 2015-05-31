@@ -6,11 +6,20 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.116,
+    var version = 0.117,
         schemaVersion = 0.035,
         buttonBackgroundColor = '#E92862',
         buttonGreyedColor = '#8D94A9',
+        
+        //TODO: remove:
         buttonHighlightedColor = '#00FF00',
+        
+        buttonHighlightLinkColor = '#D6F510',
+        buttonHighlightInactiveColor = '#858789',
+        buttonHighlightActiveColor = '#1810F5',
+        buttonHighlightPositiveColor = '#29FF4D',
+        buttonHighlightNegativeColor = '#8629FF',
+        
         mainBackgroundColor = '#3D8FE1',
         headerBackgroundColor = '#386EA5',
         notificationBackgroundColor = '#64EED7',
@@ -287,7 +296,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'edgeWalls': //[simple path, top, left, height, width]
             case 'edgeWallGaps': //[simple path, top, left, height, width]
             case 'innerWalls': //[simple path, top, left, height, width]
-            //TODO: consider polymorphic DTOs for managed objects; areaObject -> interactiveObject -> door/chest; this will remove the direct referencing of positions within arrays:
             case 'doors': //[segment position, isOpen, isLocked, isTrapped, isHidden]
             case 'chests': //[top, left, height, width, rotation, isOpen, isLocked, isTrapped, isHidden]
                 return this['_' + property].push(value) - 1;
@@ -1667,8 +1675,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         this.getProperty('pageId'), 
                         (chestState.getProperty('isHidden') ? 'gmlayer' : 'objects'),
                         new segment(
-                                new point(chestLeft, chestTop),
-                                new point(chestLeft + chestState.getProperty('width'), chestTop + chestState.getProperty('height'))),
+                            new point(chestLeft, chestTop),
+                            new point(chestLeft + chestState.getProperty('width'), chestTop + chestState.getProperty('height'))),
                         chestState.getProperty('rotation'));
                        
                     //set chest privs to players unless the door is hidden:
@@ -3672,12 +3680,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     +'<span style="padding-left:10px;display:inline-block;width: 100%;margin-top:3px;margin-bottom:3px;padding-right:'+rightPadding+';">'
                         +'<span style="border-top: 1px solid '+headerBackgroundColor+';display:inline-block;width: 100%;margin-top:10px;border-bottom: 1px solid '+headerBackgroundColor+';">'
                             +'<div style="margin-top:10px;"></div>'
-                            +commandLinks('General', [
-                                ['run script', '', false, false],
-                                ['main menu', 'mainMenu', false, false],
-                                ['help (TBA)', 'help', false, false],
-                                ['about', 'about', false, false],
-                                ['settings', 'settings', false, false]
+                            +uiCommands('General', [
+                                ['navigation', 'run script', '', false, false],
+                                ['navigation', 'main menu', 'mainMenu', false, false],
+                                ['navigation', 'help (TBA)', 'help', false, false],
+                                ['navigation', 'about', 'about', false, false],
+                                ['navigation', 'settings', 'settings', false, false]
                             ])
                         +'</span>'
                     +'</span>'
@@ -3706,44 +3714,79 @@ var APIAreaMapper = APIAreaMapper || (function() {
             nextSteps);
     },
     
-    //constructs a clickable command:
-    commandLink = function(text, command, greyed, highlighted) {
+    uiCommand = function(command) {
+        //note: command is composed of [type, text, apiCommand, greyed, state]
         
+        //build the command link:
         var link = 
-            greyed 
-                ? ('<span style="border: 1px solid white;display:inline-block;background-color: ' + buttonGreyedColor + ';padding: 3px 3px;"> ' + text + ' </span> ')
+            command[3] 
+                ? ('<span style="border:1px solid white;display:inline-block;background-color:' + buttonGreyedColor + ';padding:5px 5px;"> ' + command[1] + ' </span> ')
                 : (state.APIAreaMapper.handoutUi
-                    ? ('<span style="border: 1px solid white;display:inline-block;background-color: ' + buttonBackgroundColor + ';padding: 5px 5px;"> <a href="!api-area ' + command + '">' + text + '</a> </span> ')
-                    : ('[' + text + '](!api-area ' + command + ') '));
-        
-        if(highlighted) {
-            return ('<span style="border: 1px solid white;display:inline-block;background-color: ' + buttonHighlightedColor + ';padding: 3px 3px;"> ' + link + ' </span> ');
-        } else {
-            return link;
+                    ? ('<span style="border:1px solid white;display:inline-block;background-color:' + buttonBackgroundColor + ';padding:5px 5px;"> <a href="!api-area ' + command[2] + '">' + command[1] + '</a> </span> ')
+                    : ('[' + command[1] + '](!api-area ' + command[2] + ') '));
+
+        //highlight helper function:
+        var highlight = function(htmlToHighlight, color, size, noBorder) {
+            return '<span style="border:' + (noBorder ? 0 : 1) + 'px solid black;display:inline-block;background-color:' + color + ';padding:' + size + 'px ' + size + 'px;">' + htmlToHighlight + '</span>'
+        };
+
+        //highlight the command link:
+        switch(command[0]) {
+            case 'navigation':
+                link = highlight(link, buttonHighlightLinkColor, 5);
+                break;
+            case 'navigationActive':
+                if(command[4]) {
+                    link = highlight(link, buttonHighlightActiveColor, 3, true);
+                    link = highlight(link, buttonHighlightLinkColor, 2);
+                } else {
+                    link = highlight(link, buttonHighlightLinkColor, 5);
+                }
+                break;
+            case 'active':
+                link = highlight(link, command[4] ? buttonHighlightActiveColor : buttonHighlightInactiveColor, 5);
+                break;
+            case 'mode':
+                link = highlight(link, command[4] ? (command[4] === 1 ? buttonHighlightPositiveColor : buttonHighlightNegativeColor) : buttonHighlightInactiveColor, 5);
+                break;
+            default:
+                break;
         }
+        
+        return link;
     },
     
-    //constructs set of clickable commands:
-    commandLinks = function(header, commands) {
+    uiCommands = function(header, commands) {
         var html = '<p><b>' + header + '</b></p><p>';
         
-        for(var i = 0;i<commands.length;i++) {
-            html += commandLink(commands[i][0], commands[i][1], commands[i].length > 2 ? commands[i][2] : false, commands[i].length > 3 ? commands[i][3] : false);
+        commands.forEach(function(c) {
+            html += uiCommand(c) + ' ';
+        }, this);
+        
+        html += '</p>';
+        return html;
+    },
+    
+    modeCommand = function(text, commands, greyed, state) {
+        var currentState = commands.indexOf(state);
+     
+        if(currentState === -1) {
+            currentState = 0;
         }
         
-        return html + '</p>';
+        return ['mode', text, commands[(currentState + 1) % commands.length], greyed, currentState];
     },
     
     interfaceDoor = function(who, managedGraphic) {
         state.APIAreaMapper.uiWindow = 'door';
         
         sendStandardInterface(who, 'Area Mapper',
-            commandLinks('Door Management', [
-                ['open', 'interactiveObjectOpen', false, managedGraphic.properties[1]],
-                ['lock', 'interactiveObjectLock', false, managedGraphic.properties[2]],
-                ['trap', 'interactiveObjectTrap', false, managedGraphic.properties[3]],
-                ['hide', 'interactiveObjectHide', false, managedGraphic.properties[4]]
-            ])
+            uiCommands('Door Management', [
+                    ['active', 'open', 'interactiveObjectOpen', false, managedGraphic.properties[1]],
+                    ['active', 'lock', 'interactiveObjectLock', false, managedGraphic.properties[2]],
+                    ['active', 'trap', 'interactiveObjectTrap', false, managedGraphic.properties[3]],
+                    ['active', 'hide', 'interactiveObjectHide', false, managedGraphic.properties[4]]
+                ])
         );
     },
     
@@ -3751,13 +3794,13 @@ var APIAreaMapper = APIAreaMapper || (function() {
         state.APIAreaMapper.uiWindow = 'chest';
         
         sendStandardInterface(who, 'Area Mapper',
-            commandLinks('Chest Management', [
-                ['open', 'interactiveObjectOpen', false, managedGraphic.properties[5]],
-                ['lock', 'interactiveObjectLock', false, managedGraphic.properties[6]],
-                ['trap', 'interactiveObjectTrap', false, managedGraphic.properties[7]],
-                ['hide', 'interactiveObjectHide', false, managedGraphic.properties[8]],
-                ['reposition', 'chestReposition', false, state.APIAreaMapper.chestReposition] //this is a global setting for repositioning all chests
-            ])
+            uiCommands('Chest Management', [
+                    ['active', 'open', 'interactiveObjectOpen', false, managedGraphic.properties[5]],
+                    ['active', 'lock', 'interactiveObjectLock', false, managedGraphic.properties[6]],
+                    ['active', 'trap', 'interactiveObjectTrap', false, managedGraphic.properties[7]],
+                    ['active', 'hide', 'interactiveObjectHide', false, managedGraphic.properties[8]],
+                    ['active', 'reposition', 'chestReposition', false, state.APIAreaMapper.chestReposition] //this is a global setting for repositioning all chests
+                ])
         );
     },
     
@@ -3778,34 +3821,43 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var hasInstances = a.getInstancePageIds().length;
         var isArchived = a.getProperty('archived');
         
+        var getModeState = function(variable, positiveValue, negativeValue) {
+            if(variable == positiveValue) {
+                return 1;
+            }
+            
+            if(variable == negativeValue) {
+                return 2;
+            }
+            
+            return 0;
+        };
+        
+        var floorPlanState = getModeState(state.APIAreaMapper.recordAreaMode, 'areaAppend', 'areaRemove');
+        
         sendStandardInterface(who, a.getProperty('name'),
-            commandLinks('Manage', [
-                ['activate', 'areaActivate ' + areaId, false, (state.APIAreaMapper.activeArea == areaId)],
-                ['rename', 'rename', (state.APIAreaMapper.activeArea != areaId), false],
-                ['draw instance', 'areaInstanceCreate', isArchived || (state.APIAreaMapper.activeArea != areaId), (state.APIAreaMapper.recordAreaMode == 'areaInstanceCreate')],
-                ['hide', 'areaHide ' + areaId, !hasInstances, false],
-                ['archive', 'areaArchive ' + areaId, false, isArchived]
-            ])
+            uiCommands('Manage', [
+                    ['active', 'activate', 'areaActivate ' + areaId, false, (state.APIAreaMapper.activeArea == areaId)],
+                    ['navigation', 'rename', 'rename', (state.APIAreaMapper.activeArea != areaId), false],
+                    ['active', 'draw instance', 'areaInstanceCreate', isArchived || (state.APIAreaMapper.activeArea != areaId), (state.APIAreaMapper.recordAreaMode == 'areaInstanceCreate')],
+                    ['navigation', 'hide', 'areaHide ' + areaId, !hasInstances, false],
+                    ['navigation', 'archive', 'areaArchive ' + areaId, false, isArchived]
+                ])
             //TODO: functionally in all of these area path adds, make sure that there is an instance on the same page as the drawn path
-            +commandLinks('Modify', [
-                ['blueprint mode', 'blueprint', !hasInstances || (state.APIAreaMapper.activeArea != areaId), state.APIAreaMapper.blueprintMode],
-                ['add to area', 'areaAppend', !hasInstances || (state.APIAreaMapper.activeArea != areaId), (state.APIAreaMapper.recordAreaMode == 'areaAppend')],
-                ['remove from area', 'areaRemove', !hasInstances || (state.APIAreaMapper.activeArea != areaId), (state.APIAreaMapper.recordAreaMode == 'areaRemove')],
-                ['remove edge walls', 'edgeWallRemove', !hasInstances || (state.APIAreaMapper.activeArea != areaId) || !hasEdgeWalls, (state.APIAreaMapper.recordAreaMode == 'edgeWallRemove')],
-                ['add edge walls', 'edgeWallGapRemove', !hasInstances || (state.APIAreaMapper.activeArea != areaId) || !hasEdgeWallGaps, (state.APIAreaMapper.recordAreaMode == 'edgeWallGapRemove')],
-                ['add inner walls', 'innerWallAdd', !hasInstances || (state.APIAreaMapper.activeArea != areaId), (state.APIAreaMapper.recordAreaMode == 'innerWallAdd')],
-                ['remove inner walls', 'innerWallRemove', !hasInstances || (state.APIAreaMapper.activeArea != areaId) || !hasInnerWalls, (state.APIAreaMapper.recordAreaMode == 'innerWallRemove')],
-                ['add door', 'doorAdd', !hasInstances || (state.APIAreaMapper.activeArea != areaId) || (!hasEdgeWalls && !hasInnerWalls), (state.APIAreaMapper.recordAreaMode == 'doorAdd')],
-                ['remove door', 'doorRemove', !hasInstances || (state.APIAreaMapper.activeArea != areaId) || !hasDoors, (state.APIAreaMapper.recordAreaMode == 'doorRemove')],
-                ['add chest', 'chestAdd', !hasInstances || (state.APIAreaMapper.activeArea != areaId), (state.APIAreaMapper.recordAreaMode == 'chestAdd')],
-                ['remove chest', 'chestRemove', !hasInstances || (state.APIAreaMapper.activeArea != areaId) || !hasChests, (state.APIAreaMapper.recordAreaMode == 'chestRemove')],
-                ['undo (TBA)', 'undo', true || !hasInstances || (state.APIAreaMapper.activeArea != areaId), false],
-                ['redraw', 'redraw', !hasInstances || (state.APIAreaMapper.activeArea != areaId), false]
-                //TODO: instance-specific modifications: move, resize, rotate
-            ])
-            +commandLinks('Related', [
-                ['active area', 'activeArea', !state.APIAreaMapper.activeArea || (state.APIAreaMapper.activeArea == areaId), false]
-            ])
+            +uiCommands('Modify', [
+                    ['active', 'blueprint mode', 'blueprint', !hasInstances || (state.APIAreaMapper.activeArea != areaId), state.APIAreaMapper.blueprintMode],
+                    modeCommand('floorplan', ['endRecordAreaMode', 'areaAppend', 'areaRemove'], !hasInstances || (state.APIAreaMapper.activeArea != areaId), state.APIAreaMapper.recordAreaMode),
+                    modeCommand('edge walls', ['endRecordAreaMode', 'edgeWallRemove', 'edgeWallGapRemove'], !hasInstances || (state.APIAreaMapper.activeArea != areaId), state.APIAreaMapper.recordAreaMode),
+                    modeCommand('inner walls', ['endRecordAreaMode', 'innerWallAdd', 'innerWallRemove'], !hasInstances || (state.APIAreaMapper.activeArea != areaId), state.APIAreaMapper.recordAreaMode),
+                    modeCommand('doors', ['endRecordAreaMode', 'doorAdd', 'doorRemove'], !hasInstances || (state.APIAreaMapper.activeArea != areaId), state.APIAreaMapper.recordAreaMode),
+                    modeCommand('chests', ['endRecordAreaMode', 'chestAdd', 'chestRemove'], !hasInstances || (state.APIAreaMapper.activeArea != areaId), state.APIAreaMapper.recordAreaMode),
+                    ['navigationActive', 'undo (TBA)', 'undo', true || !hasInstances || (state.APIAreaMapper.activeArea != areaId), false],
+                    ['navigation', 'redraw', 'redraw', !hasInstances || (state.APIAreaMapper.activeArea != areaId), false]
+                ])
+            //TODO: instance-specific modifications: move, resize, rotate
+            +uiCommands('Related', [
+                    ['navigation', 'active area', 'activeArea', !state.APIAreaMapper.activeArea || (state.APIAreaMapper.activeArea == areaId), false]
+                ])
         );
     },
     
@@ -3871,32 +3923,32 @@ var APIAreaMapper = APIAreaMapper || (function() {
         switch(displayFolder) {
             case 'drawn':
                 for(var areaId in areasByFolder[0]) {
-                    folderLinks.push([areasByFolder[0][areaId][1] + ' (' + areasByFolder[0][areaId][0]  + ')', 'manageArea ' + areaId, false, state.APIAreaMapper.activeArea == areaId]);
+                    folderLinks.push(['navigationActive', areasByFolder[0][areaId][1] + ' (' + areasByFolder[0][areaId][0]  + ')', 'manageArea ' + areaId, false, state.APIAreaMapper.activeArea == areaId]);
                 }
-                html += commandLinks('Drawn', folderLinks)
-                    +commandLinks('Other Lists', [
-                            ['Hidden (' + hiddenCount + ')', 'listAreas hidden', !hiddenCount, false],
-                            ['Archived (' + archivedCount + ')', 'listAreas archived', !archivedCount, false]
+                html += uiCommands('Drawn', folderLinks)
+                    +uiCommands('Other Lists', [
+                            ['navigation', 'Hidden (' + hiddenCount + ')', 'listAreas hidden', !hiddenCount, false],
+                            ['navigation', 'Archived (' + archivedCount + ')', 'listAreas archived', !archivedCount, false]
                         ]);
                 break;
             case 'hidden':
                 for(var areaId in areasByFolder[1]) {
-                    folderLinks.push([areasByFolder[1][areaId], 'manageArea ' + areaId, false, state.APIAreaMapper.activeArea == areaId]);
+                    folderLinks.push(['navigation', areasByFolder[1][areaId], 'manageArea ' + areaId, false, state.APIAreaMapper.activeArea == areaId]);
                 }
-                html += commandLinks('Hidden', folderLinks)
-                    +commandLinks('Other Lists', [
-                            ['Drawn (' + drawnCount + ')', 'listAreas drawn', !drawnCount, false],
-                            ['Archived (' + archivedCount + ')', 'listAreas archived', !archivedCount, false]
+                html += uiCommands('Hidden', folderLinks)
+                    +uiCommands('Other Lists', [
+                            ['navigation', 'Drawn (' + drawnCount + ')', 'listAreas drawn', !drawnCount, false],
+                            ['navigation', 'Archived (' + archivedCount + ')', 'listAreas archived', !archivedCount, false]
                         ]);
                 break;
             case 'archived':
                 for(var areaId in areasByFolder[2]) {
-                    folderLinks.push([areasByFolder[2][areaId], 'manageArea ' + areaId, false, state.APIAreaMapper.activeArea == areaId]);
+                    folderLinks.push(['navigation', areasByFolder[2][areaId], 'manageArea ' + areaId, false, state.APIAreaMapper.activeArea == areaId]);
                 }
-                html += commandLinks('Hidden', folderLinks)
-                    +commandLinks('Other Lists', [
-                            ['Drawn (' + drawnCount + ')', 'listAreas drawn', !drawnCount, false],
-                            ['Hidden (' + hiddenCount + ')', 'listAreas hidden', !hiddenCount, false]
+                html += uiCommands('Hidden', folderLinks)
+                    +uiCommands('Other Lists', [
+                            ['navigation', 'Drawn (' + drawnCount + ')', 'listAreas drawn', !drawnCount, false],
+                            ['navigation', 'Hidden (' + hiddenCount + ')', 'listAreas hidden', !hiddenCount, false]
                         ]);
                 break;
             default:
@@ -3909,20 +3961,20 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     interfaceMainMenu = function(who) {
         sendStandardInterface(who, 'Area Mapper',
-            commandLinks('Main Menu', [
-                ['active area', 'activeArea', !state.APIAreaMapper.activeArea, false],
-                ['create new area', 'areaCreate', false, (state.APIAreaMapper.recordAreaMode == 'areaCreate')],
-                ['list areas', 'listAreas drawn', !state.APIAreaMapper.areas.length, false],
-                ['asset management (TBA)', 'assetsManage', true, false]
-            ])
+            uiCommands('Main Menu', [
+                    ['navigationActive', 'active area', 'activeArea', !state.APIAreaMapper.activeArea, false],
+                    ['active', 'create new area', 'areaCreate', false, (state.APIAreaMapper.recordAreaMode == 'areaCreate')],
+                    ['navigation', 'list areas', 'listAreas drawn', !state.APIAreaMapper.areas.length, false],
+                    ['navigation', 'asset management (TBA)', 'assetsManage', true, false]
+                ])
         );
     },
     
     interfaceSettings = function(who) {
         sendStandardInterface(who, 'Area Mapper',
-            commandLinks('Settings', [
-                ['handout UI', 'handoutUi', false, state.APIAreaMapper.handoutUi]
-            ])
+            uiCommands('Settings', [
+                    ['active', 'handout UI', 'handoutUi', false, state.APIAreaMapper.handoutUi]
+                ])
         );
     },
     
@@ -4100,6 +4152,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         retainRecordAreaMode = true;
                         followUpAction = toggleOrSetAreaRecordMode(chatCommand[1]);
                         followUpAction.ignoreSelection = true;
+                        break;
+                    case 'endRecordAreaMode':
+                        followUpAction.ignoreSelection = true;
+                        followUpAction.refresh = true;
                         break;
                     case 'chestReposition':
                         followUpAction = toggleChestReposition();
