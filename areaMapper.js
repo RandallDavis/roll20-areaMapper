@@ -6,7 +6,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.125,
+    var version = 0.126,
         schemaVersion = 0.035,
         buttonBackgroundColor = '#CC1869',
         buttonGreyedColor = '#8D94A9',
@@ -3517,11 +3517,16 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     /* user interface - begin */
     
-    toggleHandoutUi = function() {
-        state.APIAreaMapper.handoutUi = !state.APIAreaMapper.handoutUi;
+    toggleHandoutUi = function(who) {
         
+        //send a special drawing of the existing UI with a spoofed reversal value of handoutUi (as changing it for real would send it to the new UI); this way, the switch is clear and the user can switch back from either UI:
+        interfaceSettings(who, true);
+        
+        //switch the state and let the UI refresh from the other UI:
+        state.APIAreaMapper.handoutUi = !state.APIAreaMapper.handoutUi;
         var followUpAction = [];
         followUpAction.refresh = true;
+        
         return followUpAction;
     },
     
@@ -3643,7 +3648,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var followUpAction = [];
         
         if('undefined' === typeof(newName) || !newName.length) {
-            //TODO: reword this to use the macro if one can be automatically set up?
             followUpAction.message = 'To change the active area'+ch("'")+'s name, type "<b>!api-area rename '+ch("lt")+'NEW NAME'+ch("gt")+'</b>".';
         } else {
             var a = new area(state.APIAreaMapper.activeArea);
@@ -4067,10 +4071,13 @@ var APIAreaMapper = APIAreaMapper || (function() {
         );
     },
     
-    interfaceSettings = function(who) {
+    interfaceSettings = function(who, reverseHandoutUi) {
+        
+        //note: this function is special in that when the handoutUi state is toggled, a direct command is issued from the toggle with reverseHandoutUi set, so that the toggled state will appear in both UIs
+        
         sendStandardInterface(who, 'Area Mapper',
             uiSection('Settings', null, [
-                    ['active', 'handout UI', 'handoutUi', false, state.APIAreaMapper.handoutUi],
+                    ['active', 'handout UI', 'handoutUi', false, reverseHandoutUi ? !state.APIAreaMapper.handoutUi : state.APIAreaMapper.handoutUi],
                     ['navigation', 'assets (TBA)', 'assets', true, false]
                 ])
         );
@@ -4099,8 +4106,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         []);
                     break;
                 case 'handoutUi':
-                    //TODO
-                    helpText = 'TBA';
+                    helpText = uiSection('Help - Handout UI', 
+                        'Normally, the user interface is sent as whispers to the GM in the chat window. If the '+ch("'")+'handout UI'+ch("'")+' setting is active, the user interface instead appears in a handout called '+ch("'")+'API-AreaMapper'+ch("'")+'.</p><p>'
+                            +'Command links in the handout are not functional if the handout is popped out.', 
+                        []);
                     break;
                 default:
                     break;
@@ -4159,6 +4168,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
             
             if(state.APIAreaMapper.uiWindow.indexOf('area#') === 0) {
                 interfaceAreaManagement(who, state.APIAreaMapper.uiWindow.substring(5));
+                return;
+            }
+            
+            if(state.APIAreaMapper.uiWindow.indexOf('settings') === 0) {
+                interfaceSettings(who);
                 return;
             }
             
@@ -4230,7 +4244,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
             } else {
                 switch(chatCommand[1]) {
                     case 'handoutUi':
-                        followUpAction = toggleHandoutUi()
+                        state.APIAreaMapper.uiWindow = 'settings';
+                        followUpAction = toggleHandoutUi(msg.who)
                         followUpAction.ignoreSelection = true;
                         break;
                     case 'mainMenu':
