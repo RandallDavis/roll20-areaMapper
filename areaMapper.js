@@ -6,7 +6,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.124,
+    var version = 0.125,
         schemaVersion = 0.035,
         buttonBackgroundColor = '#CC1869',
         buttonGreyedColor = '#8D94A9',
@@ -291,8 +291,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'edgeWalls': //[simple path, top, left, height, width]
             case 'edgeWallGaps': //[simple path, top, left, height, width]
             case 'innerWalls': //[simple path, top, left, height, width]
-            case 'doors': //[segment position, isOpen, isLocked, isTrapped, isHidden]
-            case 'chests': //[top, left, height, width, rotation, isOpen, isLocked, isTrapped, isHidden]
+            case 'doors': //[segment position, isOpen, isLocked, isTrapped, isHidden] - represented by door DTO
+            case 'chests': //[top, left, height, width, rotation, isOpen, isLocked, isTrapped, isHidden] - represented by chest DTO
                 return this['_' + property].push(value) - 1;
             default:
                 return typedObject.prototype.setProperty.call(this, property, value);
@@ -556,12 +556,16 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         //if the polygons intersect, or if the old one is engulfed in the new one, update the floorPlan:
         if(mergedOpIndex !== null) {
-            var oldEdgeWallGaps = this.getEdgeWallGapPointsPath(pageId);
-            
             var rp = g.getRawPath('simplePolygons', mergedOpIndex);
             this.setProperty('floorPlan', rp.rawPath);
             this.setProperty('width', rp.width);
             this.setProperty('height', rp.height);
+            
+            //find the difference in top/left from what it used to be for this instance:
+            var topDelta = instance.getProperty('top') - rp.top;
+            var leftDelta = instance.getProperty('left') - rp.left;
+            
+            var oldEdgeWallGaps = this.getEdgeWallGapPointsPath(pageId);
             
             //if there are no edge wall gaps, just use the new floorPlan for edge walls:
             if(!oldEdgeWallGaps || !oldEdgeWallGaps.length) {
@@ -575,7 +579,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 edgeWallPaths.forEach(function(ew) {
                     var ewSpI = g.addSimplePathFromPoints(ew);
                     var rp = g.getRawPath('simplePaths', ewSpI);
-                    this.setProperty('edgeWalls', [rp.rawPath, rp.top - instance.getProperty('top'), rp.left - instance.getProperty('left'), rp.height, rp.width]);
+                    this.setProperty('edgeWalls', [rp.rawPath, rp.top - instance.getProperty('top') + topDelta, rp.left - instance.getProperty('left') + leftDelta, rp.height, rp.width]);
                 }, this);
                 
                 this.calculateEdgeWallGaps();
@@ -611,6 +615,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
             this.setProperty('width', rp.width);
             this.setProperty('height', rp.height);
             
+            //find the difference in top/left from what it used to be for this instance:
+            var topDelta = instance.getProperty('top') - rp.top;
+            var leftDelta = instance.getProperty('left') - rp.left;
+            
             //if there are no edge wall gaps, just use the new floorPlan for edge walls:
             if(!oldEdgeWallGaps || !oldEdgeWallGaps.length) {
                 this.initializeCollectionProperty('edgeWalls');
@@ -623,7 +631,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 edgeWallPaths.forEach(function(ew) {
                     var ewSpI = g.addSimplePathFromPoints(ew);
                     var rp = g.getRawPath('simplePaths', ewSpI);
-                    this.setProperty('edgeWalls', [rp.rawPath, rp.top - instance.getProperty('top'), rp.left - instance.getProperty('left'), rp.height, rp.width]);
+                    this.setProperty('edgeWalls', [rp.rawPath, rp.top - instance.getProperty('top') + topDelta, rp.left - instance.getProperty('left') + leftDelta, rp.height, rp.width]);
                 }, this);
                 
                 this.calculateEdgeWallGaps();
