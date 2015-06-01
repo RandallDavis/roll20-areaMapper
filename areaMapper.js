@@ -6,7 +6,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.126,
+    var version = 0.127,
         schemaVersion = 0.035,
         buttonBackgroundColor = '#CC1869',
         buttonGreyedColor = '#8D94A9',
@@ -614,6 +614,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 }
             }
             
+            //adjust the instance's position so that it doesn't move (don't do this for other instnaces as they might end up moving off the screen):
+            instance.setProperty('top', instance.getProperty('top') - topDelta);
+            instance.setProperty('left', instance.getProperty('left') - leftDelta);
+            instance.save();
+            
             this.save();
             this.draw();
         }
@@ -694,6 +699,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     this.getProperty('chests')[i] = chestState.getStateObject();
                 }
             }
+            
+            //adjust the instance's position so that it doesn't move (don't do this for other instnaces as they might end up moving off the screen):
+            instance.setProperty('top', instance.getProperty('top') - topDelta);
+            instance.setProperty('left', instance.getProperty('left') - leftDelta);
+            instance.save();
             
             this.save();
             this.draw();
