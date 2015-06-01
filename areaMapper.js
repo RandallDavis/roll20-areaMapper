@@ -561,7 +561,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             this.setProperty('width', rp.width);
             this.setProperty('height', rp.height);
             
-            //find the difference in top/left from what it used to be for this instance:
+            //find the difference in top / left from what it used to be for this instance:
             var topDelta = instance.getProperty('top') - rp.top;
             var leftDelta = instance.getProperty('left') - rp.left;
             
@@ -583,6 +583,35 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 }, this);
                 
                 this.calculateEdgeWallGaps();
+            }
+            
+            //adjust top / left of all objects within the area:
+            if(topDelta !== 0 || leftDelta !== 0) {
+                
+                this.getProperty('innerWalls').forEach(function(iw) {
+                    iw[1] += topDelta;
+                    iw[2] += leftDelta;
+                }, this);
+                
+                var doors = this.getProperty('doors');
+                for(var i = 0; i < doors.length; i++) {
+                    var doorState = new door(doors[i]);
+                    var s = doorState.getProperty('positionSegment');
+                    s.a.x += leftDelta;
+                    s.a.y += topDelta;
+                    s.b.x += leftDelta;
+                    s.b.y += topDelta;
+                    doorState.setProperty('positionSegment', s);
+                    this.getProperty('doors')[i] = doorState.getStateObject();
+                }
+                
+                var chests = this.getProperty('chests');
+                for(var i = 0; i < chests.length; i++) {
+                    var chestState = new chest(chests[i]);
+                    chestState.setProperty('top', chestState.getProperty('top') + topDelta);
+                    chestState.setProperty('left', chestState.getProperty('left') + leftDelta);
+                    this.getProperty('chests')[i] = chestState.getStateObject();
+                }
             }
             
             this.save();
@@ -615,7 +644,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             this.setProperty('width', rp.width);
             this.setProperty('height', rp.height);
             
-            //find the difference in top/left from what it used to be for this instance:
+            //find the difference in top / left from what it used to be for this instance:
             var topDelta = instance.getProperty('top') - rp.top;
             var leftDelta = instance.getProperty('left') - rp.left;
             
@@ -635,6 +664,35 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 }, this);
                 
                 this.calculateEdgeWallGaps();
+            }
+            
+            //adjust top / left of all objects within the area:
+            if(topDelta !== 0 || leftDelta !== 0) {
+                
+                this.getProperty('innerWalls').forEach(function(iw) {
+                    iw[1] += topDelta;
+                    iw[2] += leftDelta;
+                }, this);
+                
+                var doors = this.getProperty('doors');
+                for(var i = 0; i < doors.length; i++) {
+                    var doorState = new door(doors[i]);
+                    var s = doorState.getProperty('positionSegment');
+                    s.a.x += leftDelta;
+                    s.a.y += topDelta;
+                    s.b.x += leftDelta;
+                    s.b.y += topDelta;
+                    doorState.setProperty('positionSegment', s);
+                    this.getProperty('doors')[i] = doorState.getStateObject();
+                }
+                
+                var chests = this.getProperty('chests');
+                for(var i = 0; i < chests.length; i++) {
+                    var chestState = new chest(chests[i]);
+                    chestState.setProperty('top', chestState.getProperty('top') + topDelta);
+                    chestState.setProperty('left', chestState.getProperty('left') + leftDelta);
+                    this.getProperty('chests')[i] = chestState.getStateObject();
+                }
             }
             
             this.save();
