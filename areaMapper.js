@@ -6,7 +6,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.127,
+    var version = 0.128,
         schemaVersion = 0.035,
         buttonBackgroundColor = '#CC1869',
         buttonGreyedColor = '#8D94A9',
@@ -614,10 +614,13 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 }
             }
             
-            //adjust the instance's position so that it doesn't move (don't do this for other instnaces as they might end up moving off the screen):
-            instance.setProperty('top', instance.getProperty('top') - topDelta);
-            instance.setProperty('left', instance.getProperty('left') - leftDelta);
-            instance.save();
+            //adjust all instances' positions so that they don't move visually:
+            this.getInstancePageIds().forEach(function(pageId) {
+                var instance = new areaInstance(this.getProperty('id'), pageId)
+                instance.setProperty('top', instance.getProperty('top') - topDelta);
+                instance.setProperty('left', instance.getProperty('left') - leftDelta);
+                instance.save();
+            }, this);
             
             this.save();
             this.draw();
@@ -700,10 +703,13 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 }
             }
             
-            //adjust the instance's position so that it doesn't move (don't do this for other instnaces as they might end up moving off the screen):
-            instance.setProperty('top', instance.getProperty('top') - topDelta);
-            instance.setProperty('left', instance.getProperty('left') - leftDelta);
-            instance.save();
+            //adjust all instances' positions so that they don't move visually:
+            this.getInstancePageIds().forEach(function(pageId) {
+                var instance = new areaInstance(this.getProperty('id'), pageId)
+                instance.setProperty('top', instance.getProperty('top') - topDelta);
+                instance.setProperty('left', instance.getProperty('left') - leftDelta);
+                instance.save();
+            }, this);
             
             this.save();
             this.draw();
