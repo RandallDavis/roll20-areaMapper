@@ -6,8 +6,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.131,
-        schemaVersion = 0.036,
+    var version = 0.132,
+        schemaVersion = 0.037,
         buttonBackgroundColor = '#CC1869',
         buttonGreyedColor = '#8D94A9',
         buttonHighlightLinkColor = '#D6F510',
@@ -48,7 +48,13 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 blueprintEdgeWallGapsPathColor: '#D13583',
                 blueprintInnerWallsPathColor: '#3535D1',
                 blueprintDoorPathColor: '#EC9B10',
-                blueprintChestPathColor: '#666666'
+                blueprintChestPathColor: '#666666',
+                //TODO: work transparency / polygons into this system:
+                floorAssets: [
+                    ['https://s3.amazonaws.com/files.d20.io/images/48971/thumb.jpg?1340229647',0,0,0,0,0],
+                    ['https://s3.amazonaws.com/files.d20.io/images/3243309/fbP3iGSXAjodjtPzJfNy-Q/thumb.jpg?1393492761',0,0,0,0,0],
+                    ['https://s3.amazonaws.com/files.d20.io/images/224431/2KRtd2Vic84zocexdHKSDg/thumb.jpg?1348140031',0,0,0,0,0]
+                ]
             };
         } 
         
@@ -1538,13 +1544,92 @@ var APIAreaMapper = APIAreaMapper || (function() {
         state.APIAreaMapper.tempIgnoreDrawingEvents = false;
         
         return obj;
-    },
+    };
     
     /* roll20 object management - end */
     
     /* area - begin */
     
-    interactiveObject = function(isOpen, isLocked, isTrapped, isHidden) {
+    var asset = function(stateObject) {
+        typedObject.call(this);
+        this._type.push('asset');
+        
+        if('undefined' === typeof(stateObject)) {
+            log('asset() called without a stateObject.');
+            return;
+        }
+        
+        this._imagesrc = stateObject[0];
+        this._rotation = stateObject[1];
+        this._cropTop = stateObject[2];
+        this._cropLeft = stateObject[3];
+        this._cropBottom = stateObject[4];
+        this._cropRight = stateObject[5];
+    }
+    
+    inheritPrototype(asset, typedObject);
+    
+    asset.prototype.setProperty = function(property, value) {
+        switch(property) {
+            case 'imagesrc':
+            case 'rotation':
+            case 'cropTop':
+            case 'cropLeft':
+            case 'cropBottom':
+            case 'cropRight':
+                this['_' + property] = value;
+                break;
+            default:
+                return typedObject.prototype.setProperty.call(this, property, value);
+                break;
+        }
+        
+        return null;
+    };
+    
+    asset.prototype.getStateObject = function() {
+        return [this._imagesrc, this._rotation, this._cropTop, this._cropLeft, this._cropBottom, this._cropRight];
+    };
+    
+    
+    var texture = function(stateObject) {
+        typedObject.call(this);
+        this._type.push('texture');
+        
+        //note: stateObject is structured as [textureType, value (can be null, an asset index, an asset, or a color)]
+        
+        //if the stateObject isn't sent in, use the first generic asset:
+        if('undefined' === typeof(stateObject)) {
+            this._textureType = 'asset';
+            this._value = 0;
+        } else {
+            this._textureType = stateObject[0];
+            this._value = stateObject[1]; //note: this is storing state - in certain cases (such as a unique asset), this will have to be decoded to be used
+        }
+    };
+    
+    inheritPrototype(texture, typedObject);
+    
+    texture.prototype.setProperty = function(property, value) {
+        switch(property) {
+            case 'textureType':
+            case 'value':
+                this['_' + property] = value;
+                break;
+            default:
+                return typedObject.prototype.setProperty.call(this, property, value);
+                break;
+        }
+        
+        return null;
+    };
+    
+    texture.prototype.getStateObject = function() {
+        return [this._textureType, this._value];
+    };
+    
+    
+    var interactiveObject = function(isOpen, isLocked, isTrapped, isHidden) {
         typedObject.call(this);
         this._type.push('interactiveObject');
         
@@ -1686,6 +1771,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'id':
             case 'name':
             case 'floorplan': //simple polygon
+            case 'floorTexture': //texture
             case 'width':
             case 'height':
             case 'archived':
@@ -1763,6 +1849,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this.setProperty('id', Math.random());
         this.setProperty('name', this.createName('new'));
         this.setProperty('floorplan', rp.rawPath);
+        this.setProperty('floorTexture', new texture().getStateObject());
         
         //initially, edge walls will be identical to the floorplan, because no gaps have been declared:
         this.setProperty('edgeWalls', [rp.rawPath, 0, 0, rp.height, rp.width]);
@@ -1819,6 +1906,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 case 'id':
                 case 'name':
                 case 'floorplan':
+                case 'floorTexture':
                 case 'width':
                 case 'height':
                 case 'archived':
@@ -1843,6 +1931,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         areaState.push(['id', this.getProperty('id')]);
         areaState.push(['name', this.getProperty('name')]);
         areaState.push(['floorplan', this.getProperty('floorplan')]);
+        areaState.push(['floorTexture', this.getProperty('floorTexture')]);
         areaState.push(['width', this.getProperty('width')]);
         areaState.push(['height', this.getProperty('height')]);
         areaState.push(['archived', this.getProperty('archived')]);
@@ -2988,8 +3077,30 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var a = new area(this.getProperty('areaId'));
         
         //draw new floor tile:
-        var floorTile = createTokenObject(floorImagePic, this.getProperty('pageId'), 'map', new segment(new point(left, top), new point(left + a.getProperty('width'), top + a.getProperty('height'))));
-        this.setProperty('floorTileId', floorTile.id);
+        var floorTexture = new texture(a.getProperty('floorTexture'));
+        
+        //TODO: transparent, uniqueAsset, solidColor (polygon):
+        switch(floorTexture.getProperty('textureType')) {
+            case 'asset':
+                var floorAsset = new asset(state.APIAreaMapper.floorAssets[floorTexture.getProperty('value')]);
+                var floorTile = createTokenObject(
+                    floorAsset.getProperty('imagesrc'), 
+                    this.getProperty('pageId'), 
+                    'map', 
+                    new segment(
+                        new point(
+                            left - floorAsset.getProperty('cropLeft'), 
+                            top - floorAsset.getProperty('cropTop')), 
+                        new point(
+                            left + a.getProperty('width') + floorAsset.getProperty('cropRight'), 
+                            top + a.getProperty('height') + floorAsset.getProperty('cropBottom'))),
+                    floorAsset.getProperty('rotation'));
+                this.setProperty('floorTileId', floorTile.id);
+                break;
+            default:
+                log('Unhandled textureType of ' + floorTexture.getProperty('textureType') + ' for floorTexture in areaInstance.drawObjects().');
+                break;
+        }
         
         //draw floor tile mask:
         var page = getObj('page', this.getProperty('pageId'));
