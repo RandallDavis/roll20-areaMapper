@@ -6,8 +6,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.129,
-        schemaVersion = 0.035,
+    var version = 0.131,
+        schemaVersion = 0.036,
         buttonBackgroundColor = '#CC1869',
         buttonGreyedColor = '#8D94A9',
         buttonHighlightLinkColor = '#D6F510',
@@ -137,1988 +137,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
     };
     
     /* core - end */
-    
-    /* area - begin */
-    
-    var interactiveObject = function(isOpen, isLocked, isTrapped, isHidden) {
-        typedObject.call(this);
-        this._type.push('interactiveObject');
-        
-        if('undefined' === typeof(isOpen)) {
-            isOpen = 0;
-        }
-        
-        if('undefined' === typeof(isLocked)) {
-            isLocked = 0;
-        }
-        
-        if('undefined' === typeof(isTrapped)) {
-            isTrapped = 0;
-        }
-        
-        if('undefined' === typeof(isHidden)) {
-            isHidden = 0;
-        }
-        
-        this._isOpen = isOpen;
-        this._isLocked = isLocked;
-        this._isTrapped = isTrapped;
-        this._isHidden = isHidden;
-    };
-    
-    inheritPrototype(interactiveObject, typedObject);
-    
-    interactiveObject.prototype.setProperty = function(property, value) {
-        switch(property) {
-            case 'isOpen':
-            case 'isLocked':
-            case 'isTrapped':
-            case 'isHidden':
-                this['_' + property] = value;
-                break;
-            default:
-                return typedObject.prototype.setProperty.call(this, property, value);
-                break;
-        }
-        
-        return null;
-    };
-    
-    interactiveObject.prototype.getStateObject = function() {
-        return [this._isOpen, this._isLocked, this._isTrapped, this._isHidden];
-    };
-    
-    
-    var door = function(stateObject) {
-        if('undefined' === typeof(stateObject)) {
-            stateObject = new Array(5);
-        }
-        
-        interactiveObject.call(this, stateObject[1], stateObject[2], stateObject[3], stateObject[4]);
-        this._type.push('door');
-        this._positionSegment = stateObject[0];
-    };
-    
-    inheritPrototype(door, interactiveObject);
-    
-    door.prototype.setProperty = function(property, value) {
-        switch(property) {
-            case 'positionSegment':
-                this['_' + property] = value;
-                break;
-            default:
-                return interactiveObject.prototype.setProperty.call(this, property, value);
-                break;
-        }
-        
-        return null;
-    };
-    
-    door.prototype.getStateObject = function() {
-        var stateObject = [this._positionSegment];
-        return stateObject.concat(interactiveObject.prototype.getStateObject.call(this));
-    };
-    
-    
-    var chest = function(stateObject) {
-        if('undefined' === typeof(stateObject)) {
-            stateObject = new Array(9);
-        }
-        
-        interactiveObject.call(this, stateObject[5], stateObject[6], stateObject[7], stateObject[8]);
-        this._type.push('chest');
-        this._top = stateObject[0];
-        this._left = stateObject[1];
-        this._height = stateObject[2];
-        this._width = stateObject[3];
-        this._rotation = stateObject[4];
-    };
-    
-    inheritPrototype(chest, interactiveObject);
-    
-    chest.prototype.setProperty = function(property, value) {
-        switch(property) {
-            case 'top':
-            case 'left':
-            case 'height':
-            case 'width':
-            case 'rotation':
-                this['_' + property] = value;
-                break;
-            default:
-                return interactiveObject.prototype.setProperty.call(this, property, value);
-                break;
-        }
-        
-        return null;
-    };
-    
-    chest.prototype.getStateObject = function() {
-        var stateObject = [this._top, this._left, this._height, this._width, this._rotation];
-        return stateObject.concat(interactiveObject.prototype.getStateObject.call(this));
-    };
-    
-    
-    var area = function(id) {
-        typedObject.call(this);
-        this._type.push('area');
-        this.initializeCollectionProperty('edgeWalls');
-        this.initializeCollectionProperty('edgeWallGaps');
-        this.initializeCollectionProperty('innerWalls');
-        this.initializeCollectionProperty('doors');
-        this.initializeCollectionProperty('chests');
-        
-        //load existing area:
-        if('undefined' !== typeof(id)) {
-            this.setProperty('id', parseFloat(id));
-            this.load();
-        }
-    };
-    
-    inheritPrototype(area, typedObject);
-    
-    area.prototype.setProperty = function(property, value) {
-        switch(property) {
-            case 'id':
-            case 'name':
-            case 'floorPlan': //simple polygon
-            case 'width':
-            case 'height':
-            case 'archived':
-                this['_' + property] = value;
-                break;
-            //TODO: consider using a DTO for these; this will remove direct referencing of positions within arrays:
-            case 'edgeWalls': //[simple path, top, left, height, width]
-            case 'edgeWallGaps': //[simple path, top, left, height, width]
-            case 'innerWalls': //[simple path, top, left, height, width]
-            case 'doors': //[segment position, isOpen, isLocked, isTrapped, isHidden] - represented by door DTO
-            case 'chests': //[top, left, height, width, rotation, isOpen, isLocked, isTrapped, isHidden] - represented by chest DTO
-                return this['_' + property].push(value) - 1;
-            default:
-                return typedObject.prototype.setProperty.call(this, property, value);
-                break;
-        }
-        
-        return null;
-    };
-    
-    area.prototype.initializeCollectionProperty = function(property, value) {
-        switch(property) {
-            case 'edgeWalls':
-            case 'edgeWallGaps':
-            case 'innerWalls':
-            case 'doors':
-            case 'chests':
-                if('undefined' === typeof(value)) {
-                    this['_' + property] = [];
-                } else {
-                    this['_' + property] = value;
-                }
-                break;
-            default:
-                typedObject.prototype.initializeCollectionProperty.call(this, property);
-                break;
-        }
-    };
-    
-    area.prototype.createName = function(nameType) {
-        var name = "";
-        
-        //TODO: nameType of "copy" along with ID of area being copied; like 'new' case, find the greastest number of 'copy of xxx #' and increment
-        
-        switch(nameType) {
-            case 'new':
-                var newNameBase = 'new area ';
-                var greatestNewNameNumber = 0;
-                
-                state.APIAreaMapper.areas.forEach(function(a) {
-                    a.forEach(function(prop) {
-                        if(prop[0] == 'name') {
-                            if(prop[1].indexOf(newNameBase) === 0) {
-                                greatestNewNameNumber = Math.max(greatestNewNameNumber, parseInt(prop[1].substring(newNameBase.length)));
-                            }
-                        }
-                    }, this);
-                }, this);
-                
-                name = newNameBase + (greatestNewNameNumber + 1);
-                break;
-            default:
-                log("Unhandled nameType of '" + nameType + "' in area.createName().");
-                return null;
-        }
-        
-        return name;
-    };
-    
-    area.prototype.create = function(rawPath, pageId, top, left, isFromEvent) {
-        var g = new graph();
-        g.addComplexPolygon(rawPath, top, left, isFromEvent);
-        var sp = g.convertComplexPolygonToSimplePolygon(0);
-        var rp = g.getRawPath('simplePolygons', sp);
-        this.setProperty('id', Math.random());
-        this.setProperty('name', this.createName('new'));
-        this.setProperty('floorPlan', rp.rawPath);
-        
-        //initially, edge walls will be identical to the floorPlan, because no gaps have been declared:
-        this.setProperty('edgeWalls', [rp.rawPath, 0, 0, rp.height, rp.width]);
-        
-        this.setProperty('width', rp.width);
-        this.setProperty('height', rp.height);
-        this.setProperty('archived', 0);
-        this.save();
-        
-        this.createInstance(pageId, rp.top, rp.left);
-        
-        var followUpAction = [];
-        followUpAction.refresh = true;
-        return followUpAction;
-    };
-    
-    //undraws and destroys all instances:
-    area.prototype.hide = function() {
-        this.undraw();
-        
-        //remove all area instances from state:
-        var areaInstances = state.APIAreaMapper.areaInstances;
-        for(var i = areaInstances.length - 1; i >= 0; i--) {
-            
-            //note: expects areaId to be the first property:
-            if(areaInstances[i][0][1] === this.getProperty('id')) {
-                state.APIAreaMapper.areaInstances.splice(i, 1);        
-            }
-        }
-    };
-    
-    area.prototype.load = function() {
-        
-        //note: each area's state is stored in an array of key/value pairs
-        
-        var id = this.getProperty('id');
-        var areas = state.APIAreaMapper.areas;
-        var areaState;
-        areas.forEach(function(a) {
-            a.forEach(function(prop) {
-                if(prop[0] === 'id' && prop[1] === id) {
-                    areaState = a;
-                    return;
-                }
-            });
-            
-            if(areaState) {
-                return;
-            }
-        });
-        
-        for(var i = 0; i < areaState.length; i++) {
-            switch(areaState[i][0]) {
-                case 'id':
-                case 'name':
-                case 'floorPlan':
-                case 'width':
-                case 'height':
-                case 'archived':
-                    this.setProperty(areaState[i][0], areaState[i][1]);
-                    break;
-                case 'edgeWalls':
-                case 'edgeWallGaps':
-                case 'innerWalls':
-                case 'doors':
-                case 'chests':
-                    this.initializeCollectionProperty(areaState[i][0], areaState[i][1]);
-                    break;
-                default:
-                    log('Unknown property "' + areaState[i][0] + '" in area.load().');
-                    break;
-            }
-        }
-    };
-    
-    area.prototype.save = function() {
-        var areaState = [];
-        areaState.push(['id', this.getProperty('id')]);
-        areaState.push(['name', this.getProperty('name')]);
-        areaState.push(['floorPlan', this.getProperty('floorPlan')]);
-        areaState.push(['width', this.getProperty('width')]);
-        areaState.push(['height', this.getProperty('height')]);
-        areaState.push(['archived', this.getProperty('archived')]);
-        areaState.push(['edgeWalls', this.getProperty('edgeWalls')]);
-        areaState.push(['edgeWallGaps', this.getProperty('edgeWallGaps')]);
-        areaState.push(['innerWalls', this.getProperty('innerWalls')]);
-        areaState.push(['doors', this.getProperty('doors')]);
-        areaState.push(['chests', this.getProperty('chests')]);
-        
-        //remove existing area state:
-        var id = this.getProperty('id');
-        var areas = state.APIAreaMapper.areas;
-        var oldAreaState;
-        for(var i = 0; i < areas.length; i++) {
-            areas[i].forEach(function(prop) {
-                if(prop[0] === 'id' && prop[1] === id) {
-                    oldAreaState = state.APIAreaMapper.areas.splice(i, 1);
-                    return;
-                }
-            });
- 
-            if(oldAreaState) {
-                break;
-            }
-        }
-        
-        //save the updated area state:
-        state.APIAreaMapper.areas.push(areaState);
-    };
-    
-    //draws an instance on the page, if one already exists, it'll be redrawn in the new location:
-    area.prototype.createInstance = function(pageId, top, left) {
-        var followUpAction = [];
-        
-        var instance = new areaInstance(this.getProperty('id'), pageId);
-        instance.setProperty('top', top);
-        instance.setProperty('left', left);
-        instance.save();
-        instance.draw();
-        
-        followUpAction.refresh = true;
-        return followUpAction;
-    };
-    
-    area.prototype.getEdgeWallGapPointsPath = function(pageId) {
-        var topOffset = 0,
-            leftOffset = 0;
-        
-        //if pageId is not null, it is expected to offset the gaps based on the area instance:
-        if('undefined' !== typeof(pageId)) {
-            
-            //get instance that removal is relative to:
-            var instance = new areaInstance(this.getProperty('id'), pageId);
-            topOffset = instance.getProperty('top');
-            leftOffset = instance.getProperty('left');
-        }
-        
-        var g = new graph();
-        
-        var edgeWallGaps = [];
-        this.getProperty('edgeWallGaps').forEach(function(ewg) {
-            
-            //convert raw paths to points paths:
-            ewgI = g.addSimplePath(ewg[0], ewg[1] + topOffset, ewg[2] + leftOffset);
-            edgeWallGaps.push(g.getPointsPath('simplePaths', ewgI));
-        }, this);
-        
-        return edgeWallGaps;
-    };
-    
-    area.prototype.calculateEdgeWallGaps = function() {
-        var g = new graph();
-        
-        var floorPlan = this.getProperty('floorPlan');
-        var floorPlanIndex = g.addSimplePolygon(floorPlan);
-        var edgeWallPaths = this.getProperty('edgeWalls');
-        
-        var edgeWallPointPaths = [];
-        
-        edgeWallPaths.forEach(function(ew) {
-            var spI = g.addSimplePath(ew[0], ew[1], ew[2]);
-            edgeWallPointPaths.push(g.getPointsPath('simplePaths', spI));
-        }, this);
-        
-        var edgeWallGaps = g.removePathIntersections('simplePolygons', floorPlanIndex, edgeWallPointPaths);
-        
-        var edgeWallGapRawPaths = [];
-        edgeWallGaps.forEach(function(ewg) {
-            
-            //convert points paths to raw paths:
-            ewgI = g.addSimplePathFromPoints(ewg);
-            var ewgRaw = g.getRawPath('simplePaths', ewgI);
-            edgeWallGapRawPaths.push([ewgRaw.rawPath, ewgRaw.top, ewgRaw.left, ewgRaw.height, ewgRaw.width]);
-        }, this);
-        this.initializeCollectionProperty('edgeWallGaps', edgeWallGapRawPaths);
-        
-        return edgeWallGaps;
-    };
-    
-    //alters the area's floorPlan using an area instance as a control:
-    area.prototype.floorPlanAppend = function(rawPath, pageId, top, left, isFromEvent) {
-        var followUpAction = [];
-        
-        //get a simple polygon from the rawPath:
-        var g = new graph();
-        g.addComplexPolygon(rawPath, top, left, isFromEvent);
-        var appendOpIndex = g.convertComplexPolygonToSimplePolygon(0);
-        
-        //get instance that appending is relative to:
-        var instance = new areaInstance(this.getProperty('id'), pageId);
-        
-        //TODO: factor in instance's rotation & scale:
-        var floorPlanOpIndex = g.addSimplePolygon(this.getProperty('floorPlan'), instance.getProperty('top'), instance.getProperty('left'));
-        var mergedOpIndex = g.mergeSimplePolygons(floorPlanOpIndex, appendOpIndex);
-        
-        //if the polygons intersect, or if the old one is engulfed in the new one, update the floorPlan:
-        if(mergedOpIndex !== null) {
-            var rp = g.getRawPath('simplePolygons', mergedOpIndex);
-            this.setProperty('floorPlan', rp.rawPath);
-            this.setProperty('width', rp.width);
-            this.setProperty('height', rp.height);
-            
-            //find the difference in top / left from what it used to be for this instance:
-            var topDelta = instance.getProperty('top') - rp.top;
-            var leftDelta = instance.getProperty('left') - rp.left;
-            
-            var oldEdgeWallGaps = this.getEdgeWallGapPointsPath(pageId);
-            
-            //if there are no edge wall gaps, just use the new floorPlan for edge walls:
-            if(!oldEdgeWallGaps || !oldEdgeWallGaps.length) {
-                this.initializeCollectionProperty('edgeWalls');
-                this.setProperty('edgeWalls', [rp.rawPath, 0, 0, rp.height, rp.width]);
-            } else {
-                this.initializeCollectionProperty('edgeWalls');
-                var edgeWallPaths = g.removePathIntersections('simplePolygons', mergedOpIndex, oldEdgeWallGaps);
-                
-                //convert edgeWallPaths into raw paths:
-                edgeWallPaths.forEach(function(ew) {
-                    var ewSpI = g.addSimplePathFromPoints(ew);
-                    var rp = g.getRawPath('simplePaths', ewSpI);
-                    this.setProperty('edgeWalls', [rp.rawPath, rp.top - instance.getProperty('top') + topDelta, rp.left - instance.getProperty('left') + leftDelta, rp.height, rp.width]);
-                }, this);
-                
-                this.calculateEdgeWallGaps();
-            }
-            
-            //adjust top / left of all objects within the area:
-            if(topDelta !== 0 || leftDelta !== 0) {
-                
-                this.getProperty('innerWalls').forEach(function(iw) {
-                    iw[1] += topDelta;
-                    iw[2] += leftDelta;
-                }, this);
-                
-                var doors = this.getProperty('doors');
-                for(var i = 0; i < doors.length; i++) {
-                    var doorState = new door(doors[i]);
-                    var s = doorState.getProperty('positionSegment');
-                    s.a.x += leftDelta;
-                    s.a.y += topDelta;
-                    s.b.x += leftDelta;
-                    s.b.y += topDelta;
-                    doorState.setProperty('positionSegment', s);
-                    this.getProperty('doors')[i] = doorState.getStateObject();
-                }
-                
-                var chests = this.getProperty('chests');
-                for(var i = 0; i < chests.length; i++) {
-                    var chestState = new chest(chests[i]);
-                    chestState.setProperty('top', chestState.getProperty('top') + topDelta);
-                    chestState.setProperty('left', chestState.getProperty('left') + leftDelta);
-                    this.getProperty('chests')[i] = chestState.getStateObject();
-                }
-            }
-            
-            //adjust all instances' positions so that they don't move visually:
-            this.getInstancePageIds().forEach(function(pageId) {
-                var instance = new areaInstance(this.getProperty('id'), pageId)
-                instance.setProperty('top', instance.getProperty('top') - topDelta);
-                instance.setProperty('left', instance.getProperty('left') - leftDelta);
-                instance.save();
-            }, this);
-            
-            this.save();
-            this.draw();
-        }
-        
-        followUpAction.refresh = true;
-        return followUpAction;
-    };
-    
-    area.prototype.floorPlanRemove = function(rawPath, pageId, top, left, isFromEvent) {
-        var followUpAction = [];
-        
-        var g = new graph();
-        g.addComplexPolygon(rawPath, top, left, isFromEvent);
-        var removeOpIndex = g.convertComplexPolygonToSimplePolygon(0);
-        
-        //get instance that removal is relative to:
-        var instance = new areaInstance(this.getProperty('id'), pageId);
-        
-        //TODO: factor in instance's rotation & scale:
-        var floorPlanOpIndex = g.addSimplePolygon(this.getProperty('floorPlan'), instance.getProperty('top'), instance.getProperty('left'));
-        var mergedOpIndex = g.removeFromSimplePolygon(floorPlanOpIndex, removeOpIndex);
-        
-        if('undefined' !== typeof(mergedOpIndex)) {
-            var oldEdgeWallGaps = this.getEdgeWallGapPointsPath(pageId);
-            
-            var rp = g.getRawPath('simplePolygons', mergedOpIndex);
-            this.setProperty('floorPlan', rp.rawPath);
-            this.setProperty('width', rp.width);
-            this.setProperty('height', rp.height);
-            
-            //find the difference in top / left from what it used to be for this instance:
-            var topDelta = instance.getProperty('top') - rp.top;
-            var leftDelta = instance.getProperty('left') - rp.left;
-            
-            //if there are no edge wall gaps, just use the new floorPlan for edge walls:
-            if(!oldEdgeWallGaps || !oldEdgeWallGaps.length) {
-                this.initializeCollectionProperty('edgeWalls');
-                this.setProperty('edgeWalls', [rp.rawPath, 0, 0, rp.height, rp.width]);
-            } else {
-                this.initializeCollectionProperty('edgeWalls');
-                var edgeWallPaths = g.removePathIntersections('simplePolygons', mergedOpIndex, oldEdgeWallGaps);
-                
-                //convert edgeWallPaths into raw paths:
-                edgeWallPaths.forEach(function(ew) {
-                    var ewSpI = g.addSimplePathFromPoints(ew);
-                    var rp = g.getRawPath('simplePaths', ewSpI);
-                    this.setProperty('edgeWalls', [rp.rawPath, rp.top - instance.getProperty('top') + topDelta, rp.left - instance.getProperty('left') + leftDelta, rp.height, rp.width]);
-                }, this);
-                
-                this.calculateEdgeWallGaps();
-            }
-            
-            //adjust top / left of all objects within the area:
-            if(topDelta !== 0 || leftDelta !== 0) {
-                
-                this.getProperty('innerWalls').forEach(function(iw) {
-                    iw[1] += topDelta;
-                    iw[2] += leftDelta;
-                }, this);
-                
-                var doors = this.getProperty('doors');
-                for(var i = 0; i < doors.length; i++) {
-                    var doorState = new door(doors[i]);
-                    var s = doorState.getProperty('positionSegment');
-                    s.a.x += leftDelta;
-                    s.a.y += topDelta;
-                    s.b.x += leftDelta;
-                    s.b.y += topDelta;
-                    doorState.setProperty('positionSegment', s);
-                    this.getProperty('doors')[i] = doorState.getStateObject();
-                }
-                
-                var chests = this.getProperty('chests');
-                for(var i = 0; i < chests.length; i++) {
-                    var chestState = new chest(chests[i]);
-                    chestState.setProperty('top', chestState.getProperty('top') + topDelta);
-                    chestState.setProperty('left', chestState.getProperty('left') + leftDelta);
-                    this.getProperty('chests')[i] = chestState.getStateObject();
-                }
-            }
-            
-            //adjust all instances' positions so that they don't move visually:
-            this.getInstancePageIds().forEach(function(pageId) {
-                var instance = new areaInstance(this.getProperty('id'), pageId)
-                instance.setProperty('top', instance.getProperty('top') - topDelta);
-                instance.setProperty('left', instance.getProperty('left') - leftDelta);
-                instance.save();
-            }, this);
-            
-            this.save();
-            this.draw();
-        }
-        
-        followUpAction.refresh = true;
-        return followUpAction;
-    };
-    
-    area.prototype.edgeWallRemove = function(rawPath, pageId, top, left, isFromEvent) {
-        followUpAction = [];
-        
-        var g = new graph();
-        g.addComplexPolygon(rawPath, top, left, isFromEvent);
-        var removeSpIndex = g.convertComplexPolygonToSimplePolygon(0);
-        
-        //get instance that removal is relative to:
-        var instance = new areaInstance(this.getProperty('id'), pageId);
-        
-        //find removal's intersections with the floorPlan edge:
-        var floorPlanSpIndex = g.addSimplePolygon(this.getProperty('floorPlan'), instance.getProperty('top'), instance.getProperty('left'));
-        var containedPaths = g.getIntersectingPaths('simplePolygons', removeSpIndex, 'simplePolygons', floorPlanSpIndex);
-        
-        //append containedPaths with existing gaps (might result in multiples being merged):
-        var oldEdgeWallGaps = [];
-        this.getProperty('edgeWallGaps').forEach(function(ewg) {
-            
-            //convert raw paths to points paths:
-            ewgI = g.addSimplePath(ewg[0], ewg[1] + instance.getProperty('top'), ewg[2] + instance.getProperty('left'));
-            oldEdgeWallGaps.push(g.getPointsPath('simplePaths', ewgI));
-        }, this);
-        containedPaths = containedPaths.concat(oldEdgeWallGaps);
-        
-        var edgeWallPaths = g.removePathIntersections('simplePolygons', floorPlanSpIndex, containedPaths);
-        
-        //merge and store edge wall gaps:
-        var edgeWallGapPaths = g.removePathIntersections('simplePolygons', floorPlanSpIndex, edgeWallPaths);
-        this.initializeCollectionProperty('edgeWallGaps');
-        edgeWallGapPaths.forEach(function(ewg) {
-            
-            //convert points paths to raw paths:
-            ewgI = g.addSimplePathFromPoints(ewg);
-            var ewgRaw = g.getRawPath('simplePaths', ewgI);
-            this.setProperty('edgeWallGaps', [ewgRaw.rawPath, ewgRaw.top - instance.getProperty('top'), ewgRaw.left - instance.getProperty('left'), ewgRaw.height, ewgRaw.width]);
-        }, this);
-        
-        //TODO: factor in instance's rotation & scale:
-        //convert edgeWallPaths into raw paths:
-        this.initializeCollectionProperty('edgeWalls');
-        edgeWallPaths.forEach(function(ew) {
-            var ewSpI = g.addSimplePathFromPoints(ew);
-            var rp = g.getRawPath('simplePaths', ewSpI);
-            this.setProperty('edgeWalls', [rp.rawPath, rp.top - instance.getProperty('top'), rp.left - instance.getProperty('left'), rp.height, rp.width]);
-        }, this);
-        
-        this.save();
-        this.draw();
-        
-        followUpAction.refresh = true;
-        return followUpAction;
-    };
-    
-    area.prototype.edgeWallGapRemove = function(rawPath, pageId, top, left, isFromEvent) {
-        var followUpAction = [];
-        
-        var g = new graph();
-        g.addComplexPolygon(rawPath, top, left, isFromEvent);
-        var removeSpIndex = g.convertComplexPolygonToSimplePolygon(0);
-        
-        //get instance that removal is relative to:
-        var instance = new areaInstance(this.getProperty('id'), pageId);
-        
-        //TODO: factor in instance's rotation & scale:
-        var oldEdgeWallGaps = this.getProperty('edgeWallGaps');
-        var edgeWallGaps = [];
-        for(var i = 0; i < oldEdgeWallGaps.length; i++) {
-            var ewg = oldEdgeWallGaps[i];
-            ewgI = g.addSimplePath(ewg[0], ewg[1] + instance.getProperty('top'), ewg[2] + instance.getProperty('left'));
-            
-            if(!g.hasInsideEntirePath('simplePolygons', removeSpIndex, 'simplePaths', ewgI)) {
-                edgeWallGaps.push(oldEdgeWallGaps[i]);
-            }
-        }
-        
-        if(edgeWallGaps.length < oldEdgeWallGaps.length) {
-            
-            //update edge wall gaps property:
-            this.initializeCollectionProperty('edgeWallGaps', edgeWallGaps);
-            
-            //update edge walls property:
-            this.initializeCollectionProperty('edgeWalls');
-            var floorPlanOpIndex = g.addSimplePolygon(this.getProperty('floorPlan'), instance.getProperty('top'), instance.getProperty('left'));
-            var edgeWallPaths = g.removePathIntersections('simplePolygons', floorPlanOpIndex, this.getEdgeWallGapPointsPath(pageId));
-            
-            //convert edgeWallPaths into raw paths:
-            edgeWallPaths.forEach(function(ew) {
-                var ewSpI = g.addSimplePathFromPoints(ew);
-                var rp = g.getRawPath('simplePaths', ewSpI);
-                this.setProperty('edgeWalls', [rp.rawPath, rp.top - instance.getProperty('top'), rp.left - instance.getProperty('left'), rp.height, rp.width]);
-            }, this);
-            
-            this.save();
-            this.draw();
-        }
-
-        followUpAction.refresh = true;
-        return followUpAction;
-    };
-    
-    area.prototype.innerWallAdd = function(rawPath, pageId, top, left, isFromEvent) {
-        var followUpAction = [];
-        var g = new graph();
-        
-        //get instance that addition is relative to:
-        var instance = new areaInstance(this.getProperty('id'), pageId);
-        
-        //get the added path:
-        var innerWallAddSpIndex = g.addSimplePath(rawPath, top - instance.getProperty('top'), left - instance.getProperty('left'), isFromEvent);
-        
-        //make sure that the inner wall is fully contained in the floorPlan:
-        var floorPlanSpIndex = g.addSimplePolygon(this.getProperty('floorPlan'));
-        if(!g.hasInsideEntirePath('simplePolygons', floorPlanSpIndex, 'simplePaths', innerWallAddSpIndex)) {
-            log('Attempt to add inner walls that exceed the floorPlan.');
-            return;
-        }
-        
-        //add the inner wall:
-        var rp = g.getRawPath('simplePaths', innerWallAddSpIndex);
-        this.setProperty('innerWalls', [rp.rawPath, rp.top, rp.left, rp.height, rp.width]);
-        
-        this.save();
-        this.draw();
-        
-        followUpAction.refresh = true;
-        return followUpAction;
-    };
-    
-    area.prototype.innerWallRemove = function(rawPath, pageId, top, left, isFromEvent) {
-        var followUpAction = [];
-        var g = new graph();
-        
-        //get instance that addition is relative to:
-        var instance = new areaInstance(this.getProperty('id'), pageId);
-        
-        //get the removal polygon:
-        g.addComplexPolygon(rawPath, top, left, isFromEvent);
-        var removeSpIndex = g.convertComplexPolygonToSimplePolygon(0);
-        
-        var newInnerWalls = [];
-        
-        //remove intersections from inner walls:
-        this.getProperty('innerWalls').forEach(function(iw) {
-            
-            //add the inner wall to the graph:
-            var iwSpIndex = g.addSimplePath(iw[0], iw[1] + instance.getProperty('top'), iw[2] + instance.getProperty('left'));
-            
-            //find intersections between the removal polygon and the inner wall:
-            var removalIntersections = g.getIntersectingPaths('simplePolygons', removeSpIndex, 'simplePaths', iwSpIndex);
-  
-            //record new inner walls that avoid intersections:
-            if(removalIntersections.length) {
-                var newInnerWallPointPaths = g.removePathIntersections('simplePaths', iwSpIndex, removalIntersections);
-                
-                newInnerWallPointPaths.forEach(function(iwPP) {
-                    var iwSpI = g.addSimplePathFromPoints(iwPP);
-                    var rp = g.getRawPath('simplePaths', iwSpI);
-                    newInnerWalls.push([rp.rawPath, rp.top - instance.getProperty('top'), rp.left - instance.getProperty('left'), rp.height, rp.width]);
-                }, this);
-            } else {
-                newInnerWalls.push(iw);
-            }
-        }, this);
-        
-        this.initializeCollectionProperty('innerWalls', newInnerWalls);
-        
-        this.save();
-        this.draw();
-        
-        followUpAction.refresh = true;
-        return followUpAction;
-    };
-    
-    area.prototype.doorAdd = function(rawPath, pageId, top, left, isFromEvent) {
-        var followUpAction = [];
-        var g = new graph();
-        
-        //get instance that addition is relative to:
-        var instance = new areaInstance(this.getProperty('id'), pageId);
-        
-        //get the addition polygon:
-        g.addComplexPolygon(rawPath, top, left, isFromEvent);
-        var addSpIndex = g.convertComplexPolygonToSimplePolygon(0);
-        
-        var pointCount = 0;
-        var innerWallPoints = []; //array of [inner wall simplePath index, [intersecting points]]
-        var edgeWallPoints = []; //array of [inner wall simplePath index, [intersecting points]]
-        var innerWallSpIndexes = [];
-        var edgeWallSpIndexes = [];
-        
-        //look for point intersections with inner walls:
-        this.getProperty('innerWalls').forEach(function(iw) {
-            
-            //push iw into a simplePath:
-            var iwI = g.addSimplePath(iw[0], iw[1] + instance.getProperty('top'), iw[2] + instance.getProperty('left'));
-            innerWallSpIndexes.push(iwI);
-            
-            //find intersected points:
-            var iwIntersectedPoints = g.getContainedPoints('simplePolygons', addSpIndex, 'simplePaths', iwI);
-            
-            //if there were matches, save them:
-            if(iwIntersectedPoints && iwIntersectedPoints.length) {
-                pointCount += iwIntersectedPoints.length;
-                innerWallPoints.push([iwI, iwIntersectedPoints]);
-            }
-        }, this);
-        
-        //if we failed to find 2 points, look for inner wall segment intersections (excluding segments where point intersections succeeded) and derive points from the centers of the intersected sections:
-        if(pointCount < 2) {
-            innerWallSpIndexes.forEach(function(iwI) {
-                
-                //find intersecting paths:
-                var iwIntersectedPaths = g.getIntersectingPaths('simplePolygons', addSpIndex, 'simplePaths', iwI);
-      
-                if(iwIntersectedPaths && iwIntersectedPaths.length) {
-                    iwIntersectedPaths.forEach(function(iwip) {
-                        
-                        //ignore paths that have anything other than a single segment:
-                        if(iwip.length === 2) {
-                            
-                            //ignore paths that contain an intersected point, to prevent double-counting:
-                            var found = false;
-                            for(var i = 0; i < iwip.length; i++) {
-                                innerWallPoints.forEach(function(iwP) {
-                                    if(iwP[0] === iwI) {
-                                        iwP[1].forEach(function(p) {
-                                            if(iwip[i].equals(p)) {
-                                                found = true;
-                                            }
-                                        }, this);
-                                    }
-                                }, this);
-                            }
-                            
-                            if(!found) {
-                                
-                                //push the midpoint of the intersected segment:
-                                var newPoint = new segment(iwip[0], iwip[1]).midpoint();
-                                
-                                //push it into an existing array if one exists for iwI:
-                                var pushed = false;
-                                innerWallPoints.forEach(function(iwP) {
-                                    if(iwP[0] === iwI) {
-                                        iwP[1].push(newPoint);
-                                        pushed = true;
-                                    }
-                                }, this);
-                                
-                                if(!pushed) {
-                                    var pushObj = [iwI, []];
-                                    pushObj[1].push(newPoint);
-                                    innerWallPoints.push(pushObj);
-                                }
-                                
-                                pointCount++;
-                            }
-                        }
-                    }, this);
-                }
-            }, this);
-        }
-        
-        //if we don't have 2 points yet, look to edge walls for point intersections:
-        if(pointCount < 2) {
-            
-            //look for point intersections with edge walls:
-            this.getProperty('edgeWalls').forEach(function(ew) {
-                
-                //push ew into a simplePath:
-                var ewI = g.addSimplePath(ew[0], ew[1] + instance.getProperty('top'), ew[2] + instance.getProperty('left'));
-                edgeWallSpIndexes.push(ewI);
-                
-                //find intersected points:
-                var ewIntersectedPoints = g.getContainedPoints('simplePolygons', addSpIndex, 'simplePaths', ewI);
-                
-                //if there were matches, save them:
-                if(ewIntersectedPoints && ewIntersectedPoints.length) {
-                    pointCount += ewIntersectedPoints.length;
-                    edgeWallPoints.push([ewI, ewIntersectedPoints]);
-                }
-            }, this);
-        }
-        
-        //if we still don't have 2 points, look for edge wall segment intersections (excluding segments where point intersections succeeded) and derive points from the centers of the intersected sections:
-        if(pointCount < 2) {
-            edgeWallSpIndexes.forEach(function(ewI) {
-                
-                //find intersecting paths:
-                var ewIntersectedPaths = g.getIntersectingPaths('simplePolygons', addSpIndex, 'simplePaths', ewI);
-                
-                if(ewIntersectedPaths && ewIntersectedPaths.length) {
-                    ewIntersectedPaths.forEach(function(ewip) {
-                        
-                        //ignore paths that have anything other than a single segment:
-                        if(ewip.length === 2) {
-                            
-                            //ignore paths that contain an intersected point, to prevent double-counting:
-                            var found = false;
-                            for(var i = 0; i < ewip.length; i++) {
-                                edgeWallPoints.forEach(function(ewP) {
-                                    if(ewP[0] === ewI) {
-                                        ewP[1].forEach(function(p) {
-                                            if(ewip[i].equals(p)) {
-                                                found = true;
-                                            }
-                                        }, this);
-                                    }
-                                }, this);
-                            }
-                            
-                            if(!found) {
-                                
-                                //push the midpoint of the intersected segment:
-                                var newPoint = new segment(ewip[0], ewip[1]).midpoint();
-                                
-                                //push it into an existing array if one exists for iwI:
-                                var pushed = false;
-                                edgeWallPoints.forEach(function(ewP) {
-                                    if(ewP[0] === ewI) {
-                                        ewP[1].push(newPoint);
-                                        pushed = true;
-                                    }
-                                }, this);
-                                
-                                if(!pushed) {
-                                    var pushObj = [ewI, []];
-                                    pushObj[1].push(newPoint);
-                                    edgeWallPoints.push(pushObj);
-                                }
-                                
-                                pointCount++;
-                            }
-                        }
-                    }, this);
-                }
-            }, this);
-        }
-       
-        if(pointCount < 2) {
-            followUpAction.message = 'Attempt to add door failed because fewer than 2 points were identified.';
-            return followUpAction;
-        } 
-        
-        if(pointCount > 2) {
-            followUpAction.message = 'Attempt to add door failed because more than 2 points were identified.';
-            return followUpAction;
-        }
-        
-        //extract the points:
-        var doorSegmentPoints = [];
-        innerWallPoints.forEach(function(iwp) {
-            iwp[1].forEach(function(p) {
-                p.x -= instance.getProperty('left');
-                p.y -= instance.getProperty('top');
-                doorSegmentPoints.push(p);
-            }, this);
-        }, this);
-        edgeWallPoints.forEach(function(ewp) {
-            ewp[1].forEach(function(p) {
-                p.x -= instance.getProperty('left');
-                p.y -= instance.getProperty('top');
-                doorSegmentPoints.push(p);
-            }, this);
-        }, this);
-        
-        //place the new door as a segment connecting the two points:
-        var doorState = new door();
-        doorState.setProperty('positionSegment', new segment(doorSegmentPoints[0], doorSegmentPoints[1]));
-        this.setProperty('doors', doorState.getStateObject());
-        
-        this.save();
-        this.draw();
-        
-        followUpAction.refresh = true;
-        return followUpAction;
-    };
-    
-    area.prototype.doorRemove = function(rawPath, pageId, top, left, isFromEvent) {
-        var followUpAction = [];
-        
-        var g = new graph();
-        g.addComplexPolygon(rawPath, top, left, isFromEvent);
-        var removeSpIndex = g.convertComplexPolygonToSimplePolygon(0);
-        
-        //get instance that removal is relative to:
-        var instance = new areaInstance(this.getProperty('id'), pageId);
-        
-        var oldDoors = this.getProperty('doors');
-        var doors = [];
-        for(var i = 0; i < oldDoors.length; i++) {
-            var oldDoorPositionSegment = new door(oldDoors[i]).getProperty('positionSegment');
-            
-            var s = new segment(
-                new point(
-                    oldDoorPositionSegment.a.x + instance.getProperty('left'),
-                    oldDoorPositionSegment.a.y + instance.getProperty('top')),
-                new point(
-                    oldDoorPositionSegment.b.x + instance.getProperty('left'),
-                    oldDoorPositionSegment.b.y + instance.getProperty('top'))
-            );
-            
-            if(!g.hasInsideSegment('simplePolygons', removeSpIndex, s)) {
-                doors.push(oldDoors[i]);
-            }
-        }
-        
-        if(doors.length < oldDoors.length) {
-            this.initializeCollectionProperty('doors', doors);
-            
-            this.save();
-            this.draw();
-        }
-      
-        followUpAction.refresh = true;
-        return followUpAction;
-    };
-    
-    area.prototype.chestAdd = function(rawPath, pageId, top, left, isFromEvent) {
-        var followUpAction = [];
-        var g = new graph();
-        
-        //get instance that addition is relative to:
-        var instance = new areaInstance(this.getProperty('id'), pageId);
-        
-        //get the addition polygon:
-        g.addComplexPolygon(rawPath, top, left, isFromEvent);
-        var addSpIndex = g.convertComplexPolygonToSimplePolygon(0);
-        var addRp = g.getRawPath('simplePolygons', addSpIndex);
-        
-        //create the chest using the polygon's position, width, and height:
-        var chestState = new chest();
-        chestState.setProperty('top', addRp.top - instance.getProperty('top'));
-        chestState.setProperty('left', addRp.left - instance.getProperty('left'));
-        chestState.setProperty('height', addRp.height);
-        chestState.setProperty('width', addRp.width);
-        chestState.setProperty('rotation', 0);
-        this.setProperty('chests', chestState.getStateObject());
-        
-        this.save();
-        this.draw();
-        
-        followUpAction.refresh = true;
-        return followUpAction;
-    };
-    
-    area.prototype.chestRemove = function(rawPath, pageId, top, left, isFromEvent) {
-        var followUpAction = [];
-        
-        var g = new graph();
-        g.addComplexPolygon(rawPath, top, left, isFromEvent);
-        var removeSpIndex = g.convertComplexPolygonToSimplePolygon(0);
-        
-        //get instance that removal is relative to:
-        var instance = new areaInstance(this.getProperty('id'), pageId);
-        
-        var oldChests = this.getProperty('chests');
-        var chests = [];
-        
-        oldChests.forEach(function(c) {
-            var chestState = new chest(c);
-            var chestTop = chestState.getProperty('top') + instance.getProperty('top');
-            var chestLeft = chestState.getProperty('left') + instance.getProperty('left');
-            var chestCenter = new point(chestLeft + (chestState.getProperty('width') / 2), chestTop + (chestState.getProperty('height') / 2));
-            
-            if(!g.hasInsidePoint('simplePolygons', removeSpIndex, chestCenter)) {
-                chests.push(c);
-            }
-        }, this);
-        
-        if(chests.length < oldChests.length) {
-            this.initializeCollectionProperty('chests', chests);
-            
-            this.save();
-            this.draw();
-        }
-      
-        followUpAction.refresh = true;
-        return followUpAction;
-    };
-    
-    area.prototype.getInstancePageIds = function() {
-        var instancePageIds = [];
-    
-        state.APIAreaMapper.areaInstances.forEach(function(a) {
-            if(a[0][1] === this.getProperty('id')) {
-                instancePageIds.push(a[1][1])
-            }
-        }, this);
-        
-        return instancePageIds;
-    };
-    
-    area.prototype.undraw = function() {
-        this.getInstancePageIds().forEach(function(pageId) {
-            var instance = new areaInstance(this.getProperty('id'), pageId)
-            instance.undraw();
-        }, this);
-    };
-    
-    area.prototype.draw = function() {
-        this.getInstancePageIds().forEach(function(pageId) {
-            var instance = new areaInstance(this.getProperty('id'), pageId)
-            instance.draw();
-        }, this);
-    };
-    
-    area.prototype.handleGraphicChange = function(graphic) {
-        var instance = new areaInstance(this.getProperty('id'), graphic.get('_pageid'));
-        instance.handleGraphicChange(graphic);
-    };
-    
-    area.prototype.getManagedGraphicProperties = function(graphic) {
-        var instance = new areaInstance(this.getProperty('id'), graphic.get('_pageid'));
-        var managedGraphic = instance.findManagedGraphic(graphic);
-        
-        if(!managedGraphic) {
-            return null;
-        }
-        
-        managedGraphic.properties = this.getProperty(managedGraphic.graphicType)[managedGraphic.graphicIndex];
-        
-        return managedGraphic;
-    };
-    
-    area.prototype.toggleInteractiveProperty = function(graphic, property) {
-        var instance = new areaInstance(this.getProperty('id'), graphic.get('_pageid'));
-        return instance.toggleInteractiveProperty(graphic, property);
-    };
-    
-    //draws an interactive object in all instances:
-    area.prototype.drawInteractiveObject = function(objectType, masterIndex, featureTagsOnly, selectedObject) {
-        this.getInstancePageIds().forEach(function(pageId) {
-            var instance = new areaInstance(this.getProperty('id'), pageId)
-            instance.drawInteractiveObject(objectType, masterIndex, featureTagsOnly, selectedObject);
-        }, this);
-    };
-    
-    
-    var areaInstance = function(areaId, pageId) {
-        typedObject.call(this);
-        this._type.push('areaInstance');
-        this._areaId = areaId;
-        this._pageId = pageId;
-        this.initializeCollectionProperty('wallIds');
-        this.initializeCollectionProperty('edgeWallGapIds');
-        this.initializeCollectionProperty('losWallIds');
-        this.initializeCollectionProperty('blueprintWallIds');
-        this.initializeCollectionProperty('doorIds');
-        this.initializeCollectionProperty('chestIds');
-        this.initializeCollectionProperty('blueprintDoorIds');
-        this.initializeCollectionProperty('blueprintChestIds');
-        
-        this.load();
-    };
-    
-    inheritPrototype(areaInstance, typedObject);
-    
-    areaInstance.prototype.setProperty = function(property, value) {
-        switch(property) {
-            case 'areaId':
-            case 'pageId':
-            case 'area':
-            case 'top':
-            case 'left':
-            case 'floorPolygonId': //path
-            case 'floorTileId': //token
-            case 'floorMaskId': //path
-                this['_' + property] = value;
-                break;
-            case 'wallIds': //tokens
-            case 'edgeWallGapIds': //paths
-            case 'losWallIds': //paths
-            case 'blueprintWallIds': //paths
-            //TODO: consider using polymorphic DTOs for these to remove direct referencing of positions within arrays:
-            case 'doorIds': //[door token, LoS wall path, feature tag paths]
-            case 'chestIds': //[chest token, feature tag paths]
-            case 'blueprintDoorIds': //paths
-            case 'blueprintChestIds': //paths
-                return this['_' + property].push(value) - 1;
-            default:
-                return typedObject.prototype.setProperty.call(this, property, value);
-                break;
-        }
-    };
-    
-    areaInstance.prototype.initializeCollectionProperty = function(property, value) {
-        switch(property) {
-            case 'wallIds':
-            case 'edgeWallGapIds':
-            case 'losWallIds':
-            case 'blueprintWallIds':
-            case 'doorIds':
-            case 'chestIds':
-            case 'blueprintDoorIds':
-            case 'blueprintChestIds':
-                if('undefined' === typeof(value)) {
-                    this['_' + property] = [];
-                } else {
-                    this['_' + property] = value;
-                }
-                break;
-            default:
-                typedObject.prototype.initializeCollectionProperty.call(this, property);
-                break;
-        }
-    };
-    
-    areaInstance.prototype.load = function() {
-        
-        //note: each areaInstance's state is stored in an array of key/value pairs
-        
-        var areaId = this.getProperty('areaId');
-        var pageId = this.getProperty('pageId');
-        
-        var areaInstances = state.APIAreaMapper.areaInstances;
-        var areaInstanceState;
-        areaInstances.forEach(function(a) {
-            if(a[0][1] === areaId && a[1][1] === pageId) {
-                areaInstanceState = a;
-                return;
-            }
-            
-            if(areaInstanceState) {
-                return;
-            }
-        }, this);
-        
-        //couldn't find any state to load:
-        if(!areaInstanceState) {
-            return;
-        }
-        
-        for(var i = 0; i < areaInstanceState.length; i++) {
-            switch(areaInstanceState[i][0]) {
-                case 'areaId':
-                case 'pageId':
-                case 'top':
-                case 'left':
-                case 'floorPolygonId':
-                case 'floorTileId':
-                case 'floorMaskId':
-                    this.setProperty(areaInstanceState[i][0], areaInstanceState[i][1]);
-                    break;
-                case 'wallIds':
-                case 'edgeWallGapIds':
-                case 'losWallIds':
-                case 'blueprintWallIds':
-                case 'doorIds':
-                case 'chestIds':
-                case 'blueprintDoorIds':
-                case 'blueprintChestIds':
-                    this.initializeCollectionProperty(areaInstanceState[i][0], areaInstanceState[i][1]);
-                    break;
-                default:
-                    log('Unknown property "' + areaInstanceState[i][0] + '" in areaInstance.load().');
-                    break;
-            }
-        }
-    };
-    
-    areaInstance.prototype.save = function() {
-        var areaInstanceState = [];
-        areaInstanceState.push(['areaId', this.getProperty('areaId')]);
-        areaInstanceState.push(['pageId', this.getProperty('pageId')]);
-        areaInstanceState.push(['top', this.getProperty('top')]);
-        areaInstanceState.push(['left', this.getProperty('left')]);
-        areaInstanceState.push(['floorPolygonId', this.getProperty('floorPolygonId')]);
-        areaInstanceState.push(['floorTileId', this.getProperty('floorTileId')]);
-        areaInstanceState.push(['floorMaskId', this.getProperty('floorMaskId')]);
-        areaInstanceState.push(['wallIds', this.getProperty('wallIds')]);
-        areaInstanceState.push(['losWallIds', this.getProperty('losWallIds')]);
-        areaInstanceState.push(['edgeWallGapIds', this.getProperty('edgeWallGapIds')]);
-        areaInstanceState.push(['blueprintWallIds', this.getProperty('blueprintWallIds')]);
-        areaInstanceState.push(['doorIds', this.getProperty('doorIds')]);
-        areaInstanceState.push(['chestIds', this.getProperty('chestIds')]);
-        areaInstanceState.push(['blueprintDoorIds', this.getProperty('blueprintDoorIds')]);
-        areaInstanceState.push(['blueprintChestIds', this.getProperty('blueprintChestIds')]);
-        
-        //remove existing area instance state:
-        var areaInstances = state.APIAreaMapper.areaInstances;
-        var oldAreaInstanceState;
-        for(var i = 0; i < areaInstances.length; i++) {
-            
-            //note: expects areaId and pageId to be the first and second properties:
-            if(areaInstances[i][0][1] === this.getProperty('areaId')
-                    && areaInstances[i][1][1] === this.getProperty('pageId')) {
-                oldAreaInstanceState = state.APIAreaMapper.areaInstances.splice(i, 1);        
-            }
-   
-            if(oldAreaInstanceState) {
-                break;
-            }
-        }
-        
-        //save the updated area instance state:
-        state.APIAreaMapper.areaInstances.push(areaInstanceState);
-    };
-    
-    areaInstance.prototype.undraw = function() {
-        this.load();
-        
-        //delete floorPolygon:
-        deleteObject('path', this.getProperty('floorPolygonId'));
-        this.setProperty('floorPolygonId', '');
-        
-        //delete floor tile:
-        deleteObject('graphic', this.getProperty('floorTileId'));
-        this.setProperty('floorTileId', '');
-        
-        //delete floor tile mask:
-        deleteObject('path', this.getProperty('floorMaskId'));
-        this.setProperty('floorMaskId', '');
-        
-        //delete walls:
-        this.getProperty('wallIds').forEach(function(wId) {
-            deleteObject('graphic', wId);
-        }, this);
-        this.initializeCollectionProperty('wallIds');
-        
-        //delete edge wall gaps:
-        this.getProperty('edgeWallGapIds').forEach(function(wId) {
-            deleteObject('path', wId);
-        }, this);
-        this.initializeCollectionProperty('edgeWallGapIds');
-        
-        //delete blueprint walls:
-        this.getProperty('blueprintWallIds').forEach(function(wId) {
-            deleteObject('path', wId);
-        }, this);
-        this.initializeCollectionProperty('blueprintWallIds');
-        
-        //delete line of sight blocking walls:
-        this.getProperty('losWallIds').forEach(function(wId) {
-            deleteObject('path', wId);
-        }, this);
-        this.initializeCollectionProperty('losWallIds');
-        
-        //delete doors:
-        this.getProperty('doorIds').forEach(function(dId) {
-            
-            //delete door token:
-            deleteObject('graphic', dId[0]);
-            
-            //delete LoS wall (which may not exist):
-            deleteObject('path', dId[1]);
-            
-            //delete feature tag paths:
-            dId[2].forEach(function(ftId) {
-                deleteObject('path', ftId);
-            }, this);
-        }, this);
-        this.initializeCollectionProperty('doorIds');
-        
-        //delete chests:
-        this.getProperty('chestIds').forEach(function(cId) {
-            
-            //delete chest token:
-            deleteObject('graphic', cId[0]);
-            
-            //delete feature tag paths:
-            cId[1].forEach(function(ftId) {
-                deleteObject('path', ftId);
-            }, this);
-        }, this);
-        this.initializeCollectionProperty('chestIds');
-        
-        //delete blueprint doors:
-        this.getProperty('blueprintDoorIds').forEach(function(wId) {
-            deleteObject('path', wId);
-        }, this);
-        this.initializeCollectionProperty('blueprintDoorIds');
-        
-        //delete blueprint chests:
-        this.getProperty('blueprintChestIds').forEach(function(cId) {
-            deleteObject('path', cId);
-        }, this);
-        this.initializeCollectionProperty('blueprintChestIds');
-        
-        this.save();
-    };
-    
-    areaInstance.prototype.draw = function() {
-        this.undraw();
-        
-        if(state.APIAreaMapper.blueprintMode) {
-            this.drawBlueprint();
-        } else {
-            this.drawObjects();
-        }
-    };
-    
-    areaInstance.prototype.drawObjects = function() {
-        this.load();
-        
-        var top = this.getProperty('top');
-        var left = this.getProperty('left');
-        
-        //get the floorPlan from the area:
-        var a = new area(this.getProperty('areaId'));
-        
-        //draw new floor tile:
-        var floorTile = createTokenObject(floorImagePic, this.getProperty('pageId'), 'map', new segment(new point(left, top), new point(left + a.getProperty('width'), top + a.getProperty('height'))));
-        this.setProperty('floorTileId', floorTile.id);
-        
-        //draw floor tile mask:
-        var page = getObj('page', this.getProperty('pageId'));
-        var maskColor = page.get('background_color');
-        var g = new graph();
-        var floorPlanOpIndex = g.addSimplePolygon(a.getProperty('floorPlan'), top, left);
-        var floorMaskOpIndex = g.invertSimplePolygon(floorPlanOpIndex);
-        var floorMaskRawPath = g.getRawPath('simplePolygons', floorMaskOpIndex);
-        var floorMask = createPathObject(this.getProperty('pageId'), 'map', maskColor, maskColor, floorMaskRawPath.rawPath, floorMaskRawPath.top, floorMaskRawPath.left, floorMaskRawPath.height, floorMaskRawPath.width);
-        this.setProperty('floorMaskId', floorMask.id);
-        
-        //draw edge walls:
-        a.getProperty('edgeWalls').forEach(function(ew) {
-            
-            //draw wall tokens:
-            var ewIndex = g.addSimplePath(ew[0], top + ew[1], left + ew[2]);
-            g.getProperty('simplePaths')[ewIndex].segments.forEach(function(s) {
-                this.setProperty('wallIds', createTokenObjectFromSegment(wallImagePic, this.getProperty('pageId'), 'objects', s, 20).id);
-            }, this);
-            
-            //draw line of sight blocking wall:
-            var losWall = createPathObject(this.getProperty('pageId'), 'walls', '#ff0000', 'transparent', ew[0], top + ew[1], left + ew[2], ew[3], ew[4], 1);
-            this.setProperty('losWallIds', losWall.id);
-        }, this);
-        
-        //draw inner walls:
-        a.getProperty('innerWalls').forEach(function(iw) {
-            
-            //draw wall tokens:
-            var iwIndex = g.addSimplePath(iw[0], top + iw[1], left + iw[2]);
-            g.getProperty('simplePaths')[iwIndex].segments.forEach(function(s) {
-                this.setProperty('wallIds', createTokenObjectFromSegment(wallImagePic, this.getProperty('pageId'), 'objects', s, 20).id);
-            }, this);
-            
-            //draw line of sight blocking wall:
-            var losWall = createPathObject(this.getProperty('pageId'), 'walls', '#ff0000', 'transparent', iw[0], top + iw[1], left + iw[2], iw[3], iw[4], 1);
-            this.setProperty('losWallIds', losWall.id);
-        }, this);
-        
-        //draw doors:
-        for(var i = 0; i < a.getProperty('doors').length; i++) {
-            this.drawInteractiveObject('doors', i);
-        }
-        
-        //draw chests:
-        for(var i = 0; i < a.getProperty('chests').length; i++) {
-            this.drawInteractiveObject('chests', i);
-        }
-       
-        this.save();
-    };
-    
-    //draws an interactive object, which may replace an existing one:
-    areaInstance.prototype.drawInteractiveObject = function(objectType, masterIndex, featureTagsOnly, selectedObject) {
-        
-        //note: featureTagsOnly is expected to be true only when this is an existing object
-        
-        var a = new area(this.getProperty('areaId'));
-        var g = new graph();
-        
-        var master = a.getProperty(objectType)[masterIndex];
-        
-        //TODO: normalize this code (after making DTOs):
-        switch(objectType) {
-            case 'doors':
-                var doorState = new door(master);
-                var dIndex = g.addSimplePathFromSegment(doorState.getProperty('positionSegment'), this.getProperty('top'), this.getProperty('left'));
-                var s = g.getProperty('simplePaths')[dIndex].segments[0];
-                var doorProperty = [];
-                
-                //if the number of objects in the area and the instance are equal, then this is modifying an existing object:
-                var existingDoor = this.getProperty('doorIds').length === a.getProperty(objectType).length;
-                var existingDoorIsSelected = false;
-                
-                if(existingDoor) {
-                    
-                    //delete feature tags:
-                    this.getProperty('doorIds')[masterIndex][2].forEach(function(ftId) {
-                        deleteObject('path', ftId);
-                    }, this);
-                    
-                    //delete door:
-                    if(!featureTagsOnly) {
-                        //note: there is no behavioral difference in handling of hidden doors
-                        
-                        //the selectedObject will only be provided for the instance that was modified by the user:
-                        existingDoorIsSelected = selectedObject && (this.getProperty('doorIds')[masterIndex][0] === selectedObject.id);
-                            
-                        //delete the old door image:
-                        deleteObject('graphic', this.getProperty('doorIds')[masterIndex][0]);
-                        
-                        //delete the old door LoS wall (which may not exist):
-                        deleteObject('path', this.getProperty('doorIds')[masterIndex][1]);
-                        
-                        //delete the old door feature tags:
-                        this.getProperty('doorIds')[masterIndex][2].forEach(function(ftId) {
-                            deleteObject('path', ftId);
-                        }, this);
-                    
-                        //clear properties out to be prudent, but they will be overwritten soon anyway:
-                        this.getProperty('doorIds')[masterIndex] = ['','',[]];
-                    }
-                }
-                
-                var doorToken;
-                
-                //keep existing door:
-                if(featureTagsOnly) {
-                    doorToken = getObj('graphic', this.getProperty('doorIds')[masterIndex][0]);
-                    doorProperty.push(this.getProperty('doorIds')[masterIndex][0]); //door token ID
-                    doorProperty.push(this.getProperty('doorIds')[masterIndex][1]); //door LoS path ID
-                }
-                //create a new door:
-                else {
-                
-                    //TODO: replace open hidden door image with something unique:
-                    //draw the door (hidden or standard):
-                    doorToken = 
-                        doorState.getProperty('isHidden')
-                            ? (doorState.getProperty('isOpen')
-                                ? createTokenObjectFromSegment(openDoorImagePic, this.getProperty('pageId'), 'objects', s, 30, true)
-                                : createTokenObjectFromSegment(wallImagePic, this.getProperty('pageId'), 'objects', s, 20, false))
-                            : createTokenObjectFromSegment((doorState.getProperty('isOpen') ? openDoorImagePic : closedDoorImagePic), this.getProperty('pageId'), 'objects', s, 30, true);
-                    
-                    //set door privs to players unless the door is hidden:
-                    if(!doorState.getProperty('isHidden')) {
-                        doorToken.set("controlledby", "all");
-                    }
-                    
-                    //draw line of sight blocking wall if the door is closed:
-                    var doorLosId = '';
-                    if(!doorState.getProperty('isOpen')) {
-                        var rp = g.getRawPath('simplePaths', dIndex);
-                        doorLosId = createPathObject(this.getProperty('pageId'), 'walls', '#ff0000', 'transparent', rp.rawPath, rp.top, rp.left, rp.height, rp.width, 1).id;
-                    }
-                    
-                    doorProperty.push(doorToken.id);
-                    doorProperty.push(doorLosId);
-                }
-                
-                //draw feature tags around the door:
-                var featureTagColors = [];
-                if(doorState.getProperty('isLocked')) {
-                    featureTagColors.push(lockedTagColor);
-                }
-                if(doorState.getProperty('isTrapped')) {
-                    featureTagColors.push(trappedTagColor);
-                }
-                if(doorState.getProperty('isHidden')) {
-                    featureTagColors.push(hiddenTagColor);
-                }
-                var tagIds = drawFeatureTags(doorToken, featureTagColors);
-                
-                doorProperty.push(tagIds);
-                
-                //if this is replacing an existing image, write it back into the appropriate slot:
-                if(existingDoor) {
-                    this.getProperty('doorIds')[masterIndex] = doorProperty;
-                    
-                    //if the selected door was replaced, store the new door as a false selection:
-                    if(existingDoorIsSelected) {
-                        state.APIAreaMapper.falseSelection = doorToken.id;
-                    }
-                }
-                //if it's a new image, push it to the end (which will line up with the master's index):
-                else {
-                    this.setProperty('doorIds', doorProperty);
-                }
-                break;
-            case 'chests':
-                var chestState = new chest(master);
-                var chestProperty = [];
-                
-                //if the number of objects in the area and the instance are equal, then this is modifying an existing object:
-                var existingChest = this.getProperty('chestIds').length === a.getProperty(objectType).length;
-                var existingChestIsSelected = false;
-                
-                if(existingChest) {
-                    
-                    //delete feature tags:
-                    this.getProperty('chestIds')[masterIndex][1].forEach(function(ftId) {
-                        deleteObject('path', ftId);
-                    }, this);
-                    
-                    //delete chest:
-                    if(!featureTagsOnly) {
-                        //note: there is no behavioral difference in handling of hidden chests
-                        
-                        //the selectedObject will only be provided for the instance that was modified by the user:
-                        existingChestIsSelected = selectedObject && (this.getProperty('chestIds')[masterIndex][0] === selectedObject.id);
-                        
-                        //delete the old chest image:
-                        deleteObject('graphic', this.getProperty('chestIds')[masterIndex][0]);
-                        
-                        //delete the old chest feature tags:
-                        this.getProperty('chestIds')[masterIndex][1].forEach(function(ftId) {
-                            deleteObject('path', ftId);
-                        }, this);
-                    
-                        //clear properties out to be prudent, but they will be overwritten soon anyway:
-                        this.getProperty('chestIds')[masterIndex] = ['',[]];
-                    }
-                }
-                
-                var chestToken;
-                
-                //keep existing door:
-                if(featureTagsOnly) {
-                    chestToken = getObj('graphic', this.getProperty('chestIds')[masterIndex][0]);
-                    chestProperty.push(this.getProperty('chestIds')[masterIndex][0]); //chest token ID
-                }
-                //create a new chest:
-                else {
-                    
-                    var chestTop = chestState.getProperty('top') + this.getProperty('top');
-                    var chestLeft = chestState.getProperty('left') + this.getProperty('left');
-                    
-                    //draw the chest (on the object or gm layer depending on it being hidden):
-                    chestToken = createTokenObject(
-                        (chestState.getProperty('isOpen') ? openChestPic : closedChestPic), 
-                        this.getProperty('pageId'), 
-                        (chestState.getProperty('isHidden') ? 'gmlayer' : 'objects'),
-                        new segment(
-                            new point(chestLeft, chestTop),
-                            new point(chestLeft + chestState.getProperty('width'), chestTop + chestState.getProperty('height'))),
-                        chestState.getProperty('rotation'));
-                       
-                    //set chest privs to players unless the door is hidden:
-                    if(!chestState.getProperty('isHidden')) {
-                        chestToken.set("controlledby", "all");
-                    }
-                    
-                    chestProperty.push(chestToken.id);
-                }
-                
-                //draw feature tags around the chest:
-                var featureTagColors = [];
-                if(chestState.getProperty('isLocked')) {
-                    featureTagColors.push(lockedTagColor);
-                }
-                if(chestState.getProperty('isTrapped')) {
-                    featureTagColors.push(trappedTagColor);
-                }
-                if(chestState.getProperty('isHidden')) {
-                    featureTagColors.push(hiddenTagColor);
-                }
-                var tagIds = drawFeatureTags(chestToken, featureTagColors);
-                
-                chestProperty.push(tagIds);
-                
-                //if this is replacing an existing image, write it back into the appropriate slot:
-                if(existingChest) {
-                    this.getProperty('chestIds')[masterIndex] = chestProperty;
-                    
-                    //if the selected chest was replaced, store the new chest as a false selection:
-                    if(existingChestIsSelected) {
-                        state.APIAreaMapper.falseSelection = chestToken.id;
-                    }
-                }
-                //if it's a new image, push it to the end (which will line up with the master's index):
-                else {
-                    this.setProperty('chestIds', chestProperty);
-                }
-                break;
-            default:
-                log('Unsupported objectType of ' + objectType + ' in areaInstance.drawInteractiveObject().');
-                return 'There was a problem; check the log for details.';
-        }
-        
-        this.save();
-        
-        return null;
-    };
-    
-    areaInstance.prototype.drawBlueprint = function() {
-        this.load();
-        
-        var top = this.getProperty('top');
-        var left = this.getProperty('left');
-        
-        var a = new area(this.getProperty('areaId'));
-        var g = new graph();
-        
-        //create floorPolygon:
-        var floorPolygon = createPathObject(this.getProperty('pageId'), 'map', state.APIAreaMapper.blueprintFloorPolygonColor, state.APIAreaMapper.blueprintFloorPolygonColor, a.getProperty('floorPlan'), top, left, a.getProperty('height'), a.getProperty('width'));
-        this.setProperty('floorPolygonId', floorPolygon.id);
-        
-        //draw edge wall gaps:
-        a.calculateEdgeWallGaps().forEach(function(ew) {
-            var ewI = g.addSimplePathFromPoints(ew);
-            var ewRaw = g.getRawPath('simplePaths', ewI);
-            var edgeWallGap = createPathObject(this.getProperty('pageId'), 'objects', state.APIAreaMapper.blueprintEdgeWallGapsPathColor, 'transparent', ewRaw.rawPath, top + ewRaw.top, left + ewRaw.left, ewRaw.height, ewRaw.width, 5);
-            this.setProperty('edgeWallGapIds', edgeWallGap.id);
-        }, this);
-        
-        //draw blueprint walls:
-        a.getProperty('innerWalls').forEach(function(iw) {
-            var wall = createPathObject(this.getProperty('pageId'), 'objects', state.APIAreaMapper.blueprintInnerWallsPathColor, 'transparent', iw[0], top + iw[1], left + iw[2], iw[3], iw[4], 2);
-            this.setProperty('blueprintWallIds', wall.id);
-        }, this);
-        
-        //draw blueprint doors:
-        a.getProperty('doors').forEach(function(s) {
-            var dI = g.addSimplePathFromSegment(s[0], top, left);
-            var rp = g.getRawPath('simplePaths', dI);
-            var door = createPathObject(this.getProperty('pageId'), 'objects', state.APIAreaMapper.blueprintDoorPathColor, 'transparent', rp.rawPath, rp.top, rp.left, rp.height, rp.width, 2);
-            this.setProperty('blueprintWallIds', door.id);
-        }, this);
-        
-        //draw blueprint chests:
-        a.getProperty('chests').forEach(function(c) {
-            var chest = createRectanglePathObject(this.getProperty('pageId'), 'objects', state.APIAreaMapper.blueprintChestPathColor, state.APIAreaMapper.blueprintChestPathColor, c[0] + top, c[1] + left, c[2], c[3], c[4]);
-            this.setProperty('blueprintChestIds', chest.id);    
-        }, this);
-        
-        this.save();
-    };
-    
-    areaInstance.prototype.alter = function(pageid, relativeRotation, relativeScaleX, relativeScaleY, relativePositionX, relativePositionY) {
-        //TODO: alter an area instance and everything contained within it
-    };
-    
-    areaInstance.prototype.findManagedGraphic = function(graphic) {
-        var graphicType;
-        var graphicIndex;
-        
-        //see if the graphic is a managed door:
-        var doorIds = this.getProperty('doorIds');
-        for(var i = 0; i < doorIds.length; i++) {
-            if(graphic.id === doorIds[i][0]) {
-                graphicType = 'doors';
-                graphicIndex = i;
-                break;
-            }
-        }
-        
-        //see if the graphic is a managed chest:
-        if(!graphicType) {
-            var chestIds = this.getProperty('chestIds');
-            for(var i = 0; i < chestIds.length; i++) {
-                if(graphic.id === chestIds[i][0]) {
-                    graphicType = 'chests';
-                    graphicIndex = i;
-                    break;
-                }
-            }
-        }
-        
-        if(!graphicType) {
-            return null;
-        }
-        
-        var returnObj = [];
-        returnObj.graphicType = graphicType;
-        returnObj.graphicIndex = graphicIndex;
-        return returnObj;
-    };
-    
-    areaInstance.prototype.handleInteractiveObjectInteraction = function(objectType, masterIndex, selectedObject) {
-        var a = new area(this.getProperty('areaId'));
-        var g = new graph();
-        
-        var handleInteraction = function(interactiveObject, visualAlertPoint, openPic, closedPic, lockedPic, trappedPic) {
-            
-            //handle locked object:
-            if(interactiveObject.getProperty('isLocked')) {
-                
-                //lock visual alert:
-                setTimeout(
-                    APIVisualAlert.visualAlert(
-                        lockedPic,
-                        visualAlertPoint.x,
-                        visualAlertPoint.y,
-                        1.0,
-                        1),
-                    5);
-            }
-            //process toggle:
-            else {
-                if(interactiveObject.getProperty('isTrapped')) {
-                    
-                    //trap visual alert:
-                    setTimeout(
-                        APIVisualAlert.visualAlert(
-                            trappedPic,
-                            visualAlertPoint.x,
-                            visualAlertPoint.y,
-                            1.0,
-                            2),
-                        5);
-                    
-                    interactiveObject.setProperty('isTrapped', 0);
-                }
-                
-                //toggle object state:
-                interactiveObject.setProperty('isOpen', (interactiveObject.getProperty('isOpen') + 1) % 2);
-                
-                //door toggle visual alert:
-                setTimeout(
-                    APIVisualAlert.visualAlert(
-                        interactiveObject.getProperty('isOpen') ? openPic : closedPic,
-                        visualAlertPoint.x,
-                        visualAlertPoint.y,
-                        1.0,
-                        0),
-                    5);
-            }
-        };
-        
-        var master = a.getProperty(objectType)[masterIndex];
-        
-        switch(objectType) {
-            case 'doors':
-                var doorState = new door(master);
-                var dIndex = g.addSimplePathFromSegment(doorState.getProperty('positionSegment'), this.getProperty('top'), this.getProperty('left'));
-                var s = g.getProperty('simplePaths')[dIndex].segments[0];
-                handleInteraction(doorState, s.midpoint(), openDoorAlertPic, closedDoorAlertPic, padlockAlertPic, skullAlertPic);
-                master = doorState.getStateObject();
-                break;
-            case 'chests':
-                var chestState = new chest(master);
-                var chestTop = chestState.getProperty('top') + this.getProperty('top');
-                var chestLeft = chestState.getProperty('left') + this.getProperty('left');
-                var chestCenter = new point(chestLeft + (chestState.getProperty('width') / 2), chestTop + (chestState.getProperty('height') / 2));
-                //TODO: use chest-specific open / close pics:
-                handleInteraction(chestState, chestCenter, openDoorAlertPic, closedDoorAlertPic, padlockAlertPic, skullAlertPic);
-                master = chestState.getStateObject();
-                break;
-            default:
-                log('Unsupported objectType of ' + objectType + ' in areaInstance.handleInteractiveObjectInteraction().');
-                return;
-        }
-        
-        //update the master:
-        a.getProperty(objectType)[masterIndex] = master;
-        a.save();
-        
-        //draw the object in the area, so that it propagates to all instances:
-        a.drawInteractiveObject(objectType, masterIndex, false, selectedObject);
-    };
-    
-    areaInstance.prototype.handleGraphicChange = function(graphic) {
-        
-        //see if the graphic is being managed:
-        var managedGraphic = this.findManagedGraphic(graphic);
-        
-        if(!managedGraphic) {
-            return;
-        }
-        
-        //see if the position changed - other changes are ignored:
-        var positionEpsilon = 0.001;
-        a = new area(this.getProperty('areaId'));
-        var graphicMaster = a.getProperty(managedGraphic.graphicType)[managedGraphic.graphicIndex];
-        var specialInteraction = false;
-        
-        switch(managedGraphic.graphicType) {
-            case 'doors':
-                var p = (new segment(
-                    new point(
-                        graphicMaster[0].a.x + this.getProperty('left'),
-                        graphicMaster[0].a.y + this.getProperty('top')),
-                    new point(
-                        graphicMaster[0].b.x + this.getProperty('left'),
-                        graphicMaster[0].b.y + this.getProperty('top')))).midpoint();
-                
-                //compare position to point, using epsilon, to see if it moved:
-                if((Math.abs(graphic.get('left') - p.x) < positionEpsilon)
-                        && (Math.abs(graphic.get('top') - p.y) < positionEpsilon)) {
-                    return;
-                }
-                break;
-            case 'chests':
-                if(state.APIAreaMapper.chestReposition) {
-                    specialInteraction = true;
-                    
-                    //update the chest's position / rotation / dimensions in the master area:
-                    graphicMaster[0] = graphic.get('top') - this.getProperty('top') - (graphic.get('height') / 2);
-                    graphicMaster[1] = graphic.get('left') - this.getProperty('left') - (graphic.get('width') / 2);
-                    graphicMaster[2] = graphic.get('height');
-                    graphicMaster[3] = graphic.get('width');
-                    graphicMaster[4] = graphic.get('rotation');
-                    
-                    a.getProperty(managedGraphic.graphicType)[managedGraphic.graphicIndex] = graphicMaster;
-                    a.save();
-                    
-                    //draw the object in the area, so that it propagates to all instances:
-                    a.drawInteractiveObject(managedGraphic.graphicType, managedGraphic.graphicIndex, false, graphic);
-                } else {
-                    var chestTop = graphicMaster[0] + this.getProperty('top');
-                    var chestLeft = graphicMaster[1] + this.getProperty('left');
-                    
-                    var p = (new segment(
-                        new point(
-                            chestLeft,
-                            chestTop),
-                        new point(
-                            chestLeft + graphicMaster[3],
-                            chestTop + graphicMaster[2]))).midpoint();
-                    
-                    //compare position to point, using epsilon, to see if it moved:
-                    if((Math.abs(graphic.get('left') - p.x) < positionEpsilon)
-                            && (Math.abs(graphic.get('top') - p.y) < positionEpsilon)) {
-                        return;
-                    }
-                }
-                break;
-            default:
-                log('Unhandled graphic type of ' + managedGraphic.graphicType + ' in areaInstance.handleGraphicChange().');
-                break;
-        }
-        
-        //handle true interactions if there was no special case:
-        if(!specialInteraction) {
-            this.handleInteractiveObjectInteraction(managedGraphic.graphicType, managedGraphic.graphicIndex, graphic);
-        }
-    };
-    
-    areaInstance.prototype.toggleInteractiveProperty = function(graphic, property) {
-        var followUpAction = [];
-        
-        var managedGraphic = this.findManagedGraphic(graphic);
-        
-        if(!managedGraphic) {
-            followUpAction.message = 'The graphic is not managed by the area and/or is not eligible for property changes.';
-            return followUpAction;
-        }
-        
-        a = new area(this.getProperty('areaId'));
-        var graphicMaster = a.getProperty(managedGraphic.graphicType)[managedGraphic.graphicIndex];
-        
-        var changeProperty = function(interactiveObject, property, followUpAction) {
-            var redraw = false;
-            var toggledProperty;
-            switch(property) {
-                case 'open':
-                    toggledProperty = 'isOpen';
-                    redraw = true;
-                    break;
-                case 'lock':
-                    toggledProperty = 'isLocked';
-                    followUpAction.refresh = true;
-                    break;
-                case 'trap':
-                    toggledProperty = 'isTrapped';
-                    followUpAction.refresh = true;
-                    break;
-                case 'hide':
-                    toggledProperty = 'isHidden';
-                    redraw = true;
-                    break;
-                default:
-                    log('Unhandled property type of ' + property + ' in areaInstance.toggleInteractiveProperty().');
-                    followUpAction.message = 'There was a problem; see the log for details.';
-                    return;
-            }
-            interactiveObject.setProperty(toggledProperty, (interactiveObject.getProperty(toggledProperty) + 1) % 2);
-            return redraw;
-        }
-        
-        var redraw = false;
-        
-        switch(managedGraphic.graphicType) {
-            case 'doors':
-                var doorState = new door(graphicMaster);
-                redraw = changeProperty(doorState, property, followUpAction);
-                graphicMaster = doorState.getStateObject();
-                break;
-            case 'chests':
-                var chestState = new chest(graphicMaster);
-                redraw = changeProperty(chestState, property, followUpAction);
-                graphicMaster = chestState.getStateObject();
-                break;
-            default:
-                log('Unhandled graphic type of ' + managedGraphic.graphicType + ' in areaInstance.toggleInteractiveProperty().');
-                followUpAction.message = 'There was a problem; see the log for details.';
-                break;
-        }
-        
-        if(followUpAction.message) {
-            return followUpAction;
-        }
-        
-        //update the master:
-        a.getProperty(managedGraphic.graphicType)[managedGraphic.graphicIndex] = graphicMaster;
-        a.save();
-        
-        //redraw the door or just its features across all instances of the area:
-        var errorMessage = a.drawInteractiveObject(managedGraphic.graphicType, managedGraphic.graphicIndex, !redraw, graphic);
-        followUpAction.message = errorMessage;
-        
-        this.save();
-        
-        return followUpAction;
-    };
-    
-    /* area - end */
     
     /* polygon logic - begin */
     
@@ -3524,9 +1542,2055 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     /* roll20 object management - end */
     
-    /* user interface - begin */
+    /* area - begin */
     
-    toggleHandoutUi = function(who) {
+    interactiveObject = function(isOpen, isLocked, isTrapped, isHidden) {
+        typedObject.call(this);
+        this._type.push('interactiveObject');
+        
+        if('undefined' === typeof(isOpen)) {
+            isOpen = 0;
+        }
+        
+        if('undefined' === typeof(isLocked)) {
+            isLocked = 0;
+        }
+        
+        if('undefined' === typeof(isTrapped)) {
+            isTrapped = 0;
+        }
+        
+        if('undefined' === typeof(isHidden)) {
+            isHidden = 0;
+        }
+        
+        this._isOpen = isOpen;
+        this._isLocked = isLocked;
+        this._isTrapped = isTrapped;
+        this._isHidden = isHidden;
+    };
+    
+    inheritPrototype(interactiveObject, typedObject);
+    
+    interactiveObject.prototype.setProperty = function(property, value) {
+        switch(property) {
+            case 'isOpen':
+            case 'isLocked':
+            case 'isTrapped':
+            case 'isHidden':
+                this['_' + property] = value;
+                break;
+            default:
+                return typedObject.prototype.setProperty.call(this, property, value);
+                break;
+        }
+        
+        return null;
+    };
+    
+    interactiveObject.prototype.getStateObject = function() {
+        return [this._isOpen, this._isLocked, this._isTrapped, this._isHidden];
+    };
+    
+    
+    var door = function(stateObject) {
+        if('undefined' === typeof(stateObject)) {
+            stateObject = new Array(5);
+        }
+        
+        interactiveObject.call(this, stateObject[1], stateObject[2], stateObject[3], stateObject[4]);
+        this._type.push('door');
+        this._positionSegment = stateObject[0];
+    };
+    
+    inheritPrototype(door, interactiveObject);
+    
+    door.prototype.setProperty = function(property, value) {
+        switch(property) {
+            case 'positionSegment':
+                this['_' + property] = value;
+                break;
+            default:
+                return interactiveObject.prototype.setProperty.call(this, property, value);
+                break;
+        }
+        
+        return null;
+    };
+    
+    door.prototype.getStateObject = function() {
+        var stateObject = [this._positionSegment];
+        return stateObject.concat(interactiveObject.prototype.getStateObject.call(this));
+    };
+    
+    
+    var chest = function(stateObject) {
+        if('undefined' === typeof(stateObject)) {
+            stateObject = new Array(9);
+        }
+        
+        interactiveObject.call(this, stateObject[5], stateObject[6], stateObject[7], stateObject[8]);
+        this._type.push('chest');
+        this._top = stateObject[0];
+        this._left = stateObject[1];
+        this._height = stateObject[2];
+        this._width = stateObject[3];
+        this._rotation = stateObject[4];
+    };
+    
+    inheritPrototype(chest, interactiveObject);
+    
+    chest.prototype.setProperty = function(property, value) {
+        switch(property) {
+            case 'top':
+            case 'left':
+            case 'height':
+            case 'width':
+            case 'rotation':
+                this['_' + property] = value;
+                break;
+            default:
+                return interactiveObject.prototype.setProperty.call(this, property, value);
+                break;
+        }
+        
+        return null;
+    };
+    
+    chest.prototype.getStateObject = function() {
+        var stateObject = [this._top, this._left, this._height, this._width, this._rotation];
+        return stateObject.concat(interactiveObject.prototype.getStateObject.call(this));
+    };
+    
+    
+    var area = function(id) {
+        typedObject.call(this);
+        this._type.push('area');
+        this.initializeCollectionProperty('edgeWalls');
+        this.initializeCollectionProperty('edgeWallGaps');
+        this.initializeCollectionProperty('innerWalls');
+        this.initializeCollectionProperty('doors');
+        this.initializeCollectionProperty('chests');
+        
+        //load existing area:
+        if('undefined' !== typeof(id)) {
+            this.setProperty('id', parseFloat(id));
+            this.load();
+        }
+    };
+    
+    inheritPrototype(area, typedObject);
+    
+    area.prototype.setProperty = function(property, value) {
+        switch(property) {
+            case 'id':
+            case 'name':
+            case 'floorplan': //simple polygon
+            case 'width':
+            case 'height':
+            case 'archived':
+                this['_' + property] = value;
+                break;
+            //TODO: consider using a DTO for these; this will remove direct referencing of positions within arrays:
+            case 'edgeWalls': //[simple path, top, left, height, width]
+            case 'edgeWallGaps': //[simple path, top, left, height, width]
+            case 'innerWalls': //[simple path, top, left, height, width]
+            case 'doors': //[segment position, isOpen, isLocked, isTrapped, isHidden] - represented by door DTO
+            case 'chests': //[top, left, height, width, rotation, isOpen, isLocked, isTrapped, isHidden] - represented by chest DTO
+                return this['_' + property].push(value) - 1;
+            default:
+                return typedObject.prototype.setProperty.call(this, property, value);
+                break;
+        }
+        
+        return null;
+    };
+    
+    area.prototype.initializeCollectionProperty = function(property, value) {
+        switch(property) {
+            case 'edgeWalls':
+            case 'edgeWallGaps':
+            case 'innerWalls':
+            case 'doors':
+            case 'chests':
+                if('undefined' === typeof(value)) {
+                    this['_' + property] = [];
+                } else {
+                    this['_' + property] = value;
+                }
+                break;
+            default:
+                typedObject.prototype.initializeCollectionProperty.call(this, property);
+                break;
+        }
+    };
+    
+    area.prototype.createName = function(nameType) {
+        var name = "";
+        
+        //TODO: nameType of "copy" along with ID of area being copied; like 'new' case, find the greastest number of 'copy of xxx #' and increment
+        
+        switch(nameType) {
+            case 'new':
+                var newNameBase = 'new area ';
+                var greatestNewNameNumber = 0;
+                
+                state.APIAreaMapper.areas.forEach(function(a) {
+                    a.forEach(function(prop) {
+                        if(prop[0] == 'name') {
+                            if(prop[1].indexOf(newNameBase) === 0) {
+                                greatestNewNameNumber = Math.max(greatestNewNameNumber, parseInt(prop[1].substring(newNameBase.length)));
+                            }
+                        }
+                    }, this);
+                }, this);
+                
+                name = newNameBase + (greatestNewNameNumber + 1);
+                break;
+            default:
+                log("Unhandled nameType of '" + nameType + "' in area.createName().");
+                return null;
+        }
+        
+        return name;
+    };
+    
+    area.prototype.create = function(rawPath, pageId, top, left, isFromEvent) {
+        var g = new graph();
+        g.addComplexPolygon(rawPath, top, left, isFromEvent);
+        var sp = g.convertComplexPolygonToSimplePolygon(0);
+        var rp = g.getRawPath('simplePolygons', sp);
+        this.setProperty('id', Math.random());
+        this.setProperty('name', this.createName('new'));
+        this.setProperty('floorplan', rp.rawPath);
+        
+        //initially, edge walls will be identical to the floorplan, because no gaps have been declared:
+        this.setProperty('edgeWalls', [rp.rawPath, 0, 0, rp.height, rp.width]);
+        
+        this.setProperty('width', rp.width);
+        this.setProperty('height', rp.height);
+        this.setProperty('archived', 0);
+        this.save();
+        
+        this.createInstance(pageId, rp.top, rp.left);
+        
+        var followUpAction = [];
+        followUpAction.refresh = true;
+        return followUpAction;
+    };
+    
+    //undraws and destroys all instances:
+    area.prototype.hide = function() {
+        this.undraw();
+        
+        //remove all area instances from state:
+        var areaInstances = state.APIAreaMapper.areaInstances;
+        for(var i = areaInstances.length - 1; i >= 0; i--) {
+            
+            //note: expects areaId to be the first property:
+            if(areaInstances[i][0][1] === this.getProperty('id')) {
+                state.APIAreaMapper.areaInstances.splice(i, 1);        
+            }
+        }
+    };
+    
+    area.prototype.load = function() {
+        
+        //note: each area's state is stored in an array of key/value pairs
+        
+        var id = this.getProperty('id');
+        var areas = state.APIAreaMapper.areas;
+        var areaState;
+        areas.forEach(function(a) {
+            a.forEach(function(prop) {
+                if(prop[0] === 'id' && prop[1] === id) {
+                    areaState = a;
+                    return;
+                }
+            });
+            
+            if(areaState) {
+                return;
+            }
+        });
+        
+        for(var i = 0; i < areaState.length; i++) {
+            switch(areaState[i][0]) {
+                case 'id':
+                case 'name':
+                case 'floorplan':
+                case 'width':
+                case 'height':
+                case 'archived':
+                    this.setProperty(areaState[i][0], areaState[i][1]);
+                    break;
+                case 'edgeWalls':
+                case 'edgeWallGaps':
+                case 'innerWalls':
+                case 'doors':
+                case 'chests':
+                    this.initializeCollectionProperty(areaState[i][0], areaState[i][1]);
+                    break;
+                default:
+                    log('Unknown property "' + areaState[i][0] + '" in area.load().');
+                    break;
+            }
+        }
+    };
+    
+    area.prototype.save = function() {
+        var areaState = [];
+        areaState.push(['id', this.getProperty('id')]);
+        areaState.push(['name', this.getProperty('name')]);
+        areaState.push(['floorplan', this.getProperty('floorplan')]);
+        areaState.push(['width', this.getProperty('width')]);
+        areaState.push(['height', this.getProperty('height')]);
+        areaState.push(['archived', this.getProperty('archived')]);
+        areaState.push(['edgeWalls', this.getProperty('edgeWalls')]);
+        areaState.push(['edgeWallGaps', this.getProperty('edgeWallGaps')]);
+        areaState.push(['innerWalls', this.getProperty('innerWalls')]);
+        areaState.push(['doors', this.getProperty('doors')]);
+        areaState.push(['chests', this.getProperty('chests')]);
+        
+        //remove existing area state:
+        var id = this.getProperty('id');
+        var areas = state.APIAreaMapper.areas;
+        var oldAreaState;
+        for(var i = 0; i < areas.length; i++) {
+            areas[i].forEach(function(prop) {
+                if(prop[0] === 'id' && prop[1] === id) {
+                    oldAreaState = state.APIAreaMapper.areas.splice(i, 1);
+                    return;
+                }
+            });
+ 
+            if(oldAreaState) {
+                break;
+            }
+        }
+        
+        //save the updated area state:
+        state.APIAreaMapper.areas.push(areaState);
+    };
+    
+    //draws an instance on the page, if one already exists, it'll be redrawn in the new location:
+    area.prototype.createInstance = function(pageId, top, left) {
+        var followUpAction = [];
+        
+        var instance = new areaInstance(this.getProperty('id'), pageId);
+        instance.setProperty('top', top);
+        instance.setProperty('left', left);
+        instance.save();
+        instance.draw();
+        
+        followUpAction.refresh = true;
+        return followUpAction;
+    };
+    
+    area.prototype.getEdgeWallGapPointsPath = function(pageId) {
+        var topOffset = 0,
+            leftOffset = 0;
+        
+        //if pageId is not null, it is expected to offset the gaps based on the area instance:
+        if('undefined' !== typeof(pageId)) {
+            
+            //get instance that removal is relative to:
+            var instance = new areaInstance(this.getProperty('id'), pageId);
+            topOffset = instance.getProperty('top');
+            leftOffset = instance.getProperty('left');
+        }
+        
+        var g = new graph();
+        
+        var edgeWallGaps = [];
+        this.getProperty('edgeWallGaps').forEach(function(ewg) {
+            
+            //convert raw paths to points paths:
+            ewgI = g.addSimplePath(ewg[0], ewg[1] + topOffset, ewg[2] + leftOffset);
+            edgeWallGaps.push(g.getPointsPath('simplePaths', ewgI));
+        }, this);
+        
+        return edgeWallGaps;
+    };
+    
+    area.prototype.calculateEdgeWallGaps = function() {
+        var g = new graph();
+        
+        var floorplan = this.getProperty('floorplan');
+        var floorplanIndex = g.addSimplePolygon(floorplan);
+        var edgeWallPaths = this.getProperty('edgeWalls');
+        
+        var edgeWallPointPaths = [];
+        
+        edgeWallPaths.forEach(function(ew) {
+            var spI = g.addSimplePath(ew[0], ew[1], ew[2]);
+            edgeWallPointPaths.push(g.getPointsPath('simplePaths', spI));
+        }, this);
+        
+        var edgeWallGaps = g.removePathIntersections('simplePolygons', floorplanIndex, edgeWallPointPaths);
+        
+        var edgeWallGapRawPaths = [];
+        edgeWallGaps.forEach(function(ewg) {
+            
+            //convert points paths to raw paths:
+            ewgI = g.addSimplePathFromPoints(ewg);
+            var ewgRaw = g.getRawPath('simplePaths', ewgI);
+            edgeWallGapRawPaths.push([ewgRaw.rawPath, ewgRaw.top, ewgRaw.left, ewgRaw.height, ewgRaw.width]);
+        }, this);
+        this.initializeCollectionProperty('edgeWallGaps', edgeWallGapRawPaths);
+        
+        return edgeWallGaps;
+    };
+    
+    //alters the area's floorplan using an area instance as a control:
+    area.prototype.floorplanAppend = function(rawPath, pageId, top, left, isFromEvent) {
+        var followUpAction = [];
+        
+        //get a simple polygon from the rawPath:
+        var g = new graph();
+        g.addComplexPolygon(rawPath, top, left, isFromEvent);
+        var appendOpIndex = g.convertComplexPolygonToSimplePolygon(0);
+        
+        //get instance that appending is relative to:
+        var instance = new areaInstance(this.getProperty('id'), pageId);
+        
+        //handle illogical case where drawing is done on a page without an instance:
+        if(instance.getProperty('isNew')) {
+            followUpAction.message = 'Area modification attempted on a page without a drawn instance.';
+            return followUpAction;
+        }
+        
+        //TODO: factor in instance's rotation & scale:
+        var floorplanOpIndex = g.addSimplePolygon(this.getProperty('floorplan'), instance.getProperty('top'), instance.getProperty('left'));
+        var mergedOpIndex = g.mergeSimplePolygons(floorplanOpIndex, appendOpIndex);
+        
+        //if the polygons intersect, or if the old one is engulfed in the new one, update the floorplan:
+        if(mergedOpIndex !== null) {
+            var rp = g.getRawPath('simplePolygons', mergedOpIndex);
+            this.setProperty('floorplan', rp.rawPath);
+            this.setProperty('width', rp.width);
+            this.setProperty('height', rp.height);
+            
+            //find the difference in top / left from what it used to be for this instance:
+            var topDelta = instance.getProperty('top') - rp.top;
+            var leftDelta = instance.getProperty('left') - rp.left;
+            
+            var oldEdgeWallGaps = this.getEdgeWallGapPointsPath(pageId);
+            
+            //if there are no edge wall gaps, just use the new floorplan for edge walls:
+            if(!oldEdgeWallGaps || !oldEdgeWallGaps.length) {
+                this.initializeCollectionProperty('edgeWalls');
+                this.setProperty('edgeWalls', [rp.rawPath, 0, 0, rp.height, rp.width]);
+            } else {
+                this.initializeCollectionProperty('edgeWalls');
+                var edgeWallPaths = g.removePathIntersections('simplePolygons', mergedOpIndex, oldEdgeWallGaps);
+                
+                //convert edgeWallPaths into raw paths:
+                edgeWallPaths.forEach(function(ew) {
+                    var ewSpI = g.addSimplePathFromPoints(ew);
+                    var rp = g.getRawPath('simplePaths', ewSpI);
+                    this.setProperty('edgeWalls', [rp.rawPath, rp.top - instance.getProperty('top') + topDelta, rp.left - instance.getProperty('left') + leftDelta, rp.height, rp.width]);
+                }, this);
+                
+                this.calculateEdgeWallGaps();
+            }
+            
+            //adjust top / left of all objects within the area:
+            if(topDelta !== 0 || leftDelta !== 0) {
+                
+                this.getProperty('innerWalls').forEach(function(iw) {
+                    iw[1] += topDelta;
+                    iw[2] += leftDelta;
+                }, this);
+                
+                var doors = this.getProperty('doors');
+                for(var i = 0; i < doors.length; i++) {
+                    var doorState = new door(doors[i]);
+                    var s = doorState.getProperty('positionSegment');
+                    s.a.x += leftDelta;
+                    s.a.y += topDelta;
+                    s.b.x += leftDelta;
+                    s.b.y += topDelta;
+                    doorState.setProperty('positionSegment', s);
+                    this.getProperty('doors')[i] = doorState.getStateObject();
+                }
+                
+                var chests = this.getProperty('chests');
+                for(var i = 0; i < chests.length; i++) {
+                    var chestState = new chest(chests[i]);
+                    chestState.setProperty('top', chestState.getProperty('top') + topDelta);
+                    chestState.setProperty('left', chestState.getProperty('left') + leftDelta);
+                    this.getProperty('chests')[i] = chestState.getStateObject();
+                }
+            }
+            
+            //adjust all instances' positions so that they don't move visually:
+            this.getInstancePageIds().forEach(function(pageId) {
+                var instance = new areaInstance(this.getProperty('id'), pageId)
+                instance.setProperty('top', instance.getProperty('top') - topDelta);
+                instance.setProperty('left', instance.getProperty('left') - leftDelta);
+                instance.save();
+            }, this);
+            
+            this.save();
+            this.draw();
+        }
+        
+        followUpAction.refresh = true;
+        return followUpAction;
+    };
+    
+    area.prototype.floorplanRemove = function(rawPath, pageId, top, left, isFromEvent) {
+        var followUpAction = [];
+        
+        var g = new graph();
+        g.addComplexPolygon(rawPath, top, left, isFromEvent);
+        var removeOpIndex = g.convertComplexPolygonToSimplePolygon(0);
+        
+        //get instance that removal is relative to:
+        var instance = new areaInstance(this.getProperty('id'), pageId);
+        
+        //handle illogical case where drawing is done on a page without an instance:
+        if(instance.getProperty('isNew')) {
+            followUpAction.message = 'Area modification attempted on a page without a drawn instance.';
+            return followUpAction;
+        }
+        
+        //TODO: factor in instance's rotation & scale:
+        var floorplanOpIndex = g.addSimplePolygon(this.getProperty('floorplan'), instance.getProperty('top'), instance.getProperty('left'));
+        var mergedOpIndex = g.removeFromSimplePolygon(floorplanOpIndex, removeOpIndex);
+        
+        if('undefined' !== typeof(mergedOpIndex)) {
+            var oldEdgeWallGaps = this.getEdgeWallGapPointsPath(pageId);
+            
+            var rp = g.getRawPath('simplePolygons', mergedOpIndex);
+            this.setProperty('floorplan', rp.rawPath);
+            this.setProperty('width', rp.width);
+            this.setProperty('height', rp.height);
+            
+            //find the difference in top / left from what it used to be for this instance:
+            var topDelta = instance.getProperty('top') - rp.top;
+            var leftDelta = instance.getProperty('left') - rp.left;
+            
+            //if there are no edge wall gaps, just use the new floorplan for edge walls:
+            if(!oldEdgeWallGaps || !oldEdgeWallGaps.length) {
+                this.initializeCollectionProperty('edgeWalls');
+                this.setProperty('edgeWalls', [rp.rawPath, 0, 0, rp.height, rp.width]);
+            } else {
+                this.initializeCollectionProperty('edgeWalls');
+                var edgeWallPaths = g.removePathIntersections('simplePolygons', mergedOpIndex, oldEdgeWallGaps);
+                
+                //convert edgeWallPaths into raw paths:
+                edgeWallPaths.forEach(function(ew) {
+                    var ewSpI = g.addSimplePathFromPoints(ew);
+                    var rp = g.getRawPath('simplePaths', ewSpI);
+                    this.setProperty('edgeWalls', [rp.rawPath, rp.top - instance.getProperty('top') + topDelta, rp.left - instance.getProperty('left') + leftDelta, rp.height, rp.width]);
+                }, this);
+                
+                this.calculateEdgeWallGaps();
+            }
+            
+            //adjust top / left of all objects within the area:
+            if(topDelta !== 0 || leftDelta !== 0) {
+                
+                this.getProperty('innerWalls').forEach(function(iw) {
+                    iw[1] += topDelta;
+                    iw[2] += leftDelta;
+                }, this);
+                
+                var doors = this.getProperty('doors');
+                for(var i = 0; i < doors.length; i++) {
+                    var doorState = new door(doors[i]);
+                    var s = doorState.getProperty('positionSegment');
+                    s.a.x += leftDelta;
+                    s.a.y += topDelta;
+                    s.b.x += leftDelta;
+                    s.b.y += topDelta;
+                    doorState.setProperty('positionSegment', s);
+                    this.getProperty('doors')[i] = doorState.getStateObject();
+                }
+                
+                var chests = this.getProperty('chests');
+                for(var i = 0; i < chests.length; i++) {
+                    var chestState = new chest(chests[i]);
+                    chestState.setProperty('top', chestState.getProperty('top') + topDelta);
+                    chestState.setProperty('left', chestState.getProperty('left') + leftDelta);
+                    this.getProperty('chests')[i] = chestState.getStateObject();
+                }
+            }
+            
+            //adjust all instances' positions so that they don't move visually:
+            this.getInstancePageIds().forEach(function(pageId) {
+                var instance = new areaInstance(this.getProperty('id'), pageId)
+                instance.setProperty('top', instance.getProperty('top') - topDelta);
+                instance.setProperty('left', instance.getProperty('left') - leftDelta);
+                instance.save();
+            }, this);
+            
+            this.save();
+            this.draw();
+        }
+        
+        followUpAction.refresh = true;
+        return followUpAction;
+    };
+    
+    area.prototype.edgeWallRemove = function(rawPath, pageId, top, left, isFromEvent) {
+        followUpAction = [];
+        
+        var g = new graph();
+        g.addComplexPolygon(rawPath, top, left, isFromEvent);
+        var removeSpIndex = g.convertComplexPolygonToSimplePolygon(0);
+        
+        //get instance that removal is relative to:
+        var instance = new areaInstance(this.getProperty('id'), pageId);
+        
+        //handle illogical case where drawing is done on a page without an instance:
+        if(instance.getProperty('isNew')) {
+            followUpAction.message = 'Area modification attempted on a page without a drawn instance.';
+            return followUpAction;
+        }
+        
+        //find removal's intersections with the floorplan edge:
+        var floorplanSpIndex = g.addSimplePolygon(this.getProperty('floorplan'), instance.getProperty('top'), instance.getProperty('left'));
+        var containedPaths = g.getIntersectingPaths('simplePolygons', removeSpIndex, 'simplePolygons', floorplanSpIndex);
+        
+        //append containedPaths with existing gaps (might result in multiples being merged):
+        var oldEdgeWallGaps = [];
+        this.getProperty('edgeWallGaps').forEach(function(ewg) {
+            
+            //convert raw paths to points paths:
+            ewgI = g.addSimplePath(ewg[0], ewg[1] + instance.getProperty('top'), ewg[2] + instance.getProperty('left'));
+            oldEdgeWallGaps.push(g.getPointsPath('simplePaths', ewgI));
+        }, this);
+        containedPaths = containedPaths.concat(oldEdgeWallGaps);
+        
+        var edgeWallPaths = g.removePathIntersections('simplePolygons', floorplanSpIndex, containedPaths);
+        
+        //merge and store edge wall gaps:
+        var edgeWallGapPaths = g.removePathIntersections('simplePolygons', floorplanSpIndex, edgeWallPaths);
+        this.initializeCollectionProperty('edgeWallGaps');
+        edgeWallGapPaths.forEach(function(ewg) {
+            
+            //convert points paths to raw paths:
+            ewgI = g.addSimplePathFromPoints(ewg);
+            var ewgRaw = g.getRawPath('simplePaths', ewgI);
+            this.setProperty('edgeWallGaps', [ewgRaw.rawPath, ewgRaw.top - instance.getProperty('top'), ewgRaw.left - instance.getProperty('left'), ewgRaw.height, ewgRaw.width]);
+        }, this);
+        
+        //TODO: factor in instance's rotation & scale:
+        //convert edgeWallPaths into raw paths:
+        this.initializeCollectionProperty('edgeWalls');
+        edgeWallPaths.forEach(function(ew) {
+            var ewSpI = g.addSimplePathFromPoints(ew);
+            var rp = g.getRawPath('simplePaths', ewSpI);
+            this.setProperty('edgeWalls', [rp.rawPath, rp.top - instance.getProperty('top'), rp.left - instance.getProperty('left'), rp.height, rp.width]);
+        }, this);
+        
+        this.save();
+        this.draw();
+        
+        followUpAction.refresh = true;
+        return followUpAction;
+    };
+    
+    area.prototype.edgeWallGapRemove = function(rawPath, pageId, top, left, isFromEvent) {
+        var followUpAction = [];
+        
+        var g = new graph();
+        g.addComplexPolygon(rawPath, top, left, isFromEvent);
+        var removeSpIndex = g.convertComplexPolygonToSimplePolygon(0);
+        
+        //get instance that removal is relative to:
+        var instance = new areaInstance(this.getProperty('id'), pageId);
+        
+        //handle illogical case where drawing is done on a page without an instance:
+        if(instance.getProperty('isNew')) {
+            followUpAction.message = 'Area modification attempted on a page without a drawn instance.';
+            return followUpAction;
+        }
+        
+        //TODO: factor in instance's rotation & scale:
+        var oldEdgeWallGaps = this.getProperty('edgeWallGaps');
+        var edgeWallGaps = [];
+        for(var i = 0; i < oldEdgeWallGaps.length; i++) {
+            var ewg = oldEdgeWallGaps[i];
+            ewgI = g.addSimplePath(ewg[0], ewg[1] + instance.getProperty('top'), ewg[2] + instance.getProperty('left'));
+            
+            if(!g.hasInsideEntirePath('simplePolygons', removeSpIndex, 'simplePaths', ewgI)) {
+                edgeWallGaps.push(oldEdgeWallGaps[i]);
+            }
+        }
+        
+        if(edgeWallGaps.length < oldEdgeWallGaps.length) {
+            
+            //update edge wall gaps property:
+            this.initializeCollectionProperty('edgeWallGaps', edgeWallGaps);
+            
+            //update edge walls property:
+            this.initializeCollectionProperty('edgeWalls');
+            var floorplanOpIndex = g.addSimplePolygon(this.getProperty('floorplan'), instance.getProperty('top'), instance.getProperty('left'));
+            var edgeWallPaths = g.removePathIntersections('simplePolygons', floorplanOpIndex, this.getEdgeWallGapPointsPath(pageId));
+            
+            //convert edgeWallPaths into raw paths:
+            edgeWallPaths.forEach(function(ew) {
+                var ewSpI = g.addSimplePathFromPoints(ew);
+                var rp = g.getRawPath('simplePaths', ewSpI);
+                this.setProperty('edgeWalls', [rp.rawPath, rp.top - instance.getProperty('top'), rp.left - instance.getProperty('left'), rp.height, rp.width]);
+            }, this);
+            
+            this.save();
+            this.draw();
+        }
+
+        followUpAction.refresh = true;
+        return followUpAction;
+    };
+    
+    area.prototype.innerWallAdd = function(rawPath, pageId, top, left, isFromEvent) {
+        var followUpAction = [];
+        var g = new graph();
+        
+        //get instance that addition is relative to:
+        var instance = new areaInstance(this.getProperty('id'), pageId);
+        
+        //handle illogical case where drawing is done on a page without an instance:
+        if(instance.getProperty('isNew')) {
+            followUpAction.message = 'Area modification attempted on a page without a drawn instance.';
+            return followUpAction;
+        }
+        
+        //get the added path:
+        var innerWallAddSpIndex = g.addSimplePath(rawPath, top - instance.getProperty('top'), left - instance.getProperty('left'), isFromEvent);
+        
+        //make sure that the inner wall is fully contained in the floorplan:
+        var floorplanSpIndex = g.addSimplePolygon(this.getProperty('floorplan'));
+        if(!g.hasInsideEntirePath('simplePolygons', floorplanSpIndex, 'simplePaths', innerWallAddSpIndex)) {
+            followUpAction.message = 'Attempt to add inner walls that exceed the floorplan.';
+            return followUpAction;
+        }
+        
+        //add the inner wall:
+        var rp = g.getRawPath('simplePaths', innerWallAddSpIndex);
+        this.setProperty('innerWalls', [rp.rawPath, rp.top, rp.left, rp.height, rp.width]);
+        
+        this.save();
+        this.draw();
+        
+        followUpAction.refresh = true;
+        return followUpAction;
+    };
+    
+    area.prototype.innerWallRemove = function(rawPath, pageId, top, left, isFromEvent) {
+        var followUpAction = [];
+        var g = new graph();
+        
+        //get instance that addition is relative to:
+        var instance = new areaInstance(this.getProperty('id'), pageId);
+        
+        //handle illogical case where drawing is done on a page without an instance:
+        if(instance.getProperty('isNew')) {
+            followUpAction.message = 'Area modification attempted on a page without a drawn instance.';
+            return followUpAction;
+        }
+        
+        //get the removal polygon:
+        g.addComplexPolygon(rawPath, top, left, isFromEvent);
+        var removeSpIndex = g.convertComplexPolygonToSimplePolygon(0);
+        
+        var newInnerWalls = [];
+        
+        //remove intersections from inner walls:
+        this.getProperty('innerWalls').forEach(function(iw) {
+            
+            //add the inner wall to the graph:
+            var iwSpIndex = g.addSimplePath(iw[0], iw[1] + instance.getProperty('top'), iw[2] + instance.getProperty('left'));
+            
+            //find intersections between the removal polygon and the inner wall:
+            var removalIntersections = g.getIntersectingPaths('simplePolygons', removeSpIndex, 'simplePaths', iwSpIndex);
+  
+            //record new inner walls that avoid intersections:
+            if(removalIntersections.length) {
+                var newInnerWallPointPaths = g.removePathIntersections('simplePaths', iwSpIndex, removalIntersections);
+                
+                newInnerWallPointPaths.forEach(function(iwPP) {
+                    var iwSpI = g.addSimplePathFromPoints(iwPP);
+                    var rp = g.getRawPath('simplePaths', iwSpI);
+                    newInnerWalls.push([rp.rawPath, rp.top - instance.getProperty('top'), rp.left - instance.getProperty('left'), rp.height, rp.width]);
+                }, this);
+            } else {
+                newInnerWalls.push(iw);
+            }
+        }, this);
+        
+        this.initializeCollectionProperty('innerWalls', newInnerWalls);
+        
+        this.save();
+        this.draw();
+        
+        followUpAction.refresh = true;
+        return followUpAction;
+    };
+    
+    area.prototype.doorAdd = function(rawPath, pageId, top, left, isFromEvent) {
+        var followUpAction = [];
+        var g = new graph();
+        
+        //get instance that addition is relative to:
+        var instance = new areaInstance(this.getProperty('id'), pageId);
+        
+        //handle illogical case where drawing is done on a page without an instance:
+        if(instance.getProperty('isNew')) {
+            followUpAction.message = 'Area modification attempted on a page without a drawn instance.';
+            return followUpAction;
+        }
+        
+        //get the addition polygon:
+        g.addComplexPolygon(rawPath, top, left, isFromEvent);
+        var addSpIndex = g.convertComplexPolygonToSimplePolygon(0);
+        
+        var pointCount = 0;
+        var innerWallPoints = []; //array of [inner wall simplePath index, [intersecting points]]
+        var edgeWallPoints = []; //array of [inner wall simplePath index, [intersecting points]]
+        var innerWallSpIndexes = [];
+        var edgeWallSpIndexes = [];
+        
+        //look for point intersections with inner walls:
+        this.getProperty('innerWalls').forEach(function(iw) {
+            
+            //push iw into a simplePath:
+            var iwI = g.addSimplePath(iw[0], iw[1] + instance.getProperty('top'), iw[2] + instance.getProperty('left'));
+            innerWallSpIndexes.push(iwI);
+            
+            //find intersected points:
+            var iwIntersectedPoints = g.getContainedPoints('simplePolygons', addSpIndex, 'simplePaths', iwI);
+            
+            //if there were matches, save them:
+            if(iwIntersectedPoints && iwIntersectedPoints.length) {
+                pointCount += iwIntersectedPoints.length;
+                innerWallPoints.push([iwI, iwIntersectedPoints]);
+            }
+        }, this);
+        
+        //if we failed to find 2 points, look for inner wall segment intersections (excluding segments where point intersections succeeded) and derive points from the centers of the intersected sections:
+        if(pointCount < 2) {
+            innerWallSpIndexes.forEach(function(iwI) {
+                
+                //find intersecting paths:
+                var iwIntersectedPaths = g.getIntersectingPaths('simplePolygons', addSpIndex, 'simplePaths', iwI);
+      
+                if(iwIntersectedPaths && iwIntersectedPaths.length) {
+                    iwIntersectedPaths.forEach(function(iwip) {
+                        
+                        //ignore paths that have anything other than a single segment:
+                        if(iwip.length === 2) {
+                            
+                            //ignore paths that contain an intersected point, to prevent double-counting:
+                            var found = false;
+                            for(var i = 0; i < iwip.length; i++) {
+                                innerWallPoints.forEach(function(iwP) {
+                                    if(iwP[0] === iwI) {
+                                        iwP[1].forEach(function(p) {
+                                            if(iwip[i].equals(p)) {
+                                                found = true;
+                                            }
+                                        }, this);
+                                    }
+                                }, this);
+                            }
+                            
+                            if(!found) {
+                                
+                                //push the midpoint of the intersected segment:
+                                var newPoint = new segment(iwip[0], iwip[1]).midpoint();
+                                
+                                //push it into an existing array if one exists for iwI:
+                                var pushed = false;
+                                innerWallPoints.forEach(function(iwP) {
+                                    if(iwP[0] === iwI) {
+                                        iwP[1].push(newPoint);
+                                        pushed = true;
+                                    }
+                                }, this);
+                                
+                                if(!pushed) {
+                                    var pushObj = [iwI, []];
+                                    pushObj[1].push(newPoint);
+                                    innerWallPoints.push(pushObj);
+                                }
+                                
+                                pointCount++;
+                            }
+                        }
+                    }, this);
+                }
+            }, this);
+        }
+        
+        //if we don't have 2 points yet, look to edge walls for point intersections:
+        if(pointCount < 2) {
+            
+            //look for point intersections with edge walls:
+            this.getProperty('edgeWalls').forEach(function(ew) {
+                
+                //push ew into a simplePath:
+                var ewI = g.addSimplePath(ew[0], ew[1] + instance.getProperty('top'), ew[2] + instance.getProperty('left'));
+                edgeWallSpIndexes.push(ewI);
+                
+                //find intersected points:
+                var ewIntersectedPoints = g.getContainedPoints('simplePolygons', addSpIndex, 'simplePaths', ewI);
+                
+                //if there were matches, save them:
+                if(ewIntersectedPoints && ewIntersectedPoints.length) {
+                    pointCount += ewIntersectedPoints.length;
+                    edgeWallPoints.push([ewI, ewIntersectedPoints]);
+                }
+            }, this);
+        }
+        
+        //if we still don't have 2 points, look for edge wall segment intersections (excluding segments where point intersections succeeded) and derive points from the centers of the intersected sections:
+        if(pointCount < 2) {
+            edgeWallSpIndexes.forEach(function(ewI) {
+                
+                //find intersecting paths:
+                var ewIntersectedPaths = g.getIntersectingPaths('simplePolygons', addSpIndex, 'simplePaths', ewI);
+                
+                if(ewIntersectedPaths && ewIntersectedPaths.length) {
+                    ewIntersectedPaths.forEach(function(ewip) {
+                        
+                        //ignore paths that have anything other than a single segment:
+                        if(ewip.length === 2) {
+                            
+                            //ignore paths that contain an intersected point, to prevent double-counting:
+                            var found = false;
+                            for(var i = 0; i < ewip.length; i++) {
+                                edgeWallPoints.forEach(function(ewP) {
+                                    if(ewP[0] === ewI) {
+                                        ewP[1].forEach(function(p) {
+                                            if(ewip[i].equals(p)) {
+                                                found = true;
+                                            }
+                                        }, this);
+                                    }
+                                }, this);
+                            }
+                            
+                            if(!found) {
+                                
+                                //push the midpoint of the intersected segment:
+                                var newPoint = new segment(ewip[0], ewip[1]).midpoint();
+                                
+                                //push it into an existing array if one exists for iwI:
+                                var pushed = false;
+                                edgeWallPoints.forEach(function(ewP) {
+                                    if(ewP[0] === ewI) {
+                                        ewP[1].push(newPoint);
+                                        pushed = true;
+                                    }
+                                }, this);
+                                
+                                if(!pushed) {
+                                    var pushObj = [ewI, []];
+                                    pushObj[1].push(newPoint);
+                                    edgeWallPoints.push(pushObj);
+                                }
+                                
+                                pointCount++;
+                            }
+                        }
+                    }, this);
+                }
+            }, this);
+        }
+       
+        if(pointCount < 2) {
+            followUpAction.message = 'Attempt to add door failed because fewer than 2 points were identified.';
+            return followUpAction;
+        } 
+        
+        if(pointCount > 2) {
+            followUpAction.message = 'Attempt to add door failed because more than 2 points were identified.';
+            return followUpAction;
+        }
+        
+        //extract the points:
+        var doorSegmentPoints = [];
+        innerWallPoints.forEach(function(iwp) {
+            iwp[1].forEach(function(p) {
+                p.x -= instance.getProperty('left');
+                p.y -= instance.getProperty('top');
+                doorSegmentPoints.push(p);
+            }, this);
+        }, this);
+        edgeWallPoints.forEach(function(ewp) {
+            ewp[1].forEach(function(p) {
+                p.x -= instance.getProperty('left');
+                p.y -= instance.getProperty('top');
+                doorSegmentPoints.push(p);
+            }, this);
+        }, this);
+        
+        //place the new door as a segment connecting the two points:
+        var doorState = new door();
+        doorState.setProperty('positionSegment', new segment(doorSegmentPoints[0], doorSegmentPoints[1]));
+        this.setProperty('doors', doorState.getStateObject());
+        
+        this.save();
+        this.draw();
+        
+        followUpAction.refresh = true;
+        return followUpAction;
+    };
+    
+    area.prototype.doorRemove = function(rawPath, pageId, top, left, isFromEvent) {
+        var followUpAction = [];
+        
+        var g = new graph();
+        g.addComplexPolygon(rawPath, top, left, isFromEvent);
+        var removeSpIndex = g.convertComplexPolygonToSimplePolygon(0);
+        
+        //get instance that removal is relative to:
+        var instance = new areaInstance(this.getProperty('id'), pageId);
+        
+        //handle illogical case where drawing is done on a page without an instance:
+        if(instance.getProperty('isNew')) {
+            followUpAction.message = 'Area modification attempted on a page without a drawn instance.';
+            return followUpAction;
+        }
+        
+        var oldDoors = this.getProperty('doors');
+        var doors = [];
+        for(var i = 0; i < oldDoors.length; i++) {
+            var oldDoorPositionSegment = new door(oldDoors[i]).getProperty('positionSegment');
+            
+            var s = new segment(
+                new point(
+                    oldDoorPositionSegment.a.x + instance.getProperty('left'),
+                    oldDoorPositionSegment.a.y + instance.getProperty('top')),
+                new point(
+                    oldDoorPositionSegment.b.x + instance.getProperty('left'),
+                    oldDoorPositionSegment.b.y + instance.getProperty('top'))
+            );
+            
+            if(!g.hasInsideSegment('simplePolygons', removeSpIndex, s)) {
+                doors.push(oldDoors[i]);
+            }
+        }
+        
+        if(doors.length < oldDoors.length) {
+            this.initializeCollectionProperty('doors', doors);
+            
+            this.save();
+            this.draw();
+        }
+      
+        followUpAction.refresh = true;
+        return followUpAction;
+    };
+    
+    area.prototype.chestAdd = function(rawPath, pageId, top, left, isFromEvent) {
+        var followUpAction = [];
+        var g = new graph();
+        
+        //get instance that addition is relative to:
+        var instance = new areaInstance(this.getProperty('id'), pageId);
+        
+        //handle illogical case where drawing is done on a page without an instance:
+        if(instance.getProperty('isNew')) {
+            followUpAction.message = 'Area modification attempted on a page without a drawn instance.';
+            return followUpAction;
+        }
+        
+        //get the addition polygon:
+        g.addComplexPolygon(rawPath, top, left, isFromEvent);
+        var addSpIndex = g.convertComplexPolygonToSimplePolygon(0);
+        var addRp = g.getRawPath('simplePolygons', addSpIndex);
+        
+        //create the chest using the polygon's position, width, and height:
+        var chestState = new chest();
+        chestState.setProperty('top', addRp.top - instance.getProperty('top'));
+        chestState.setProperty('left', addRp.left - instance.getProperty('left'));
+        chestState.setProperty('height', addRp.height);
+        chestState.setProperty('width', addRp.width);
+        chestState.setProperty('rotation', 0);
+        this.setProperty('chests', chestState.getStateObject());
+        
+        this.save();
+        this.draw();
+        
+        followUpAction.refresh = true;
+        return followUpAction;
+    };
+    
+    area.prototype.chestRemove = function(rawPath, pageId, top, left, isFromEvent) {
+        var followUpAction = [];
+        
+        var g = new graph();
+        g.addComplexPolygon(rawPath, top, left, isFromEvent);
+        var removeSpIndex = g.convertComplexPolygonToSimplePolygon(0);
+        
+        //get instance that removal is relative to:
+        var instance = new areaInstance(this.getProperty('id'), pageId);
+        
+        //handle illogical case where drawing is done on a page without an instance:
+        if(instance.getProperty('isNew')) {
+            followUpAction.message = 'Area modification attempted on a page without a drawn instance.';
+            return followUpAction;
+        }
+        
+        var oldChests = this.getProperty('chests');
+        var chests = [];
+        
+        oldChests.forEach(function(c) {
+            var chestState = new chest(c);
+            var chestTop = chestState.getProperty('top') + instance.getProperty('top');
+            var chestLeft = chestState.getProperty('left') + instance.getProperty('left');
+            var chestCenter = new point(chestLeft + (chestState.getProperty('width') / 2), chestTop + (chestState.getProperty('height') / 2));
+            
+            if(!g.hasInsidePoint('simplePolygons', removeSpIndex, chestCenter)) {
+                chests.push(c);
+            }
+        }, this);
+        
+        if(chests.length < oldChests.length) {
+            this.initializeCollectionProperty('chests', chests);
+            
+            this.save();
+            this.draw();
+        }
+      
+        followUpAction.refresh = true;
+        return followUpAction;
+    };
+    
+    area.prototype.getInstancePageIds = function() {
+        var instancePageIds = [];
+    
+        state.APIAreaMapper.areaInstances.forEach(function(a) {
+            if(a[0][1] === this.getProperty('id')) {
+                instancePageIds.push(a[1][1])
+            }
+        }, this);
+        
+        return instancePageIds;
+    };
+    
+    area.prototype.undraw = function() {
+        this.getInstancePageIds().forEach(function(pageId) {
+            var instance = new areaInstance(this.getProperty('id'), pageId)
+            instance.undraw();
+        }, this);
+    };
+    
+    area.prototype.draw = function() {
+        this.getInstancePageIds().forEach(function(pageId) {
+            var instance = new areaInstance(this.getProperty('id'), pageId)
+            instance.draw();
+        }, this);
+    };
+    
+    area.prototype.handleGraphicChange = function(graphic) {
+        var instance = new areaInstance(this.getProperty('id'), graphic.get('_pageid'));
+        instance.handleGraphicChange(graphic);
+    };
+    
+    area.prototype.getManagedGraphicProperties = function(graphic) {
+        var instance = new areaInstance(this.getProperty('id'), graphic.get('_pageid'));
+        var managedGraphic = instance.findManagedGraphic(graphic);
+        
+        if(!managedGraphic) {
+            return null;
+        }
+        
+        managedGraphic.properties = this.getProperty(managedGraphic.graphicType)[managedGraphic.graphicIndex];
+        
+        return managedGraphic;
+    };
+    
+    area.prototype.toggleInteractiveProperty = function(graphic, property) {
+        var instance = new areaInstance(this.getProperty('id'), graphic.get('_pageid'));
+        return instance.toggleInteractiveProperty(graphic, property);
+    };
+    
+    //draws an interactive object in all instances:
+    area.prototype.drawInteractiveObject = function(objectType, masterIndex, featureTagsOnly, selectedObject) {
+        this.getInstancePageIds().forEach(function(pageId) {
+            var instance = new areaInstance(this.getProperty('id'), pageId)
+            instance.drawInteractiveObject(objectType, masterIndex, featureTagsOnly, selectedObject);
+        }, this);
+    };
+    
+    
+    var areaInstance = function(areaId, pageId) {
+        typedObject.call(this);
+        this._type.push('areaInstance');
+        this._areaId = areaId;
+        this._pageId = pageId;
+        this.initializeCollectionProperty('wallIds');
+        this.initializeCollectionProperty('edgeWallGapIds');
+        this.initializeCollectionProperty('losWallIds');
+        this.initializeCollectionProperty('blueprintWallIds');
+        this.initializeCollectionProperty('doorIds');
+        this.initializeCollectionProperty('chestIds');
+        this.initializeCollectionProperty('blueprintDoorIds');
+        this.initializeCollectionProperty('blueprintChestIds');
+        
+        this.load();
+    };
+    
+    inheritPrototype(areaInstance, typedObject);
+    
+    areaInstance.prototype.setProperty = function(property, value) {
+        switch(property) {
+            case 'areaId':
+            case 'pageId':
+            case 'isNew': //this is not persisted
+            case 'area':
+            case 'top':
+            case 'left':
+            case 'floorPolygonId': //path
+            case 'floorTileId': //token
+            case 'floorMaskId': //path
+                this['_' + property] = value;
+                break;
+            case 'wallIds': //tokens
+            case 'edgeWallGapIds': //paths
+            case 'losWallIds': //paths
+            case 'blueprintWallIds': //paths
+            //TODO: consider using polymorphic DTOs for these to remove direct referencing of positions within arrays:
+            case 'doorIds': //[door token, LoS wall path, feature tag paths]
+            case 'chestIds': //[chest token, feature tag paths]
+            case 'blueprintDoorIds': //paths
+            case 'blueprintChestIds': //paths
+                return this['_' + property].push(value) - 1;
+            default:
+                return typedObject.prototype.setProperty.call(this, property, value);
+                break;
+        }
+    };
+    
+    areaInstance.prototype.initializeCollectionProperty = function(property, value) {
+        switch(property) {
+            case 'wallIds':
+            case 'edgeWallGapIds':
+            case 'losWallIds':
+            case 'blueprintWallIds':
+            case 'doorIds':
+            case 'chestIds':
+            case 'blueprintDoorIds':
+            case 'blueprintChestIds':
+                if('undefined' === typeof(value)) {
+                    this['_' + property] = [];
+                } else {
+                    this['_' + property] = value;
+                }
+                break;
+            default:
+                typedObject.prototype.initializeCollectionProperty.call(this, property);
+                break;
+        }
+    };
+    
+    areaInstance.prototype.load = function() {
+        
+        //note: each areaInstance's state is stored in an array of key/value pairs
+        
+        var areaId = this.getProperty('areaId');
+        var pageId = this.getProperty('pageId');
+        
+        var areaInstances = state.APIAreaMapper.areaInstances;
+        var areaInstanceState;
+        areaInstances.forEach(function(a) {
+            if(a[0][1] === areaId && a[1][1] === pageId) {
+                areaInstanceState = a;
+                return;
+            }
+            
+            if(areaInstanceState) {
+                return;
+            }
+        }, this);
+        
+        //couldn't find any state to load:
+        if(!areaInstanceState) {
+            
+            //set an indicator on the areaInstance that specifies it being new:
+            this.setProperty('isNew', true);
+            return;
+        }
+        
+        for(var i = 0; i < areaInstanceState.length; i++) {
+            switch(areaInstanceState[i][0]) {
+                case 'areaId':
+                case 'pageId':
+                case 'top':
+                case 'left':
+                case 'floorPolygonId':
+                case 'floorTileId':
+                case 'floorMaskId':
+                    this.setProperty(areaInstanceState[i][0], areaInstanceState[i][1]);
+                    break;
+                case 'wallIds':
+                case 'edgeWallGapIds':
+                case 'losWallIds':
+                case 'blueprintWallIds':
+                case 'doorIds':
+                case 'chestIds':
+                case 'blueprintDoorIds':
+                case 'blueprintChestIds':
+                    this.initializeCollectionProperty(areaInstanceState[i][0], areaInstanceState[i][1]);
+                    break;
+                default:
+                    log('Unknown property "' + areaInstanceState[i][0] + '" in areaInstance.load().');
+                    break;
+            }
+        }
+    };
+    
+    areaInstance.prototype.save = function() {
+        var areaInstanceState = [];
+        areaInstanceState.push(['areaId', this.getProperty('areaId')]);
+        areaInstanceState.push(['pageId', this.getProperty('pageId')]);
+        areaInstanceState.push(['top', this.getProperty('top')]);
+        areaInstanceState.push(['left', this.getProperty('left')]);
+        areaInstanceState.push(['floorPolygonId', this.getProperty('floorPolygonId')]);
+        areaInstanceState.push(['floorTileId', this.getProperty('floorTileId')]);
+        areaInstanceState.push(['floorMaskId', this.getProperty('floorMaskId')]);
+        areaInstanceState.push(['wallIds', this.getProperty('wallIds')]);
+        areaInstanceState.push(['losWallIds', this.getProperty('losWallIds')]);
+        areaInstanceState.push(['edgeWallGapIds', this.getProperty('edgeWallGapIds')]);
+        areaInstanceState.push(['blueprintWallIds', this.getProperty('blueprintWallIds')]);
+        areaInstanceState.push(['doorIds', this.getProperty('doorIds')]);
+        areaInstanceState.push(['chestIds', this.getProperty('chestIds')]);
+        areaInstanceState.push(['blueprintDoorIds', this.getProperty('blueprintDoorIds')]);
+        areaInstanceState.push(['blueprintChestIds', this.getProperty('blueprintChestIds')]);
+        
+        //remove existing area instance state:
+        var areaInstances = state.APIAreaMapper.areaInstances;
+        var oldAreaInstanceState;
+        for(var i = 0; i < areaInstances.length; i++) {
+            
+            //note: expects areaId and pageId to be the first and second properties:
+            if(areaInstances[i][0][1] === this.getProperty('areaId')
+                    && areaInstances[i][1][1] === this.getProperty('pageId')) {
+                oldAreaInstanceState = state.APIAreaMapper.areaInstances.splice(i, 1);        
+            }
+   
+            if(oldAreaInstanceState) {
+                break;
+            }
+        }
+        
+        //save the updated area instance state:
+        state.APIAreaMapper.areaInstances.push(areaInstanceState);
+    };
+    
+    areaInstance.prototype.undraw = function() {
+        this.load();
+        
+        //delete floorPolygon:
+        deleteObject('path', this.getProperty('floorPolygonId'));
+        this.setProperty('floorPolygonId', '');
+        
+        //delete floor tile:
+        deleteObject('graphic', this.getProperty('floorTileId'));
+        this.setProperty('floorTileId', '');
+        
+        //delete floor tile mask:
+        deleteObject('path', this.getProperty('floorMaskId'));
+        this.setProperty('floorMaskId', '');
+        
+        //delete walls:
+        this.getProperty('wallIds').forEach(function(wId) {
+            deleteObject('graphic', wId);
+        }, this);
+        this.initializeCollectionProperty('wallIds');
+        
+        //delete edge wall gaps:
+        this.getProperty('edgeWallGapIds').forEach(function(wId) {
+            deleteObject('path', wId);
+        }, this);
+        this.initializeCollectionProperty('edgeWallGapIds');
+        
+        //delete blueprint walls:
+        this.getProperty('blueprintWallIds').forEach(function(wId) {
+            deleteObject('path', wId);
+        }, this);
+        this.initializeCollectionProperty('blueprintWallIds');
+        
+        //delete line of sight blocking walls:
+        this.getProperty('losWallIds').forEach(function(wId) {
+            deleteObject('path', wId);
+        }, this);
+        this.initializeCollectionProperty('losWallIds');
+        
+        //delete doors:
+        this.getProperty('doorIds').forEach(function(dId) {
+            
+            //delete door token:
+            deleteObject('graphic', dId[0]);
+            
+            //delete LoS wall (which may not exist):
+            deleteObject('path', dId[1]);
+            
+            //delete feature tag paths:
+            dId[2].forEach(function(ftId) {
+                deleteObject('path', ftId);
+            }, this);
+        }, this);
+        this.initializeCollectionProperty('doorIds');
+        
+        //delete chests:
+        this.getProperty('chestIds').forEach(function(cId) {
+            
+            //delete chest token:
+            deleteObject('graphic', cId[0]);
+            
+            //delete feature tag paths:
+            cId[1].forEach(function(ftId) {
+                deleteObject('path', ftId);
+            }, this);
+        }, this);
+        this.initializeCollectionProperty('chestIds');
+        
+        //delete blueprint doors:
+        this.getProperty('blueprintDoorIds').forEach(function(wId) {
+            deleteObject('path', wId);
+        }, this);
+        this.initializeCollectionProperty('blueprintDoorIds');
+        
+        //delete blueprint chests:
+        this.getProperty('blueprintChestIds').forEach(function(cId) {
+            deleteObject('path', cId);
+        }, this);
+        this.initializeCollectionProperty('blueprintChestIds');
+        
+        this.save();
+    };
+    
+    areaInstance.prototype.draw = function() {
+        this.undraw();
+        
+        if(state.APIAreaMapper.blueprintMode) {
+            this.drawBlueprint();
+        } else {
+            this.drawObjects();
+        }
+    };
+    
+    areaInstance.prototype.drawObjects = function() {
+        this.load();
+        
+        var top = this.getProperty('top');
+        var left = this.getProperty('left');
+        
+        //get the floorplan from the area:
+        var a = new area(this.getProperty('areaId'));
+        
+        //draw new floor tile:
+        var floorTile = createTokenObject(floorImagePic, this.getProperty('pageId'), 'map', new segment(new point(left, top), new point(left + a.getProperty('width'), top + a.getProperty('height'))));
+        this.setProperty('floorTileId', floorTile.id);
+        
+        //draw floor tile mask:
+        var page = getObj('page', this.getProperty('pageId'));
+        var maskColor = page.get('background_color');
+        var g = new graph();
+        var floorplanOpIndex = g.addSimplePolygon(a.getProperty('floorplan'), top, left);
+        var floorMaskOpIndex = g.invertSimplePolygon(floorplanOpIndex);
+        var floorMaskRawPath = g.getRawPath('simplePolygons', floorMaskOpIndex);
+        var floorMask = createPathObject(this.getProperty('pageId'), 'map', maskColor, maskColor, floorMaskRawPath.rawPath, floorMaskRawPath.top, floorMaskRawPath.left, floorMaskRawPath.height, floorMaskRawPath.width);
+        this.setProperty('floorMaskId', floorMask.id);
+        
+        //draw edge walls:
+        a.getProperty('edgeWalls').forEach(function(ew) {
+            
+            //draw wall tokens:
+            var ewIndex = g.addSimplePath(ew[0], top + ew[1], left + ew[2]);
+            g.getProperty('simplePaths')[ewIndex].segments.forEach(function(s) {
+                this.setProperty('wallIds', createTokenObjectFromSegment(wallImagePic, this.getProperty('pageId'), 'objects', s, 20).id);
+            }, this);
+            
+            //draw line of sight blocking wall:
+            var losWall = createPathObject(this.getProperty('pageId'), 'walls', '#ff0000', 'transparent', ew[0], top + ew[1], left + ew[2], ew[3], ew[4], 1);
+            this.setProperty('losWallIds', losWall.id);
+        }, this);
+        
+        //draw inner walls:
+        a.getProperty('innerWalls').forEach(function(iw) {
+            
+            //draw wall tokens:
+            var iwIndex = g.addSimplePath(iw[0], top + iw[1], left + iw[2]);
+            g.getProperty('simplePaths')[iwIndex].segments.forEach(function(s) {
+                this.setProperty('wallIds', createTokenObjectFromSegment(wallImagePic, this.getProperty('pageId'), 'objects', s, 20).id);
+            }, this);
+            
+            //draw line of sight blocking wall:
+            var losWall = createPathObject(this.getProperty('pageId'), 'walls', '#ff0000', 'transparent', iw[0], top + iw[1], left + iw[2], iw[3], iw[4], 1);
+            this.setProperty('losWallIds', losWall.id);
+        }, this);
+        
+        //draw doors:
+        for(var i = 0; i < a.getProperty('doors').length; i++) {
+            this.drawInteractiveObject('doors', i);
+        }
+        
+        //draw chests:
+        for(var i = 0; i < a.getProperty('chests').length; i++) {
+            this.drawInteractiveObject('chests', i);
+        }
+       
+        this.save();
+    };
+    
+    //draws an interactive object, which may replace an existing one:
+    areaInstance.prototype.drawInteractiveObject = function(objectType, masterIndex, featureTagsOnly, selectedObject) {
+        
+        //note: featureTagsOnly is expected to be true only when this is an existing object
+        
+        var a = new area(this.getProperty('areaId'));
+        var g = new graph();
+        
+        var master = a.getProperty(objectType)[masterIndex];
+        
+        //TODO: normalize this code (after making DTOs):
+        switch(objectType) {
+            case 'doors':
+                var doorState = new door(master);
+                var dIndex = g.addSimplePathFromSegment(doorState.getProperty('positionSegment'), this.getProperty('top'), this.getProperty('left'));
+                var s = g.getProperty('simplePaths')[dIndex].segments[0];
+                var doorProperty = [];
+                
+                //if the number of objects in the area and the instance are equal, then this is modifying an existing object:
+                var existingDoor = this.getProperty('doorIds').length === a.getProperty(objectType).length;
+                var existingDoorIsSelected = false;
+                
+                if(existingDoor) {
+                    
+                    //delete feature tags:
+                    this.getProperty('doorIds')[masterIndex][2].forEach(function(ftId) {
+                        deleteObject('path', ftId);
+                    }, this);
+                    
+                    //delete door:
+                    if(!featureTagsOnly) {
+                        //note: there is no behavioral difference in handling of hidden doors
+                        
+                        //the selectedObject will only be provided for the instance that was modified by the user:
+                        existingDoorIsSelected = selectedObject && (this.getProperty('doorIds')[masterIndex][0] === selectedObject.id);
+                            
+                        //delete the old door image:
+                        deleteObject('graphic', this.getProperty('doorIds')[masterIndex][0]);
+                        
+                        //delete the old door LoS wall (which may not exist):
+                        deleteObject('path', this.getProperty('doorIds')[masterIndex][1]);
+                        
+                        //delete the old door feature tags:
+                        this.getProperty('doorIds')[masterIndex][2].forEach(function(ftId) {
+                            deleteObject('path', ftId);
+                        }, this);
+                    
+                        //clear properties out to be prudent, but they will be overwritten soon anyway:
+                        this.getProperty('doorIds')[masterIndex] = ['','',[]];
+                    }
+                }
+                
+                var doorToken;
+                
+                //keep existing door:
+                if(featureTagsOnly) {
+                    doorToken = getObj('graphic', this.getProperty('doorIds')[masterIndex][0]);
+                    doorProperty.push(this.getProperty('doorIds')[masterIndex][0]); //door token ID
+                    doorProperty.push(this.getProperty('doorIds')[masterIndex][1]); //door LoS path ID
+                }
+                //create a new door:
+                else {
+                
+                    //TODO: replace open hidden door image with something unique:
+                    //draw the door (hidden or standard):
+                    doorToken = 
+                        doorState.getProperty('isHidden')
+                            ? (doorState.getProperty('isOpen')
+                                ? createTokenObjectFromSegment(openDoorImagePic, this.getProperty('pageId'), 'objects', s, 30, true)
+                                : createTokenObjectFromSegment(wallImagePic, this.getProperty('pageId'), 'objects', s, 20, false))
+                            : createTokenObjectFromSegment((doorState.getProperty('isOpen') ? openDoorImagePic : closedDoorImagePic), this.getProperty('pageId'), 'objects', s, 30, true);
+                    
+                    //set door privs to players unless the door is hidden:
+                    if(!doorState.getProperty('isHidden')) {
+                        doorToken.set("controlledby", "all");
+                    }
+                    
+                    //draw line of sight blocking wall if the door is closed:
+                    var doorLosId = '';
+                    if(!doorState.getProperty('isOpen')) {
+                        var rp = g.getRawPath('simplePaths', dIndex);
+                        doorLosId = createPathObject(this.getProperty('pageId'), 'walls', '#ff0000', 'transparent', rp.rawPath, rp.top, rp.left, rp.height, rp.width, 1).id;
+                    }
+                    
+                    doorProperty.push(doorToken.id);
+                    doorProperty.push(doorLosId);
+                }
+                
+                //draw feature tags around the door:
+                var featureTagColors = [];
+                if(doorState.getProperty('isLocked')) {
+                    featureTagColors.push(lockedTagColor);
+                }
+                if(doorState.getProperty('isTrapped')) {
+                    featureTagColors.push(trappedTagColor);
+                }
+                if(doorState.getProperty('isHidden')) {
+                    featureTagColors.push(hiddenTagColor);
+                }
+                var tagIds = drawFeatureTags(doorToken, featureTagColors);
+                
+                doorProperty.push(tagIds);
+                
+                //if this is replacing an existing image, write it back into the appropriate slot:
+                if(existingDoor) {
+                    this.getProperty('doorIds')[masterIndex] = doorProperty;
+                    
+                    //if the selected door was replaced, store the new door as a false selection:
+                    if(existingDoorIsSelected) {
+                        state.APIAreaMapper.falseSelection = doorToken.id;
+                    }
+                }
+                //if it's a new image, push it to the end (which will line up with the master's index):
+                else {
+                    this.setProperty('doorIds', doorProperty);
+                }
+                break;
+            case 'chests':
+                var chestState = new chest(master);
+                var chestProperty = [];
+                
+                //if the number of objects in the area and the instance are equal, then this is modifying an existing object:
+                var existingChest = this.getProperty('chestIds').length === a.getProperty(objectType).length;
+                var existingChestIsSelected = false;
+                
+                if(existingChest) {
+                    
+                    //delete feature tags:
+                    this.getProperty('chestIds')[masterIndex][1].forEach(function(ftId) {
+                        deleteObject('path', ftId);
+                    }, this);
+                    
+                    //delete chest:
+                    if(!featureTagsOnly) {
+                        //note: there is no behavioral difference in handling of hidden chests
+                        
+                        //the selectedObject will only be provided for the instance that was modified by the user:
+                        existingChestIsSelected = selectedObject && (this.getProperty('chestIds')[masterIndex][0] === selectedObject.id);
+                        
+                        //delete the old chest image:
+                        deleteObject('graphic', this.getProperty('chestIds')[masterIndex][0]);
+                        
+                        //delete the old chest feature tags:
+                        this.getProperty('chestIds')[masterIndex][1].forEach(function(ftId) {
+                            deleteObject('path', ftId);
+                        }, this);
+                    
+                        //clear properties out to be prudent, but they will be overwritten soon anyway:
+                        this.getProperty('chestIds')[masterIndex] = ['',[]];
+                    }
+                }
+                
+                var chestToken;
+                
+                //keep existing door:
+                if(featureTagsOnly) {
+                    chestToken = getObj('graphic', this.getProperty('chestIds')[masterIndex][0]);
+                    chestProperty.push(this.getProperty('chestIds')[masterIndex][0]); //chest token ID
+                }
+                //create a new chest:
+                else {
+                    
+                    var chestTop = chestState.getProperty('top') + this.getProperty('top');
+                    var chestLeft = chestState.getProperty('left') + this.getProperty('left');
+                    
+                    //draw the chest (on the object or gm layer depending on it being hidden):
+                    chestToken = createTokenObject(
+                        (chestState.getProperty('isOpen') ? openChestPic : closedChestPic), 
+                        this.getProperty('pageId'), 
+                        (chestState.getProperty('isHidden') ? 'gmlayer' : 'objects'),
+                        new segment(
+                            new point(chestLeft, chestTop),
+                            new point(chestLeft + chestState.getProperty('width'), chestTop + chestState.getProperty('height'))),
+                        chestState.getProperty('rotation'));
+                       
+                    //set chest privs to players unless the door is hidden:
+                    if(!chestState.getProperty('isHidden')) {
+                        chestToken.set("controlledby", "all");
+                    }
+                    
+                    chestProperty.push(chestToken.id);
+                }
+                
+                //draw feature tags around the chest:
+                var featureTagColors = [];
+                if(chestState.getProperty('isLocked')) {
+                    featureTagColors.push(lockedTagColor);
+                }
+                if(chestState.getProperty('isTrapped')) {
+                    featureTagColors.push(trappedTagColor);
+                }
+                if(chestState.getProperty('isHidden')) {
+                    featureTagColors.push(hiddenTagColor);
+                }
+                var tagIds = drawFeatureTags(chestToken, featureTagColors);
+                
+                chestProperty.push(tagIds);
+                
+                //if this is replacing an existing image, write it back into the appropriate slot:
+                if(existingChest) {
+                    this.getProperty('chestIds')[masterIndex] = chestProperty;
+                    
+                    //if the selected chest was replaced, store the new chest as a false selection:
+                    if(existingChestIsSelected) {
+                        state.APIAreaMapper.falseSelection = chestToken.id;
+                    }
+                }
+                //if it's a new image, push it to the end (which will line up with the master's index):
+                else {
+                    this.setProperty('chestIds', chestProperty);
+                }
+                break;
+            default:
+                log('Unsupported objectType of ' + objectType + ' in areaInstance.drawInteractiveObject().');
+                return 'There was a problem; check the log for details.';
+        }
+        
+        this.save();
+        
+        return null;
+    };
+    
+    areaInstance.prototype.drawBlueprint = function() {
+        this.load();
+        
+        var top = this.getProperty('top');
+        var left = this.getProperty('left');
+        
+        var a = new area(this.getProperty('areaId'));
+        var g = new graph();
+        
+        //create floorPolygon:
+        var floorPolygon = createPathObject(this.getProperty('pageId'), 'map', state.APIAreaMapper.blueprintFloorPolygonColor, state.APIAreaMapper.blueprintFloorPolygonColor, a.getProperty('floorplan'), top, left, a.getProperty('height'), a.getProperty('width'));
+        this.setProperty('floorPolygonId', floorPolygon.id);
+        
+        //draw edge wall gaps:
+        a.calculateEdgeWallGaps().forEach(function(ew) {
+            var ewI = g.addSimplePathFromPoints(ew);
+            var ewRaw = g.getRawPath('simplePaths', ewI);
+            var edgeWallGap = createPathObject(this.getProperty('pageId'), 'objects', state.APIAreaMapper.blueprintEdgeWallGapsPathColor, 'transparent', ewRaw.rawPath, top + ewRaw.top, left + ewRaw.left, ewRaw.height, ewRaw.width, 5);
+            this.setProperty('edgeWallGapIds', edgeWallGap.id);
+        }, this);
+        
+        //draw blueprint walls:
+        a.getProperty('innerWalls').forEach(function(iw) {
+            var wall = createPathObject(this.getProperty('pageId'), 'objects', state.APIAreaMapper.blueprintInnerWallsPathColor, 'transparent', iw[0], top + iw[1], left + iw[2], iw[3], iw[4], 2);
+            this.setProperty('blueprintWallIds', wall.id);
+        }, this);
+        
+        //draw blueprint doors:
+        a.getProperty('doors').forEach(function(s) {
+            var dI = g.addSimplePathFromSegment(s[0], top, left);
+            var rp = g.getRawPath('simplePaths', dI);
+            var door = createPathObject(this.getProperty('pageId'), 'objects', state.APIAreaMapper.blueprintDoorPathColor, 'transparent', rp.rawPath, rp.top, rp.left, rp.height, rp.width, 2);
+            this.setProperty('blueprintWallIds', door.id);
+        }, this);
+        
+        //draw blueprint chests:
+        a.getProperty('chests').forEach(function(c) {
+            var chest = createRectanglePathObject(this.getProperty('pageId'), 'objects', state.APIAreaMapper.blueprintChestPathColor, state.APIAreaMapper.blueprintChestPathColor, c[0] + top, c[1] + left, c[2], c[3], c[4]);
+            this.setProperty('blueprintChestIds', chest.id);    
+        }, this);
+        
+        this.save();
+    };
+    
+    areaInstance.prototype.alter = function(pageid, relativeRotation, relativeScaleX, relativeScaleY, relativePositionX, relativePositionY) {
+        //TODO: alter an area instance and everything contained within it
+    };
+    
+    areaInstance.prototype.findManagedGraphic = function(graphic) {
+        var graphicType;
+        var graphicIndex;
+        
+        //see if the graphic is a managed door:
+        var doorIds = this.getProperty('doorIds');
+        for(var i = 0; i < doorIds.length; i++) {
+            if(graphic.id === doorIds[i][0]) {
+                graphicType = 'doors';
+                graphicIndex = i;
+                break;
+            }
+        }
+        
+        //see if the graphic is a managed chest:
+        if(!graphicType) {
+            var chestIds = this.getProperty('chestIds');
+            for(var i = 0; i < chestIds.length; i++) {
+                if(graphic.id === chestIds[i][0]) {
+                    graphicType = 'chests';
+                    graphicIndex = i;
+                    break;
+                }
+            }
+        }
+        
+        if(!graphicType) {
+            return null;
+        }
+        
+        var returnObj = [];
+        returnObj.graphicType = graphicType;
+        returnObj.graphicIndex = graphicIndex;
+        return returnObj;
+    };
+    
+    areaInstance.prototype.handleInteractiveObjectInteraction = function(objectType, masterIndex, selectedObject) {
+        var a = new area(this.getProperty('areaId'));
+        var g = new graph();
+        
+        var handleInteraction = function(interactiveObject, visualAlertPoint, openPic, closedPic, lockedPic, trappedPic) {
+            
+            //handle locked object:
+            if(interactiveObject.getProperty('isLocked')) {
+                
+                //lock visual alert:
+                setTimeout(
+                    APIVisualAlert.visualAlert(
+                        lockedPic,
+                        visualAlertPoint.x,
+                        visualAlertPoint.y,
+                        1.0,
+                        1),
+                    5);
+            }
+            //process toggle:
+            else {
+                if(interactiveObject.getProperty('isTrapped')) {
+                    
+                    //trap visual alert:
+                    setTimeout(
+                        APIVisualAlert.visualAlert(
+                            trappedPic,
+                            visualAlertPoint.x,
+                            visualAlertPoint.y,
+                            1.0,
+                            2),
+                        5);
+                    
+                    interactiveObject.setProperty('isTrapped', 0);
+                }
+                
+                //toggle object state:
+                interactiveObject.setProperty('isOpen', (interactiveObject.getProperty('isOpen') + 1) % 2);
+                
+                //door toggle visual alert:
+                setTimeout(
+                    APIVisualAlert.visualAlert(
+                        interactiveObject.getProperty('isOpen') ? openPic : closedPic,
+                        visualAlertPoint.x,
+                        visualAlertPoint.y,
+                        1.0,
+                        0),
+                    5);
+            }
+        };
+        
+        var master = a.getProperty(objectType)[masterIndex];
+        
+        switch(objectType) {
+            case 'doors':
+                var doorState = new door(master);
+                var dIndex = g.addSimplePathFromSegment(doorState.getProperty('positionSegment'), this.getProperty('top'), this.getProperty('left'));
+                var s = g.getProperty('simplePaths')[dIndex].segments[0];
+                handleInteraction(doorState, s.midpoint(), openDoorAlertPic, closedDoorAlertPic, padlockAlertPic, skullAlertPic);
+                master = doorState.getStateObject();
+                break;
+            case 'chests':
+                var chestState = new chest(master);
+                var chestTop = chestState.getProperty('top') + this.getProperty('top');
+                var chestLeft = chestState.getProperty('left') + this.getProperty('left');
+                var chestCenter = new point(chestLeft + (chestState.getProperty('width') / 2), chestTop + (chestState.getProperty('height') / 2));
+                //TODO: use chest-specific open / close pics:
+                handleInteraction(chestState, chestCenter, openDoorAlertPic, closedDoorAlertPic, padlockAlertPic, skullAlertPic);
+                master = chestState.getStateObject();
+                break;
+            default:
+                log('Unsupported objectType of ' + objectType + ' in areaInstance.handleInteractiveObjectInteraction().');
+                return;
+        }
+        
+        //update the master:
+        a.getProperty(objectType)[masterIndex] = master;
+        a.save();
+        
+        //draw the object in the area, so that it propagates to all instances:
+        a.drawInteractiveObject(objectType, masterIndex, false, selectedObject);
+    };
+    
+    areaInstance.prototype.handleGraphicChange = function(graphic) {
+        
+        //see if the graphic is being managed:
+        var managedGraphic = this.findManagedGraphic(graphic);
+        
+        if(!managedGraphic) {
+            return;
+        }
+        
+        //see if the position changed - other changes are ignored:
+        var positionEpsilon = 0.001;
+        a = new area(this.getProperty('areaId'));
+        var graphicMaster = a.getProperty(managedGraphic.graphicType)[managedGraphic.graphicIndex];
+        var specialInteraction = false;
+        
+        switch(managedGraphic.graphicType) {
+            case 'doors':
+                var p = (new segment(
+                    new point(
+                        graphicMaster[0].a.x + this.getProperty('left'),
+                        graphicMaster[0].a.y + this.getProperty('top')),
+                    new point(
+                        graphicMaster[0].b.x + this.getProperty('left'),
+                        graphicMaster[0].b.y + this.getProperty('top')))).midpoint();
+                
+                //compare position to point, using epsilon, to see if it moved:
+                if((Math.abs(graphic.get('left') - p.x) < positionEpsilon)
+                        && (Math.abs(graphic.get('top') - p.y) < positionEpsilon)) {
+                    return;
+                }
+                break;
+            case 'chests':
+                if(state.APIAreaMapper.chestReposition) {
+                    specialInteraction = true;
+                    
+                    //update the chest's position / rotation / dimensions in the master area:
+                    graphicMaster[0] = graphic.get('top') - this.getProperty('top') - (graphic.get('height') / 2);
+                    graphicMaster[1] = graphic.get('left') - this.getProperty('left') - (graphic.get('width') / 2);
+                    graphicMaster[2] = graphic.get('height');
+                    graphicMaster[3] = graphic.get('width');
+                    graphicMaster[4] = graphic.get('rotation');
+                    
+                    a.getProperty(managedGraphic.graphicType)[managedGraphic.graphicIndex] = graphicMaster;
+                    a.save();
+                    
+                    //draw the object in the area, so that it propagates to all instances:
+                    a.drawInteractiveObject(managedGraphic.graphicType, managedGraphic.graphicIndex, false, graphic);
+                } else {
+                    var chestTop = graphicMaster[0] + this.getProperty('top');
+                    var chestLeft = graphicMaster[1] + this.getProperty('left');
+                    
+                    var p = (new segment(
+                        new point(
+                            chestLeft,
+                            chestTop),
+                        new point(
+                            chestLeft + graphicMaster[3],
+                            chestTop + graphicMaster[2]))).midpoint();
+                    
+                    //compare position to point, using epsilon, to see if it moved:
+                    if((Math.abs(graphic.get('left') - p.x) < positionEpsilon)
+                            && (Math.abs(graphic.get('top') - p.y) < positionEpsilon)) {
+                        return;
+                    }
+                }
+                break;
+            default:
+                log('Unhandled graphic type of ' + managedGraphic.graphicType + ' in areaInstance.handleGraphicChange().');
+                break;
+        }
+        
+        //handle true interactions if there was no special case:
+        if(!specialInteraction) {
+            this.handleInteractiveObjectInteraction(managedGraphic.graphicType, managedGraphic.graphicIndex, graphic);
+        }
+    };
+    
+    areaInstance.prototype.toggleInteractiveProperty = function(graphic, property) {
+        var followUpAction = [];
+        
+        var managedGraphic = this.findManagedGraphic(graphic);
+        
+        if(!managedGraphic) {
+            followUpAction.message = 'The graphic is not managed by the area and/or is not eligible for property changes.';
+            return followUpAction;
+        }
+        
+        a = new area(this.getProperty('areaId'));
+        var graphicMaster = a.getProperty(managedGraphic.graphicType)[managedGraphic.graphicIndex];
+        
+        var changeProperty = function(interactiveObject, property, followUpAction) {
+            var redraw = false;
+            var toggledProperty;
+            switch(property) {
+                case 'open':
+                    toggledProperty = 'isOpen';
+                    redraw = true;
+                    break;
+                case 'lock':
+                    toggledProperty = 'isLocked';
+                    followUpAction.refresh = true;
+                    break;
+                case 'trap':
+                    toggledProperty = 'isTrapped';
+                    followUpAction.refresh = true;
+                    break;
+                case 'hide':
+                    toggledProperty = 'isHidden';
+                    redraw = true;
+                    break;
+                default:
+                    log('Unhandled property type of ' + property + ' in areaInstance.toggleInteractiveProperty().');
+                    followUpAction.message = 'There was a problem; see the log for details.';
+                    return;
+            }
+            interactiveObject.setProperty(toggledProperty, (interactiveObject.getProperty(toggledProperty) + 1) % 2);
+            return redraw;
+        }
+        
+        var redraw = false;
+        
+        switch(managedGraphic.graphicType) {
+            case 'doors':
+                var doorState = new door(graphicMaster);
+                redraw = changeProperty(doorState, property, followUpAction);
+                graphicMaster = doorState.getStateObject();
+                break;
+            case 'chests':
+                var chestState = new chest(graphicMaster);
+                redraw = changeProperty(chestState, property, followUpAction);
+                graphicMaster = chestState.getStateObject();
+                break;
+            default:
+                log('Unhandled graphic type of ' + managedGraphic.graphicType + ' in areaInstance.toggleInteractiveProperty().');
+                followUpAction.message = 'There was a problem; see the log for details.';
+                break;
+        }
+        
+        if(followUpAction.message) {
+            return followUpAction;
+        }
+        
+        //update the master:
+        a.getProperty(managedGraphic.graphicType)[managedGraphic.graphicIndex] = graphicMaster;
+        a.save();
+        
+        //redraw the door or just its features across all instances of the area:
+        var errorMessage = a.drawInteractiveObject(managedGraphic.graphicType, managedGraphic.graphicIndex, !redraw, graphic);
+        followUpAction.message = errorMessage;
+        
+        this.save();
+        
+        return followUpAction;
+    };
+    
+    /* area - end */
+    
+    /* business logic bridge - begin */
+    
+    var toggleHandoutUi = function(who) {
         
         //send a special drawing of the existing UI with a spoofed reversal value of handoutUi (as changing it for real would send it to the new UI); this way, the switch is clear and the user can switch back from either UI:
         interfaceSettings(who, true);
@@ -3671,6 +3735,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         return followUpAction;
     },
+    
+    /* business logic bridge - end */
+    
+    /* user interface core - begin */
     
     //character converter, credits to Aaron from https://github.com/shdwjk/Roll20API/blob/master/APIHeartBeat/APIHeartBeat.js
     ch = function(c) {
@@ -3856,6 +3924,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return ['mode', text, commands[(currentState + 1) % commands.length], greyed, currentState];
     },
     
+    /* user interface core - end */
+    
+    /* user interface windows - begin */
+    
     interfaceDoor = function(who, managedGraphic) {
         state.APIAreaMapper.uiWindow = 'door';
         
@@ -3959,7 +4031,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     ['active', 'blueprint mode', 'blueprint', !hasInstances || (state.APIAreaMapper.activeArea != areaId), state.APIAreaMapper.blueprintMode],
                     ['navigation', 'redraw', 'redraw', !hasInstances || (state.APIAreaMapper.activeArea != areaId), false]
                 ])
-            //TODO: functionally in all of these area path adds, make sure that there is an instance on the same page as the drawn path
             +uiSection('Modify', instructions, [
                     modeCommand('floorplan', ['endRecordAreaMode', 'areaAppend', 'areaRemove'], !hasInstances || (state.APIAreaMapper.activeArea != areaId), state.APIAreaMapper.recordAreaMode),
                     modeCommand('edge walls', ['endRecordAreaMode', 'edgeWallGapRemove', 'edgeWallRemove'], !hasInstances || (state.APIAreaMapper.activeArea != areaId), state.APIAreaMapper.recordAreaMode),
@@ -4144,6 +4215,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
         );
     },
     
+    /* user interface windows - end */
+    
+    /* user interface navigation - begin */
+    
     //gets the selected graphic, and failing that, will use a false selection:
     getSelectedGraphic = function(selected) {
         var graphic = getObj('graphic', selected[0]._id);
@@ -4231,140 +4306,144 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }
     },
     
-    /* user interface - end */
+    processUserInput = function(msg) {
+        
+        //store player information to use for any future anonymous actions:
+        state.APIAreaMapper.playerId = msg.playerid;
+        state.APIAreaMapper.playerName = msg.who;
+        
+        var followUpAction = []; //might get clobbered
+        var chatCommand = msg.content.split(' ');
+        
+        var retainRecordAreaMode = false;
+        var retainFalseSelection = false;
+        
+        if(chatCommand.length === 1) {
+            followUpAction = intuit(msg.selected, msg.who);
+        } else {
+            switch(chatCommand[1]) {
+                case 'handoutUi':
+                    state.APIAreaMapper.uiWindow = 'settings';
+                    followUpAction = toggleHandoutUi(msg.who)
+                    followUpAction.ignoreSelection = true;
+                    break;
+                case 'mainMenu':
+                    state.APIAreaMapper.uiWindow = 'mainMenu';
+                    followUpAction.refresh = true;
+                    followUpAction.ignoreSelection = true;
+                    break;
+                case 'listAreas':
+                    state.APIAreaMapper.uiWindow = 'listAreas ' + chatCommand[2];
+                    followUpAction.refresh = true;
+                    followUpAction.ignoreSelection = true;
+                    break;
+                case 'manageArea':
+                    state.APIAreaMapper.uiWindow = 'area#' + chatCommand[2];
+                    followUpAction.refresh = true;
+                    followUpAction.ignoreSelection = true;
+                    break;
+                case 'activeArea':
+                    state.APIAreaMapper.uiWindow = 'area#' + state.APIAreaMapper.activeArea;
+                    followUpAction.refresh = true;
+                    followUpAction.ignoreSelection = true;
+                    break;
+                case 'areaActivate':
+                    if(state.APIAreaMapper.activeArea == chatCommand[2]) {
+                        delete state.APIAreaMapper.activeArea;
+                    } else {
+                        state.APIAreaMapper.activeArea = chatCommand[2]
+                    }
+                    followUpAction.refresh = true;
+                    followUpAction.ignoreSelection = true;
+                    break;
+                case 'areaHide':
+                    followUpAction = handleAreaHide(chatCommand[2]);
+                    break;
+                case 'areaArchive':
+                    followUpAction = handleAreaArchive(chatCommand[2]);
+                    break;
+                case 'areaCreate':
+                case 'areaAppend':
+                case 'areaRemove':
+                case 'edgeWallRemove':
+                case 'edgeWallGapRemove':
+                case 'innerWallAdd':
+                case 'innerWallRemove':
+                case 'doorAdd':
+                case 'doorRemove':
+                case 'chestAdd':
+                case 'chestRemove':
+                case 'areaInstanceCreate':
+                    retainRecordAreaMode = true;
+                    followUpAction = toggleOrSetAreaRecordMode(chatCommand[1]);
+                    followUpAction.ignoreSelection = true;
+                    break;
+                case 'endRecordAreaMode':
+                    followUpAction.ignoreSelection = true;
+                    followUpAction.refresh = true;
+                    break;
+                case 'chestReposition':
+                    retainFalseSelection = true;
+                    followUpAction = toggleChestReposition();
+                    break;
+                case 'redraw':
+                    retainRecordAreaMode = true;
+                    followUpAction = handleAreaRedraw();
+                    break;
+                case 'blueprint':
+                    retainRecordAreaMode = true;
+                    followUpAction = toggleBlueprintMode();
+                    followUpAction.ignoreSelection = true;
+                    break;
+                case 'interactiveObjectOpen':
+                case 'interactiveObjectLock':
+                case 'interactiveObjectTrap':
+                case 'interactiveObjectHide':
+                    retainFalseSelection = true;
+                    followUpAction = toggleInteractiveProperty(msg.selected, msg.who, chatCommand[1]);
+                    break;
+                case 'settings':
+                    interfaceSettings(msg.who);
+                    break;
+                case 'help':
+                    if(chatCommand.length < 3) {
+                        interfaceHelp(msg.who);
+                    } else {
+                        interfaceHelp(msg.who, chatCommand[2]);
+                    }
+                    break;
+                case 'about':
+                    interfaceAbout(msg.who);
+                    break;
+                case 'rename':
+                    var nameItems = chatCommand;
+                    nameItems.shift();
+                    nameItems.shift();
+                    followUpAction = handleAreaRename(nameItems.join(' '));
+                    break;
+                default:
+                    break;
+            }
+        }
+        
+        if(!retainRecordAreaMode) {
+            delete state.APIAreaMapper.recordAreaMode;
+        }
+        
+        if(!retainFalseSelection) {
+            delete state.APIAreaMapper.falseSelection;
+        }
+        
+        processFollowUpAction(followUpAction, msg.who, msg.selected);
+    },
+    
+    /* user interface navigation - end */
     
     /* event handlers - begin */
     
     handleUserInput = function(msg) {
         if(msg.type == 'api' && msg.content.match(/^!api-area/) && playerIsGM(msg.playerid)) {
-            
-            //store player information to use for any future anonymous actions:
-            state.APIAreaMapper.playerId = msg.playerid;
-            state.APIAreaMapper.playerName = msg.who;
-            
-            var followUpAction = []; //might get clobbered
-            var chatCommand = msg.content.split(' ');
-            
-            var retainRecordAreaMode = false;
-            var retainFalseSelection = false;
-            
-            if(chatCommand.length === 1) {
-                followUpAction = intuit(msg.selected, msg.who);
-            } else {
-                switch(chatCommand[1]) {
-                    case 'handoutUi':
-                        state.APIAreaMapper.uiWindow = 'settings';
-                        followUpAction = toggleHandoutUi(msg.who)
-                        followUpAction.ignoreSelection = true;
-                        break;
-                    case 'mainMenu':
-                        state.APIAreaMapper.uiWindow = 'mainMenu';
-                        followUpAction.refresh = true;
-                        followUpAction.ignoreSelection = true;
-                        break;
-                    case 'listAreas':
-                        state.APIAreaMapper.uiWindow = 'listAreas ' + chatCommand[2];
-                        followUpAction.refresh = true;
-                        followUpAction.ignoreSelection = true;
-                        break;
-                    case 'manageArea':
-                        state.APIAreaMapper.uiWindow = 'area#' + chatCommand[2];
-                        followUpAction.refresh = true;
-                        followUpAction.ignoreSelection = true;
-                        break;
-                    case 'activeArea':
-                        state.APIAreaMapper.uiWindow = 'area#' + state.APIAreaMapper.activeArea;
-                        followUpAction.refresh = true;
-                        followUpAction.ignoreSelection = true;
-                        break;
-                    case 'areaActivate':
-                        if(state.APIAreaMapper.activeArea == chatCommand[2]) {
-                            delete state.APIAreaMapper.activeArea;
-                        } else {
-                            state.APIAreaMapper.activeArea = chatCommand[2]
-                        }
-                        followUpAction.refresh = true;
-                        followUpAction.ignoreSelection = true;
-                        break;
-                    case 'areaHide':
-                        followUpAction = handleAreaHide(chatCommand[2]);
-                        break;
-                    case 'areaArchive':
-                        followUpAction = handleAreaArchive(chatCommand[2]);
-                        break;
-                    case 'areaCreate':
-                    case 'areaAppend':
-                    case 'areaRemove':
-                    case 'edgeWallRemove':
-                    case 'edgeWallGapRemove':
-                    case 'innerWallAdd':
-                    case 'innerWallRemove':
-                    case 'doorAdd':
-                    case 'doorRemove':
-                    case 'chestAdd':
-                    case 'chestRemove':
-                    case 'areaInstanceCreate':
-                        retainRecordAreaMode = true;
-                        followUpAction = toggleOrSetAreaRecordMode(chatCommand[1]);
-                        followUpAction.ignoreSelection = true;
-                        break;
-                    case 'endRecordAreaMode':
-                        followUpAction.ignoreSelection = true;
-                        followUpAction.refresh = true;
-                        break;
-                    case 'chestReposition':
-                        retainFalseSelection = true;
-                        followUpAction = toggleChestReposition();
-                        break;
-                    case 'redraw':
-                        retainRecordAreaMode = true;
-                        followUpAction = handleAreaRedraw();
-                        break;
-                    case 'blueprint':
-                        retainRecordAreaMode = true;
-                        followUpAction = toggleBlueprintMode();
-                        followUpAction.ignoreSelection = true;
-                        break;
-                    case 'interactiveObjectOpen':
-                    case 'interactiveObjectLock':
-                    case 'interactiveObjectTrap':
-                    case 'interactiveObjectHide':
-                        retainFalseSelection = true;
-                        followUpAction = toggleInteractiveProperty(msg.selected, msg.who, chatCommand[1]);
-                        break;
-                    case 'settings':
-                        interfaceSettings(msg.who);
-                        break;
-                    case 'help':
-                        if(chatCommand.length < 3) {
-                            interfaceHelp(msg.who);
-                        } else {
-                            interfaceHelp(msg.who, chatCommand[2]);
-                        }
-                        break;
-                    case 'about':
-                        interfaceAbout(msg.who);
-                        break;
-                    case 'rename':
-                        var nameItems = chatCommand;
-                        nameItems.shift();
-                        nameItems.shift();
-                        followUpAction = handleAreaRename(nameItems.join(' '));
-                        break;
-                    default:
-                        break;
-                }
-            }
-            
-            if(!retainRecordAreaMode) {
-                delete state.APIAreaMapper.recordAreaMode;
-            }
-            
-            if(!retainFalseSelection) {
-                delete state.APIAreaMapper.falseSelection;
-            }
-            
-            processFollowUpAction(followUpAction, msg.who, msg.selected);
+            processUserInput(msg);
         }
     },
     
@@ -4387,10 +4466,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
             
             switch(state.APIAreaMapper.recordAreaMode) {
                 case 'areaAppend':
-                    followUpAction = a.floorPlanAppend(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                    followUpAction = a.floorplanAppend(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
                     break;
                 case 'areaRemove':
-                    followUpAction = a.floorPlanRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                    followUpAction = a.floorplanRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
                     break;
                 case 'edgeWallRemove':
                     followUpAction = a.edgeWallRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
