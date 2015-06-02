@@ -6,7 +6,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.128,
+    var version = 0.129,
         schemaVersion = 0.035,
         buttonBackgroundColor = '#CC1869',
         buttonGreyedColor = '#8D94A9',
@@ -1056,7 +1056,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 }
             }, this);
         }
-        
+       
         if(pointCount < 2) {
             followUpAction.message = 'Attempt to add door failed because fewer than 2 points were identified.';
             return followUpAction;
@@ -1064,13 +1064,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         if(pointCount > 2) {
             followUpAction.message = 'Attempt to add door failed because more than 2 points were identified.';
-            return followUpAction;
-        }
-        
-        //ensure that the two points are not a wall segment:
-        if((innerWallPoints.length === 1 && innerWallPoints[0][1].length === 2)
-                || (edgeWallPoints.length === 1 && edgeWallPoints[0][1].length === 2)){
-            followUpAction.message = 'Attempt to add door failed because the 2 identified points are a wall segment.';
             return followUpAction;
         }
         
