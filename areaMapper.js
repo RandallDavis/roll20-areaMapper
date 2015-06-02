@@ -1954,6 +1954,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
         //get instance that appending is relative to:
         var instance = new areaInstance(this.getProperty('id'), pageId);
         
+        //handle illogical case where drawing is done on a page without an instance:
+        if(instance.getProperty('isNew')) {
+            followUpAction.message = 'Area modification attempted on a page without a drawn instance.';
+            return followUpAction;
+        }
+        
         //TODO: factor in instance's rotation & scale:
         var floorPlanOpIndex = g.addSimplePolygon(this.getProperty('floorPlan'), instance.getProperty('top'), instance.getProperty('left'));
         var mergedOpIndex = g.mergeSimplePolygons(floorPlanOpIndex, appendOpIndex);
@@ -2044,6 +2050,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
         //get instance that removal is relative to:
         var instance = new areaInstance(this.getProperty('id'), pageId);
         
+        //handle illogical case where drawing is done on a page without an instance:
+        if(instance.getProperty('isNew')) {
+            followUpAction.message = 'Area modification attempted on a page without a drawn instance.';
+            return followUpAction;
+        }
+        
         //TODO: factor in instance's rotation & scale:
         var floorPlanOpIndex = g.addSimplePolygon(this.getProperty('floorPlan'), instance.getProperty('top'), instance.getProperty('left'));
         var mergedOpIndex = g.removeFromSimplePolygon(floorPlanOpIndex, removeOpIndex);
@@ -2133,6 +2145,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
         //get instance that removal is relative to:
         var instance = new areaInstance(this.getProperty('id'), pageId);
         
+        //handle illogical case where drawing is done on a page without an instance:
+        if(instance.getProperty('isNew')) {
+            followUpAction.message = 'Area modification attempted on a page without a drawn instance.';
+            return followUpAction;
+        }
+        
         //find removal's intersections with the floorPlan edge:
         var floorPlanSpIndex = g.addSimplePolygon(this.getProperty('floorPlan'), instance.getProperty('top'), instance.getProperty('left'));
         var containedPaths = g.getIntersectingPaths('simplePolygons', removeSpIndex, 'simplePolygons', floorPlanSpIndex);
@@ -2186,6 +2204,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
         //get instance that removal is relative to:
         var instance = new areaInstance(this.getProperty('id'), pageId);
         
+        //handle illogical case where drawing is done on a page without an instance:
+        if(instance.getProperty('isNew')) {
+            followUpAction.message = 'Area modification attempted on a page without a drawn instance.';
+            return followUpAction;
+        }
+        
         //TODO: factor in instance's rotation & scale:
         var oldEdgeWallGaps = this.getProperty('edgeWallGaps');
         var edgeWallGaps = [];
@@ -2230,6 +2254,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
         //get instance that addition is relative to:
         var instance = new areaInstance(this.getProperty('id'), pageId);
         
+        //handle illogical case where drawing is done on a page without an instance:
+        if(instance.getProperty('isNew')) {
+            followUpAction.message = 'Area modification attempted on a page without a drawn instance.';
+            return followUpAction;
+        }
+        
         //get the added path:
         var innerWallAddSpIndex = g.addSimplePath(rawPath, top - instance.getProperty('top'), left - instance.getProperty('left'), isFromEvent);
         
@@ -2257,6 +2287,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         //get instance that addition is relative to:
         var instance = new areaInstance(this.getProperty('id'), pageId);
+        
+        //handle illogical case where drawing is done on a page without an instance:
+        if(instance.getProperty('isNew')) {
+            followUpAction.message = 'Area modification attempted on a page without a drawn instance.';
+            return followUpAction;
+        }
         
         //get the removal polygon:
         g.addComplexPolygon(rawPath, top, left, isFromEvent);
@@ -2302,6 +2338,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         //get instance that addition is relative to:
         var instance = new areaInstance(this.getProperty('id'), pageId);
+        
+        //handle illogical case where drawing is done on a page without an instance:
+        if(instance.getProperty('isNew')) {
+            followUpAction.message = 'Area modification attempted on a page without a drawn instance.';
+            return followUpAction;
+        }
         
         //get the addition polygon:
         g.addComplexPolygon(rawPath, top, left, isFromEvent);
@@ -2510,6 +2552,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
         //get instance that removal is relative to:
         var instance = new areaInstance(this.getProperty('id'), pageId);
         
+        //handle illogical case where drawing is done on a page without an instance:
+        if(instance.getProperty('isNew')) {
+            followUpAction.message = 'Area modification attempted on a page without a drawn instance.';
+            return followUpAction;
+        }
+        
         var oldDoors = this.getProperty('doors');
         var doors = [];
         for(var i = 0; i < oldDoors.length; i++) {
@@ -2547,6 +2595,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
         //get instance that addition is relative to:
         var instance = new areaInstance(this.getProperty('id'), pageId);
         
+        //handle illogical case where drawing is done on a page without an instance:
+        if(instance.getProperty('isNew')) {
+            followUpAction.message = 'Area modification attempted on a page without a drawn instance.';
+            return followUpAction;
+        }
+        
         //get the addition polygon:
         g.addComplexPolygon(rawPath, top, left, isFromEvent);
         var addSpIndex = g.convertComplexPolygonToSimplePolygon(0);
@@ -2577,6 +2631,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         //get instance that removal is relative to:
         var instance = new areaInstance(this.getProperty('id'), pageId);
+        
+        //handle illogical case where drawing is done on a page without an instance:
+        if(instance.getProperty('isNew')) {
+            followUpAction.message = 'Area modification attempted on a page without a drawn instance.';
+            return followUpAction;
+        }
         
         var oldChests = this.getProperty('chests');
         var chests = [];
@@ -2684,6 +2744,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         switch(property) {
             case 'areaId':
             case 'pageId':
+            case 'isNew': //this is not persisted
             case 'area':
             case 'top':
             case 'left':
@@ -2752,6 +2813,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         //couldn't find any state to load:
         if(!areaInstanceState) {
+            
+            //set an indicator on the areaInstance that specifies it being new:
+            this.setProperty('isNew', true);
             return;
         }
         
@@ -3967,7 +4031,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     ['active', 'blueprint mode', 'blueprint', !hasInstances || (state.APIAreaMapper.activeArea != areaId), state.APIAreaMapper.blueprintMode],
                     ['navigation', 'redraw', 'redraw', !hasInstances || (state.APIAreaMapper.activeArea != areaId), false]
                 ])
-            //TODO: functionally in all of these area path adds, make sure that there is an instance on the same page as the drawn path
             +uiSection('Modify', instructions, [
                     modeCommand('floorplan', ['endRecordAreaMode', 'areaAppend', 'areaRemove'], !hasInstances || (state.APIAreaMapper.activeArea != areaId), state.APIAreaMapper.recordAreaMode),
                     modeCommand('edge walls', ['endRecordAreaMode', 'edgeWallGapRemove', 'edgeWallRemove'], !hasInstances || (state.APIAreaMapper.activeArea != areaId), state.APIAreaMapper.recordAreaMode),
