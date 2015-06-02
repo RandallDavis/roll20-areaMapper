@@ -6,8 +6,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.130,
-        schemaVersion = 0.035,
+    var version = 0.131,
+        schemaVersion = 0.036,
         buttonBackgroundColor = '#CC1869',
         buttonGreyedColor = '#8D94A9',
         buttonHighlightLinkColor = '#D6F510',
@@ -1685,7 +1685,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         switch(property) {
             case 'id':
             case 'name':
-            case 'floorPlan': //simple polygon
+            case 'floorplan': //simple polygon
             case 'width':
             case 'height':
             case 'archived':
@@ -1762,9 +1762,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var rp = g.getRawPath('simplePolygons', sp);
         this.setProperty('id', Math.random());
         this.setProperty('name', this.createName('new'));
-        this.setProperty('floorPlan', rp.rawPath);
+        this.setProperty('floorplan', rp.rawPath);
         
-        //initially, edge walls will be identical to the floorPlan, because no gaps have been declared:
+        //initially, edge walls will be identical to the floorplan, because no gaps have been declared:
         this.setProperty('edgeWalls', [rp.rawPath, 0, 0, rp.height, rp.width]);
         
         this.setProperty('width', rp.width);
@@ -1818,7 +1818,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             switch(areaState[i][0]) {
                 case 'id':
                 case 'name':
-                case 'floorPlan':
+                case 'floorplan':
                 case 'width':
                 case 'height':
                 case 'archived':
@@ -1842,7 +1842,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var areaState = [];
         areaState.push(['id', this.getProperty('id')]);
         areaState.push(['name', this.getProperty('name')]);
-        areaState.push(['floorPlan', this.getProperty('floorPlan')]);
+        areaState.push(['floorplan', this.getProperty('floorplan')]);
         areaState.push(['width', this.getProperty('width')]);
         areaState.push(['height', this.getProperty('height')]);
         areaState.push(['archived', this.getProperty('archived')]);
@@ -1916,8 +1916,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
     area.prototype.calculateEdgeWallGaps = function() {
         var g = new graph();
         
-        var floorPlan = this.getProperty('floorPlan');
-        var floorPlanIndex = g.addSimplePolygon(floorPlan);
+        var floorplan = this.getProperty('floorplan');
+        var floorplanIndex = g.addSimplePolygon(floorplan);
         var edgeWallPaths = this.getProperty('edgeWalls');
         
         var edgeWallPointPaths = [];
@@ -1927,7 +1927,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             edgeWallPointPaths.push(g.getPointsPath('simplePaths', spI));
         }, this);
         
-        var edgeWallGaps = g.removePathIntersections('simplePolygons', floorPlanIndex, edgeWallPointPaths);
+        var edgeWallGaps = g.removePathIntersections('simplePolygons', floorplanIndex, edgeWallPointPaths);
         
         var edgeWallGapRawPaths = [];
         edgeWallGaps.forEach(function(ewg) {
@@ -1942,8 +1942,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return edgeWallGaps;
     };
     
-    //alters the area's floorPlan using an area instance as a control:
-    area.prototype.floorPlanAppend = function(rawPath, pageId, top, left, isFromEvent) {
+    //alters the area's floorplan using an area instance as a control:
+    area.prototype.floorplanAppend = function(rawPath, pageId, top, left, isFromEvent) {
         var followUpAction = [];
         
         //get a simple polygon from the rawPath:
@@ -1961,13 +1961,13 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }
         
         //TODO: factor in instance's rotation & scale:
-        var floorPlanOpIndex = g.addSimplePolygon(this.getProperty('floorPlan'), instance.getProperty('top'), instance.getProperty('left'));
-        var mergedOpIndex = g.mergeSimplePolygons(floorPlanOpIndex, appendOpIndex);
+        var floorplanOpIndex = g.addSimplePolygon(this.getProperty('floorplan'), instance.getProperty('top'), instance.getProperty('left'));
+        var mergedOpIndex = g.mergeSimplePolygons(floorplanOpIndex, appendOpIndex);
         
-        //if the polygons intersect, or if the old one is engulfed in the new one, update the floorPlan:
+        //if the polygons intersect, or if the old one is engulfed in the new one, update the floorplan:
         if(mergedOpIndex !== null) {
             var rp = g.getRawPath('simplePolygons', mergedOpIndex);
-            this.setProperty('floorPlan', rp.rawPath);
+            this.setProperty('floorplan', rp.rawPath);
             this.setProperty('width', rp.width);
             this.setProperty('height', rp.height);
             
@@ -1977,7 +1977,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             
             var oldEdgeWallGaps = this.getEdgeWallGapPointsPath(pageId);
             
-            //if there are no edge wall gaps, just use the new floorPlan for edge walls:
+            //if there are no edge wall gaps, just use the new floorplan for edge walls:
             if(!oldEdgeWallGaps || !oldEdgeWallGaps.length) {
                 this.initializeCollectionProperty('edgeWalls');
                 this.setProperty('edgeWalls', [rp.rawPath, 0, 0, rp.height, rp.width]);
@@ -2040,7 +2040,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return followUpAction;
     };
     
-    area.prototype.floorPlanRemove = function(rawPath, pageId, top, left, isFromEvent) {
+    area.prototype.floorplanRemove = function(rawPath, pageId, top, left, isFromEvent) {
         var followUpAction = [];
         
         var g = new graph();
@@ -2057,14 +2057,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }
         
         //TODO: factor in instance's rotation & scale:
-        var floorPlanOpIndex = g.addSimplePolygon(this.getProperty('floorPlan'), instance.getProperty('top'), instance.getProperty('left'));
-        var mergedOpIndex = g.removeFromSimplePolygon(floorPlanOpIndex, removeOpIndex);
+        var floorplanOpIndex = g.addSimplePolygon(this.getProperty('floorplan'), instance.getProperty('top'), instance.getProperty('left'));
+        var mergedOpIndex = g.removeFromSimplePolygon(floorplanOpIndex, removeOpIndex);
         
         if('undefined' !== typeof(mergedOpIndex)) {
             var oldEdgeWallGaps = this.getEdgeWallGapPointsPath(pageId);
             
             var rp = g.getRawPath('simplePolygons', mergedOpIndex);
-            this.setProperty('floorPlan', rp.rawPath);
+            this.setProperty('floorplan', rp.rawPath);
             this.setProperty('width', rp.width);
             this.setProperty('height', rp.height);
             
@@ -2072,7 +2072,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             var topDelta = instance.getProperty('top') - rp.top;
             var leftDelta = instance.getProperty('left') - rp.left;
             
-            //if there are no edge wall gaps, just use the new floorPlan for edge walls:
+            //if there are no edge wall gaps, just use the new floorplan for edge walls:
             if(!oldEdgeWallGaps || !oldEdgeWallGaps.length) {
                 this.initializeCollectionProperty('edgeWalls');
                 this.setProperty('edgeWalls', [rp.rawPath, 0, 0, rp.height, rp.width]);
@@ -2151,9 +2151,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
             return followUpAction;
         }
         
-        //find removal's intersections with the floorPlan edge:
-        var floorPlanSpIndex = g.addSimplePolygon(this.getProperty('floorPlan'), instance.getProperty('top'), instance.getProperty('left'));
-        var containedPaths = g.getIntersectingPaths('simplePolygons', removeSpIndex, 'simplePolygons', floorPlanSpIndex);
+        //find removal's intersections with the floorplan edge:
+        var floorplanSpIndex = g.addSimplePolygon(this.getProperty('floorplan'), instance.getProperty('top'), instance.getProperty('left'));
+        var containedPaths = g.getIntersectingPaths('simplePolygons', removeSpIndex, 'simplePolygons', floorplanSpIndex);
         
         //append containedPaths with existing gaps (might result in multiples being merged):
         var oldEdgeWallGaps = [];
@@ -2165,10 +2165,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }, this);
         containedPaths = containedPaths.concat(oldEdgeWallGaps);
         
-        var edgeWallPaths = g.removePathIntersections('simplePolygons', floorPlanSpIndex, containedPaths);
+        var edgeWallPaths = g.removePathIntersections('simplePolygons', floorplanSpIndex, containedPaths);
         
         //merge and store edge wall gaps:
-        var edgeWallGapPaths = g.removePathIntersections('simplePolygons', floorPlanSpIndex, edgeWallPaths);
+        var edgeWallGapPaths = g.removePathIntersections('simplePolygons', floorplanSpIndex, edgeWallPaths);
         this.initializeCollectionProperty('edgeWallGaps');
         edgeWallGapPaths.forEach(function(ewg) {
             
@@ -2229,8 +2229,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
             
             //update edge walls property:
             this.initializeCollectionProperty('edgeWalls');
-            var floorPlanOpIndex = g.addSimplePolygon(this.getProperty('floorPlan'), instance.getProperty('top'), instance.getProperty('left'));
-            var edgeWallPaths = g.removePathIntersections('simplePolygons', floorPlanOpIndex, this.getEdgeWallGapPointsPath(pageId));
+            var floorplanOpIndex = g.addSimplePolygon(this.getProperty('floorplan'), instance.getProperty('top'), instance.getProperty('left'));
+            var edgeWallPaths = g.removePathIntersections('simplePolygons', floorplanOpIndex, this.getEdgeWallGapPointsPath(pageId));
             
             //convert edgeWallPaths into raw paths:
             edgeWallPaths.forEach(function(ew) {
@@ -2263,9 +2263,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
         //get the added path:
         var innerWallAddSpIndex = g.addSimplePath(rawPath, top - instance.getProperty('top'), left - instance.getProperty('left'), isFromEvent);
         
-        //make sure that the inner wall is fully contained in the floorPlan:
-        var floorPlanSpIndex = g.addSimplePolygon(this.getProperty('floorPlan'));
-        if(!g.hasInsideEntirePath('simplePolygons', floorPlanSpIndex, 'simplePaths', innerWallAddSpIndex)) {
+        //make sure that the inner wall is fully contained in the floorplan:
+        var floorplanSpIndex = g.addSimplePolygon(this.getProperty('floorplan'));
+        if(!g.hasInsideEntirePath('simplePolygons', floorplanSpIndex, 'simplePaths', innerWallAddSpIndex)) {
             followUpAction.message = 'Attempt to add inner walls that exceed the floorplan.';
             return followUpAction;
         }
@@ -2984,7 +2984,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var top = this.getProperty('top');
         var left = this.getProperty('left');
         
-        //get the floorPlan from the area:
+        //get the floorplan from the area:
         var a = new area(this.getProperty('areaId'));
         
         //draw new floor tile:
@@ -2995,8 +2995,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var page = getObj('page', this.getProperty('pageId'));
         var maskColor = page.get('background_color');
         var g = new graph();
-        var floorPlanOpIndex = g.addSimplePolygon(a.getProperty('floorPlan'), top, left);
-        var floorMaskOpIndex = g.invertSimplePolygon(floorPlanOpIndex);
+        var floorplanOpIndex = g.addSimplePolygon(a.getProperty('floorplan'), top, left);
+        var floorMaskOpIndex = g.invertSimplePolygon(floorplanOpIndex);
         var floorMaskRawPath = g.getRawPath('simplePolygons', floorMaskOpIndex);
         var floorMask = createPathObject(this.getProperty('pageId'), 'map', maskColor, maskColor, floorMaskRawPath.rawPath, floorMaskRawPath.top, floorMaskRawPath.left, floorMaskRawPath.height, floorMaskRawPath.width);
         this.setProperty('floorMaskId', floorMask.id);
@@ -3274,7 +3274,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var g = new graph();
         
         //create floorPolygon:
-        var floorPolygon = createPathObject(this.getProperty('pageId'), 'map', state.APIAreaMapper.blueprintFloorPolygonColor, state.APIAreaMapper.blueprintFloorPolygonColor, a.getProperty('floorPlan'), top, left, a.getProperty('height'), a.getProperty('width'));
+        var floorPolygon = createPathObject(this.getProperty('pageId'), 'map', state.APIAreaMapper.blueprintFloorPolygonColor, state.APIAreaMapper.blueprintFloorPolygonColor, a.getProperty('floorplan'), top, left, a.getProperty('height'), a.getProperty('width'));
         this.setProperty('floorPolygonId', floorPolygon.id);
         
         //draw edge wall gaps:
@@ -4466,10 +4466,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
             
             switch(state.APIAreaMapper.recordAreaMode) {
                 case 'areaAppend':
-                    followUpAction = a.floorPlanAppend(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                    followUpAction = a.floorplanAppend(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
                     break;
                 case 'areaRemove':
-                    followUpAction = a.floorPlanRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                    followUpAction = a.floorplanRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
                     break;
                 case 'edgeWallRemove':
                     followUpAction = a.edgeWallRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
