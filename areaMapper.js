@@ -6,7 +6,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.129,
+    var version = 0.130,
         schemaVersion = 0.035,
         buttonBackgroundColor = '#CC1869',
         buttonGreyedColor = '#8D94A9',
@@ -138,9 +138,1413 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     /* core - end */
     
+    /* polygon logic - begin */
+    
+    //note: this is a simple, non-polymorphic datatype for performance purposes:
+    var point = function(x, y) {
+        this.x = x;
+        this.y = y;
+        
+        this.equals = function(comparedPoint) {
+            return (this.x === comparedPoint.x && this.y === comparedPoint.y);
+        };
+    },
+    
+    //angle object to simplify comparisons with epsilons:
+    //note: this is a simple, non-polymorphic datatype for performance purposes:
+    angle = function(radians) {
+        this.radians = radians;
+        
+        this.equals = function(comparedRadians) {
+            return Math.round(this.radians * 10000) == Math.round(comparedRadians * 10000);
+        };
+        
+        this.lessThan = function(comparedRadians) {
+            return Math.round(this.radians * 10000) < Math.round(comparedRadians * 10000);
+        };
+        
+        this.greaterThan = function(comparedRadians) {
+            return Math.round(this.radians * 10000) > Math.round(comparedRadians * 10000);
+        };
+        
+        this.subtract = function(subtractedRadians) {
+            return new angle(((this.radians - subtractedRadians) + (2 * Math.PI) + 0.000001) % (2 * Math.PI));
+        };
+    },
+    
+    //segment between points a and b:
+    //note: this is a simple, non-polymorphic datatype for performance purposes:
+    segment = function(a, b) {
+        this.a = a;
+        this.b = b;
+        
+        this.equals = function(comparedSegment) {
+            return (this.a.equals(comparedSegment.a) && this.b.equals(comparedSegment.b))
+                    || (this.a.equals(comparedSegment.b) && this.b.equals(comparedSegment.a));
+        };
+            
+        this.length = function() {
+            var xDist = this.b.x - this.a.x;
+            var yDist = this.b.y - this.a.y;
+            return Math.sqrt((xDist * xDist) + (yDist * yDist));
+        };
+        
+        this.midpoint = function() {
+            return new point(this.a.x + ((this.b.x - this.a.x) / 2), this.a.y + ((this.b.y - this.a.y) / 2));
+        };
+        
+        //return an angle with respect to a specfic endpoint:
+        this.angle = function(p) {
+            var radians = (Math.atan2(this.b.y - this.a.y, this.b.x - this.a.x) + (2 * Math.PI)) % (2 * Math.PI);
+            
+            if(this.b.x === p.x && this.b.y === p.y) {
+                
+                //use angle with respect to b:
+                radians = (radians + (Math.PI)) % (2 * Math.PI);
+            }
+            
+            return new angle(radians);
+        };
+        
+        this.angleDegrees = function(p) {
+            return this.angle(p).radians * 180 / Math.PI;
+        };
+    },
+    
+    pointIntersectsSegment = function(s, p) {
+        
+        //boxing logic:
+        var xMin = Math.min(s.a.x, s.b.x);
+        var yMin = Math.min(s.a.y, s.b.y);
+        var xMax = Math.max(s.a.x, s.b.x);
+        var yMax = Math.max(s.a.y, s.b.y);
+        if(p.x < Math.min(s.a.x, s.b.x)
+                || p.y < Math.min(s.a.y, s.b.y)
+                || p.x > Math.max(s.a.x, s.b.x)
+                || p.y > Math.max(s.a.y, s.b.y)) {
+            return null;
+        }
+        
+        //test to see if p is on the line created by s:
+        var m = (s.b.y - s.a.y) / (s.b.x - s.a.x);
+        var b = s.a.y - (m * s.a.x);
+        
+        return (Math.abs(p.y - ((m * p.x) + b)) < 0.0001);
+    },
+    
+    //this is a modified version of https://gist.github.com/Joncom/e8e8d18ebe7fe55c3894
+    segmentsIntersect = function(s1, s2) {
+        
+        //exclude segments with shared endpoints:
+        if(s1.a.equals(s2.a) || s1.a.equals(s2.b) || s1.b.equals(s2.a) || s1.b.equals(s2.b)) {
+            return null;
+        }
+        
+        var s1_x = s1.b.x - s1.a.x;
+        var s1_y = s1.b.y - s1.a.y;
+        var s2_x = s2.b.x - s2.a.x;
+        var s2_y = s2.b.y - s2.a.y;
+        
+        var s = (-s1_y * (s1.a.x - s2.a.x) + s1_x * (s1.a.y - s2.a.y)) / (-s2_x * s1_y + s1_x * s2_y);
+        var t = (s2_x * (s1.a.y - s2.a.y) - s2_y * (s1.a.x - s2.a.x)) / (-s2_x * s1_y + s1_x * s2_y);
+        
+        if(s >= 0 && s <= 1 && t >= 0 && t <= 1) {
+            return new point(s1.a.x + (t * s1_x), s1.a.y + (t * s1_y));
+        }
+     
+        return null;
+    },
+    
+    
+    path = function() {
+        typedObject.call(this);
+        this._type.push('path');
+        this.points = []; //don't use getter/setter mechanism for the purpose of efficiency
+        this.segments = []; //don't use getter/setter mechanism for the purpose of efficiency
+    };
+    
+    inheritPrototype(path, typedObject);
+    
+    path.prototype.getPointIndex = function(p) {
+        for(var i = 0; i < this.points.length; i++) {
+            if(p.equals(this.points[i][0])) {
+                return i;
+            }
+        }
+        
+        return;
+    };
+    
+    path.prototype.getSegmentIndex = function(s) {
+        for(var i = 0; i < this.segments.length; i++) {
+            if(s.equals(this.segments[i])) {
+                return i;
+            }
+        }
+        
+        return;
+    };
+    
+    path.prototype.addPoint = function(p) {
+        var index = this.getPointIndex(p);
+        
+        if('undefined' === typeof(index)) {
+            
+            //add point and return its index:
+            return this.points.push([p, []]) - 1;
+        }
+        
+        return index;
+    };
+    
+    path.prototype.removeSegment = function(s) {
+        
+        var iS = this.getSegmentIndex(s);
+        
+        //remove segment from points:
+        for(var pI = this.points.length - 1; pI >= 0; pI--) {
+            for(var i = 0; i < this.points[pI][1].length; i++) {
+                if(this.points[pI][1][i] === iS) {
+                    
+                    //remove the segment reference:
+                    this.points[pI][1].splice(i, 1);
+                    
+                    //fix i since an item was deleted:
+                    i--;
+                } else if(this.points[pI][1][i] > iS) {
+                    
+                    //decrement segment index references, since a segment is being removed:
+                    this.points[pI][1][i]--;
+                }
+            }
+        }
+        
+        //remove segment from segments:
+        this.segments.splice(iS, 1);
+    };
+    
+    path.prototype.convertRawPathToPath = function(rawPath, top, left, isFromEvent) {
+        var pathPoints = [],
+            rawPathParsed = JSON.parse(rawPath);
+        
+        //if the path is from an event, the top/left is relative to the height/width of the path and needs to be corrected:
+        if(isFromEvent) {
+            var maxX = 0,
+                maxY = 0;
+                
+            rawPathParsed.forEach(function(pRaw) {
+                //TODO: handle types other than M and L:
+                var p = new point(pRaw[1], pRaw[2]);
+                pathPoints.push(p);
+                
+                //find the height and width as we loop through the points:
+                maxX = Math.max(maxX, p.x);
+                maxY = Math.max(maxY, p.y);
+            }, this);
+            
+            //fix top/left:
+            top -= maxY / 2;
+            left -= maxX / 2;
+            
+            //apply corrected top/left offsets to points:
+            pathPoints.forEach(function(p) {
+                p.x += left;
+                p.y += top;
+            }, this);
+        }
+        //if the path isn't from an event, the top/left can be interpreted literally and can be applied while creating the points:
+        else {
+            rawPathParsed.forEach(function(pRaw) {
+                //TODO: handle types other than M and L:
+                pathPoints.push(new point(pRaw[1] + left, pRaw[2] + top));
+            }, this);
+        }
+        
+        return pathPoints;
+    };
+    
+    path.prototype.addRawPath = function(rawPath, top, left, isFromEvent) {
+        var pathPoints = this.convertRawPathToPath(rawPath, top, left, isFromEvent);
+        return this.addPointsPath(pathPoints);
+    };
+    
+    path.prototype.addPointsPath = function(pathPoints) {
+        if(!(pathPoints && pathPoints.length > 1)) {
+            return;
+        }
+        
+        var hadIntersections = false;
+        
+        var pStart, //start point
+            pPrior; //prior point
+        
+        pathPoints.forEach(function(pCurrent) {
+            var iCurrent = this.addPoint(pCurrent); //index of current point
+            
+            if(pPrior) {
+                var result = this.addSegment(new segment(pPrior, pCurrent));
+                
+                if(result) {
+                    hadIntersections = hadIntersections || result.hadIntersections;
+                }
+            } else {
+                pStart = pCurrent;
+            }
+            
+            pPrior = pCurrent;
+        }, this);
+        
+        //if this is a polygon (broken polymorphism because it would be better to do multiple inheritence), close the polygon if it isn't closed already:
+        if(this.isType('polygon')) {
+            if(!pPrior.equals(pStart)) {
+                var result = this.addSegment(new segment(pPrior, pStart));
+                
+                if(result) {
+                    hadIntersections = hadIntersections || result.hadIntersections;
+                }
+            }
+        }
+        
+        /*
+        If prior to calling this method, only a simple polygon was stored, and then another simple polygon
+        is added, whether or not there were intersections reveals something about the interrelation of 
+        the two polygons that is useful for some algorithms. If two simple polygons don't intersect, then
+        either they are siblings, or one is completely contained within the other. This is detected in
+        this method because it would lead to redundant processing to do it elsewhere.
+        */
+        var returnObject = [];
+        returnObject.hadIntersections = hadIntersections;
+        return returnObject;
+    };
+    
+    
+    /*
+    A simple path has gauranteed properties. Each point can have one or an even number of segments. Only a point
+    at the beginning or end of the path can have one segment, and if one of them has one, then both must. If a point 
+    has more than two segments, then it is an intersection point. Segments are ordered such that they can be
+    traversed to find a walkable points path.
+    
+    If all points have an even number of segments, then it is a simple polygon and the first and last points 
+    have a shared segment.
+    */
+    var simplePath = function() {
+        path.call(this);
+        this._type.push('simplePath');
+    };
+    
+    inheritPrototype(simplePath, path);
+    
+    //adds the segment to the tail of the path:
+    simplePath.prototype.addSegment = function(s) {
+        if(!s.a.equals(s.b)) {
+            if(this.segments.length == 0) {
+            
+                //there are no segments, so insert this and establish orientation from s.a -> s.b:
+                var sI = this.segments.push(s) - 1;
+                var pAI = this.addPoint(s.a);
+                var pBI = this.addPoint(s.b);
+                this.points[pAI][1].push(sI);
+                this.points[pBI][1].push(sI);
+            } else {
+                
+                //fix the segment's orientation:
+                var sFixed = 
+                    new segment(
+                        this.segments[this.segments.length - 1].b,
+                        this.segments[this.segments.length - 1].b.equals(s.a)
+                            ? s.b
+                            : s.a
+                    );
+                
+                var sI = this.segments.push(sFixed) - 1;
+                var pAI = this.getPointIndex(sFixed.a);
+                var pBI = this.addPoint(sFixed.b);
+                this.points[pAI][1].push(sI);
+                this.points[pBI][1].push(sI);
+            }
+        }
+    };
+    
+    //breaks a segment at the specified point:
+    simplePath.prototype.breakSegment = function(s, p) {
+        if(!s.a.equals(p) && !s.b.equals(p)) {
+        
+            //get current indexes:
+            var sI = this.getSegmentIndex(s);
+            var pAI = this.getPointIndex(s.a);
+            var pBI = this.getPointIndex(s.b);
+            
+            //increment the references to all segments that are about to be shifted to the right:
+            this.points.forEach(function(p2) {
+                for(var i = 0; i < p2[1].length; i++) {
+                    if(p2[1][i] > sI) {
+                        p2[1][i]++;
+                    }
+                }
+            }, this);
+            
+            //add the new point:
+            var pI = this.addPoint(p);
+            
+            //splice in the right side of the broken segment:
+            this.segments.splice(sI + 1, 0, new segment(p, this.segments[sI].b));
+            
+            //modify the left side of the broken segment:
+            this.segments[sI].b = p;
+            
+            //increment point s.b's segment reference:
+            this.points[pBI][1][this.points[pBI][1].indexOf(sI)]++;
+            
+            //register the broken segments in point p:
+            this.points[pI][1].push(sI);
+            this.points[pI][1].push(sI + 1);
+        }
+    };
+    
+    //returns points in walking order:
+    simplePath.prototype.getPointsPath = function() {
+        if(!(this.segments && this.segments.length > 0)) {
+            return;
+        }
+        
+        var pointsPath = [];
+        pointsPath.push(this.segments[0].a);
+            
+        this.segments.forEach(function(s) {
+            pointsPath.push(s.b);
+        }, this);
+        
+        return pointsPath;
+    };
+    
+    //returns a raw path aligned at (0,0) with top/left offsets:
+    simplePath.prototype.getRawPath = function() {
+        if(!(this.segments && this.segments.length > 0)) {
+            return;
+        }
+        
+        //get a walkable path in the proper orientation:
+        var pointsPath = this.getPointsPath();
+        
+        var minX = pointsPath[0].x;
+        var minY = pointsPath[0].y;
+        var maxX = pointsPath[0].x;
+        var maxY = pointsPath[0].y;
+        
+        pointsPath.forEach(function(p) {
+            minX = Math.min(minX, p.x);
+            minY = Math.min(minY, p.y);
+            maxX = Math.max(maxX, p.x);
+            maxY = Math.max(maxY, p.y);
+        }, this);
+        
+        var rawPath = '[[\"M\",' + (pointsPath[0].x - minX) + ',' + (pointsPath[0].y - minY) + ']';
+        for(var i = 1; i < pointsPath.length; i++) {
+            rawPath += ',[\"L\",' + (pointsPath[i].x - minX) + ',' + (pointsPath[i].y - minY) + ']';
+        }
+        
+        //if this is a polygon, close the path:
+        if(this.isType('polygon' && !pointsPath[0].equals(pointsPath[pointsPath.length - 1]))) {
+            rawPath += ',[\"L\",' + (pointsPath[0].x - minX) + ',' + (pointsPath[0].y - minY) + ']';
+        }
+        
+        rawPath += ']';
+        
+        var returnObject = [];
+        returnObject.rawPath = rawPath;
+        returnObject.top = minY;
+        returnObject.left = minX;
+        returnObject.width = maxX - minX;
+        returnObject.height = maxY - minY;
+        return returnObject;
+    };
+    
+    //takes an array of path points that are gauranteed to intersect this path and returns paths that weren't intersected:
+    //note: this handles simple polygon logic as well
+    simplePath.prototype.removePathIntersections = function(intersectingPaths) {
+        
+        //Stuff this path's points into a data structure that has proper path order, but allows for tagging. Don't do tagging on this.points because it could get persisted when the points are saved.
+        var taggedPointsPath = [];
+        this.getPointsPath().forEach(function(p) {
+            taggedPointsPath.push([p, [false, false, false]]); //this consists of the point, whether or not there are intersections on it, if it's the start of an intersection, and if it's the end of an intersection
+        }, this);
+        
+        var getTaggedPointsPathPointIndex = function(taggedPointsPath, p) {
+            for(var i = 0; i < taggedPointsPath.length; i++) {
+                if(taggedPointsPath[i][0].equals(p)) {
+                    return i;
+                }
+            }
+            
+            return null;
+        };
+      
+        var breakSegmentIfPointNotFound = function(taggedPointsPath, p) {
+            if(getTaggedPointsPathPointIndex(taggedPointsPath, p) === null) {
+                for(var i = 0 + 1; i < taggedPointsPath.length; i++) {
+                    var s = new segment(taggedPointsPath[i - 1][0], taggedPointsPath[i][0]);
+                    if(pointIntersectsSegment(s, p)) {
+                        taggedPointsPath.splice(i, 0, [p, [false, false, false]]);
+                        return;
+                    }
+                }
+            }
+        };
+        
+        //break any intersections on this path with critical points on intersecting paths:
+        intersectingPaths.forEach(function(ip) {
+            breakSegmentIfPointNotFound(taggedPointsPath, ip[0]);
+            breakSegmentIfPointNotFound(taggedPointsPath, ip[1]);
+            breakSegmentIfPointNotFound(taggedPointsPath, ip[ip.length - 1]);
+        }, this);
+        
+        var fullyIntersected = false;
+        
+        //apply intersection tags to this path:
+        intersectingPaths.forEach(function(ip) {
+            
+            //test that ip is long enough to be used:
+            if(ip.length < 2) {
+                return;
+            }
+            
+            //test that the first, second, and last points from ip are all on this path, and the first and second are adjacent:
+            var iFirst = getTaggedPointsPathPointIndex(taggedPointsPath, ip[0]);
+            var iSecond = getTaggedPointsPathPointIndex(taggedPointsPath, ip[1]);
+            var iLast = getTaggedPointsPathPointIndex(taggedPointsPath, ip[ip.length - 1]);
+            
+            //if orientation is 1, the paths have the same orientation; otherwise, the orientation will be -1, if the orientation is anything else, the first and second points are not adjacent:
+            var orientation;
+            
+            //if this is a polygon and one of the points is at index 0, handle edge cases where the adjacent point is wrapped around; skip the last point in the polygon because it's redundant to the first point:
+            if(this.isType('polygon')) {
+                if(iFirst === 0 && iSecond === taggedPointsPath.length - 2) {
+                    orientation = -1;
+                } else if(iSecond === 0 && iFirst === taggedPointsPath.length - 2) {
+                    orientation = 1;
+                } else {
+                    orientation = iSecond - iFirst;
+                }
+            } else {
+                orientation = iSecond - iFirst;
+            }
+            
+            //abs(orientation) will normally be 1, as iFirst should be ajacent to iSecond. Give it an additional threshold in case there is a merge occurring where intersecting paths overlap.
+            if(iFirst === null || iSecond === null || iLast === null
+                    || Math.abs(orientation) === 0
+                    || Math.abs(orientation) > 3) {
+                return;
+            }
+            
+            //remove the grace from orientation so that it can be used for stepping:
+            orientation = (orientation > 0) ? 1 : -1;
+            
+            //as a special case, mark all as intersected if ip is a polygon (we already know it's of > 0 length):
+            if(iFirst === iLast) {
+                fullyIntersected = true;
+                return;
+            }
+            
+            //tag the points on this path as intersected that span between the first and last points exclusive:
+            for(var i = iFirst + 1; i !== iLast; i = (i + orientation) % taggedPointsPath.length) {
+                
+                //mark this point as intersected:
+                taggedPointsPath[i][1][0] = true;
+                
+                //clobber any other intersecting paths' endpoints:
+                taggedPointsPath[i][1][1] = false;
+                taggedPointsPath[i][1][2] = false;
+            }
+            
+            //tag this path with the endpoints of the intersecing path, with respect to this path's orientation:
+            //respect other intersecting paths' endpoints as if the new endpoints were clobbered:
+            if(orientation > 0) {
+                if(!taggedPointsPath[iFirst][1][0]) {
+                    taggedPointsPath[iFirst][1][1] = true;
+                }
+                
+                if(!taggedPointsPath[iLast][1][0]) {
+                    taggedPointsPath[iLast][1][2] = true;
+                }
+            } else {
+                if(!taggedPointsPath[iFirst][1][0]) {
+                    taggedPointsPath[iFirst][1][2] = true;
+                }
+                
+                if(!taggedPointsPath[iLast][1][0]) {
+                    taggedPointsPath[iLast][1][1] = true;
+                }
+            }
+            
+            //tag the endpoints:
+            taggedPointsPath[iFirst][1][0] = true;
+            taggedPointsPath[iLast][1][0] = true;
+        }, this);
+        
+        if(fullyIntersected) {
+            return [];
+        }
+        
+        var survivingPaths = [];
+        var initialPath = [];
+        var currentPath = initialPath;
+        
+        //determine the surviving paths that evaded intersection:
+        for(var i = 0; i < taggedPointsPath.length; i++) {
+            if(!taggedPointsPath[i][1][0]) {
+                
+                //add the current point:
+                currentPath.push(taggedPointsPath[i][0]);
+            } else {
+                
+                //handle start of intersections:
+                if(taggedPointsPath[i][1][1]) {
+                    
+                    //close off the current path:
+                    if(currentPath.length) {
+                        currentPath.push(taggedPointsPath[i][0]);
+                        survivingPaths.push(currentPath);
+                        currentPath = [];
+                    }
+                }
+                
+                //handle end of intersections:
+                if(taggedPointsPath[i][1][2]) {
+                    
+                    //begin a new current path:
+                    currentPath.push(taggedPointsPath[i][0]);
+                }
+            }
+        }
+        
+        /*
+        The initial path is special in that it might need to be prepended, but we won't know until we complete the circuit.
+        It will be prepended if: this path is a polygon, the initial path begins at point index 0, the initial path doesn't 
+        complete the circuit without intersections, and the final point of this path is not intersected.
+        */
+        //prepend to initialPath if necessary:
+        if(this.isType('polygon')
+                && !taggedPointsPath[0][1][0]
+                && currentPath !== initialPath
+                && currentPath.length > 0) {
+            survivingPaths[0] = currentPath.concat(survivingPaths[0]);
+        }
+        //include currentPath:
+        else {
+            if(currentPath.length > 1) {
+                survivingPaths.push(currentPath);
+            }
+        }
+        
+        return survivingPaths;
+    }
+    
+    
+    var complexPath = function() {
+        path.call(this);
+        this._type.push('complexPath');
+    };
+    
+    inheritPrototype(complexPath, path);
+    
+    //returns whether or not there were intersections, because this is useful information for certain algorithms:
+    complexPath.prototype.addSegment = function(s) {
+        
+        //note: it's illogical to return a segment's index, because it might have been broken into pieces:
+        //note: it's inconvient to do early detection of the segment being new, because of segment breaking:
+    
+        //don't add the segment if it's of 0 length:
+        if(s.a.equals(s.b)) {
+            return;
+        }
+        
+        var newSegments = [];
+        var brokenSegments = [];
+        var intersectingSegments = [];
+        
+        newSegments.push(s);
+        
+        //find segments that the new segment intersects:
+        this.segments.forEach(function(seg) {
+            if(segmentsIntersect(s, seg)) {
+                intersectingSegments.push(seg);
+            }
+        }, this);
+        
+        //break segment against all intersecting segments and remove intersecting segments:
+        intersectingSegments.forEach(function(seg) {
+           
+            //loop through new segments to look for intersections:
+            for(var i = 0; i < newSegments.length; i++) {
+               
+                //because we're breaking new segments, we have to retest for intersection:
+                var intersectionPoint = segmentsIntersect(newSegments[i], seg);
+                if(intersectionPoint) {
+                    
+                    //create broken segments out of old segment that was intersected:
+                    brokenSegments.push(new segment(seg.a, intersectionPoint));
+                    brokenSegments.push(new segment(intersectionPoint, seg.b));
+                    
+                    //remove the segment that was intersected from the graph:
+                    this.removeSegment(seg);
+                    
+                    //create new broken segments:
+                    newSegments.unshift(new segment(newSegments[i].a, intersectionPoint));
+                    newSegments.unshift(new segment(intersectionPoint, newSegments[i + 1].b));
+                    
+                    //remove the new segment that was just broken:
+                    newSegments.splice(i + 2, 1);
+                    
+                    //adjust the loop to bypass the broken newSegments that were already tested against seg:
+                    i++;
+                }
+            }
+        }, this);
+        
+        var hadIntersections = false;
+        
+        //add old broken segments:
+        brokenSegments.forEach(function(seg) {
+            if(!seg.a.equals(seg.b)) {
+                hadIntersections = true;
+                var iS = this.segments.push(seg) - 1;
+                var iPa = this.addPoint(seg.a);
+                var iPb = this.addPoint(seg.b);
+                this.points[iPa][1].push(iS);
+                this.points[iPb][1].push(iS);
+            }
+        }, this);
+        
+        //add new segments:
+        newSegments.forEach(function(seg) {
+            if(!seg.a.equals(seg.b)) {
+                var iS = this.segments.push(seg) - 1;
+                var iPa = this.addPoint(seg.a);
+                var iPb = this.addPoint(seg.b);
+                this.points[iPa][1].push(iS);
+                this.points[iPb][1].push(iS);
+            }
+        }, this);
+        
+        //create a return object with specific fields, so that the return values aren't misconstrued to be something more intuitive:
+        var returnObject = [];
+        returnObject.hadIntersections = hadIntersections;
+        return returnObject;
+    };
+    
+    
+    var simplePolygon = function() {
+        simplePath.call(this);
+        this._type.push('polygon');
+        this._type.push('simplePolygon');
+    };
+    
+    inheritPrototype(simplePolygon, simplePath);
+    
+    //tests if the point is inside the polygon:
+    simplePolygon.prototype.hasInsidePoint = function(p) {
+        
+        //use an arbitrarily long horizontal segment that goes into negatives (because of relative coordinates):
+        var horizontalSegment = new segment(new point(-1000000000, p.y), new point(1000000000, p.y));
+        
+        //count the intersecting points that appear to the left of the point in question:
+        var pointsOnLeft = 0;
+        
+        //find segments that intersect the point horizontally:
+        this.segments.forEach(function(s) {
+            
+            //find a naturally occurring intersection point:
+            var intersectingPoint = segmentsIntersect(horizontalSegment, s);
+            
+            //if there was no natural intersection point, test for a segment endpoint hitting the horizontal segment:
+            if(!intersectingPoint) {
+                
+                /*
+                If an endpoint on the segment is on the horizontal segment, count it as an intersecting segment if it is angling down from 
+                that point's perspective. This will result in two segments traveling through the horizontal segment to register as odd, and
+                will ignore any horizontal segments that are overlapping the horizontal segment.
+                */
+                if(s.a.y === p.y && s.b.y - s.a.y > 0) {
+                    intersectingPoint = s.a;
+                } else if(s.b.y === p.y && s.a.y - s.b.y > 0) {
+                    intersectingPoint = s.b;
+                }
+            }
+            
+            if(intersectingPoint && intersectingPoint.x < p.x) {
+                pointsOnLeft++;
+            }
+        }, this);
+        
+        //there will be an even number of intersections; if the point in question is between an odd number of intersections, it's inside the polygon:
+        return (pointsOnLeft % 2 === 1);
+    };
+    
+    //only tests segment's endpoints:
+    simplePolygon.prototype.hasInsideSegment = function(s) {
+        return (this.hasInsidePoint(s.a) && this.hasInsidePoint(s.b));
+    };
+    
+    simplePolygon.prototype.hasInsideEntirePath = function(sp) {
+        var pointsPath = sp.getPointsPath();
+        
+        for(var i = 0; i < pointsPath.length; i++) {
+            if(!this.hasInsidePoint(pointsPath[i])) {
+                return false;
+            }
+        }
+        
+        return true;
+    };
+    
+    //returns a point in this that is not contained in sp:
+    simplePolygon.prototype.getSinglePointIndexEvadingFilter = function(sp) {
+        var pointsPath = this.getPointsPath();
+      
+        for(var i = 0; i < pointsPath.length; i++) {
+            if(!sp.hasInsidePoint(pointsPath[i])) {
+                return i;
+            }
+        }
+        
+        return null;
+    };
+    
+    //returns all points in sp that are not contained in this:
+    simplePolygon.prototype.getContainedPoints = function(sp) {
+        var containedPoints = [];
+        
+        sp.getPointsPath().forEach(function(p) {
+            if(this.hasInsidePoint(p)) {
+                containedPoints.push(p);
+            }
+        }, this);
+        
+        return containedPoints;
+    };
+    
+    //returns intersecting paths (as an array of path points) for a simple path or simple polygon:
+    simplePolygon.prototype.getIntersectingPaths = function(sp) {
+        
+        //find all intersecting segments and their points of intersection:
+        var intersectingSegments = [];
+       
+        //break all intersecting segments, but keep references to them and check for further intersections:
+        for(var i = 0; i < sp.segments.length; i++) {
+            for(var i2 = 0; i2 < this.segments.length; i2++) {
+     
+                //because we're breaking new segments, we have to retest for intersection:
+                var intersectionPoint = segmentsIntersect(sp.segments[i], this.segments[i2]);
+                if(intersectionPoint) {
+                    
+                    //release reference to the broken segment if it exists:
+                    for(var i3 = 0; i3 < intersectingSegments.length; i3++) {
+                        if(intersectingSegments[i3][0].equals(sp.segments[i])) {
+                            intersectingSegments.splice(i3, 1);
+                        }
+                    }
+                    
+                    //break the segment in sp:
+                    sp.breakSegment(sp.segments[i], intersectionPoint);
+                    
+                    //store references to the broken segment pieces:
+                    intersectingSegments.push([sp.segments[i], false]);
+                    intersectingSegments.push([sp.segments[i + 1], false]);
+                    
+                    //break the segments in this so that we don't get repeated intersections in further tests:
+                    this.breakSegment(this.segments[i2], intersectionPoint);
+                }
+            }
+        }
+        
+        var intersectingPaths = [];
+        
+        //handle cases where there are no intersectingSegments:
+        if(!intersectingSegments.length) {
+            
+            //sp is fully contained in this:
+            if(this.hasInsidePoint(sp.points[0][0])) {
+                intersectingPaths.push(sp.getPointsPath());
+            }
+        } else {
+        
+            //intersectingSegments is now a stable array; loop through until all have been processed:
+            intersectingSegments.forEach(function(s) {
+                
+                //intersectingSegments can be processed inherently through processing others:
+                if(!s[1]) {
+                    
+                    //test the midpoint of the segment to see if it's contained in this polygon:
+                    if(this.hasInsidePoint(s[0].midpoint())) {
+                        var intersectingPath = [];
+                        
+                        intersectingPath.push(s[0].a);
+                        intersectingPath.push(s[0].b);
+                        
+                        //find the index of the segment in sp:
+                        var sIndex = sp.getSegmentIndex(s[0]);
+                        
+                        //walk the path forward until finding a segment that's not contained:
+                        var sWalkingIndex = sIndex + 1;
+                        
+                        if(sp.isType('polygon')) {
+                            sWalkingIndex %= sp.segments.length;
+                        }
+                        
+                        while(sWalkingIndex !== sIndex && sWalkingIndex < sp.segments.length && this.hasInsidePoint(sp.segments[sWalkingIndex].midpoint())) {
+                            var seg = sp.segments[sWalkingIndex];
+                            intersectingPath.push(seg.b);
+                            
+                            //if the segment is in intersectingSegments, mark it as processed:
+                            intersectingSegments.forEach(function(iSeg) {
+                                if(iSeg[0].equals(seg)) {
+                                    iSeg[1] = true;
+                                }
+                            }, this);
+                            
+                            sWalkingIndex++;
+                            
+                            if(sp.isType('polygon')) {
+                                sWalkingIndex %= sp.segments.length;
+                            }
+                        }
+                        
+                        //if the forward walk didn't complete the circuit, walk the path backward until finding a segment that's not contained:
+                        if(sWalkingIndex !== sIndex) {
+                            sWalkingIndex = sIndex - 1;
+                            
+                            if(sp.isType('polygon')) {
+                                sWalkingIndex = (sWalkingIndex + sp.segments.length) % sp.segments.length;
+                            }
+                            
+                            while(sWalkingIndex !== sIndex && sWalkingIndex >= 0 && this.hasInsidePoint(sp.segments[sWalkingIndex].midpoint())) {
+                                var seg = sp.segments[sWalkingIndex];
+                                intersectingPath.unshift(seg.a);
+                                    
+                                //if the segment is in intersectingSegments, mark it as processed:
+                                intersectingSegments.forEach(function(iSeg) {
+                                    if(iSeg[0].equals(seg)) {
+                                        iSeg[1] = true;
+                                    }
+                                }, this);
+                                
+                                sWalkingIndex--;
+                            
+                                if(sp.isType('polygon')) {
+                                    sWalkingIndex = (sWalkingIndex + sp.segments.length) % sp.segments.length;
+                                }
+                            }
+                        }
+                        
+                        intersectingPaths.push(intersectingPath);
+                    }
+                }
+            }, this);
+        }
+        
+        return intersectingPaths;
+    };
+    
+    //removes intersection with rsp (Removed Simple Polygon):
+    simplePolygon.prototype.removeIntersection = function(rsp) {
+        var controlPointIndex = this.getSinglePointIndexEvadingFilter(rsp);
+        
+        if(controlPointIndex === null) {
+            return;
+        }
+        
+        //get an angle from the control point to the prior point:
+        var controlSegment = new segment(this.points[controlPointIndex][0], this.points[(controlPointIndex - 1 + this.points.length) % this.points.length][0]);
+        var controlAngle = controlSegment.angle(controlSegment.a);
+        
+        //stuff both polygons into a complex polygon:
+        var cp = new complexPolygon();
+        cp.addPointsPath(this.getPointsPath());
+        cp.addPointsPath(rsp.getPointsPath());
+        
+        //get the point index out of cp in case it has changed since we found it in this.points:
+        var controlPointIndex = cp.getPointIndex(this.points[controlPointIndex][0]);
+        
+        return cp.convertToSimplePolygon(controlPointIndex, controlAngle, false);
+    };
+    
+    simplePolygon.prototype.invert = function() {
+        var invertedPoints = this.getPointsPath();
+        
+        var minX = invertedPoints[0].x;
+        var minY = invertedPoints[0].y;
+        var maxX = invertedPoints[0].x;
+        var maxY = invertedPoints[0].y;
+        var controlPointIndex = 0;
+        
+        //find the smallest x points, and of those, take the greatest y:
+        for(var i = 0; i < invertedPoints.length; i++) {
+            if((invertedPoints[i].x < invertedPoints[controlPointIndex].x)
+                    || (invertedPoints[i].x == invertedPoints[controlPointIndex].x && invertedPoints[i].y > invertedPoints[controlPointIndex].y)) {
+                controlPointIndex = i;
+            }
+            
+            minX = Math.min(minX, invertedPoints[i].x);
+            minY = Math.min(minY, invertedPoints[i].y);
+            maxX = Math.max(maxX, invertedPoints[i].x);
+            maxY = Math.max(maxY, invertedPoints[i].y);
+        }
+        
+        //the inverted border needs to be this much larger than the original polygon:
+        var invertedBorderDistance = 1;
+        
+        //insert a point immediately down from the control point to branch off from:
+        invertedPoints.splice(controlPointIndex + 1, 0, new point(invertedPoints[controlPointIndex].x, invertedPoints[controlPointIndex].y + 1));
+        
+        //branch the new point to the edge of the inverted border:
+        invertedPoints.splice(controlPointIndex + 1, 0, new point(minX - invertedBorderDistance, invertedPoints[controlPointIndex].y + 1));
+        
+        //draw the inverted border corners stemming from control point:
+        invertedPoints.splice(controlPointIndex + 1, 0, new point(minX - invertedBorderDistance, maxY + invertedBorderDistance));
+        invertedPoints.splice(controlPointIndex + 1, 0, new point(maxX + invertedBorderDistance, maxY + invertedBorderDistance));
+        invertedPoints.splice(controlPointIndex + 1, 0, new point(maxX + invertedBorderDistance, minY - invertedBorderDistance));
+        invertedPoints.splice(controlPointIndex + 1, 0, new point(minX - invertedBorderDistance, minY - invertedBorderDistance));
+        
+        //insert a point from the control point leading to the edge of the inverted border:
+        invertedPoints.splice(controlPointIndex + 1, 0, new point(minX - invertedBorderDistance, invertedPoints[controlPointIndex].y));
+        
+        var op = new simplePolygon();
+        op.addPointsPath(invertedPoints);
+        
+        return op;
+    };
+    
+  
+    var complexPolygon = function() {
+        complexPath.call(this);
+        this._type.push('polygon');
+        this._type.push('complexPolygon');
+    };
+    
+    inheritPrototype(complexPolygon, complexPath);
+    
+    //if isOuterDesired, this finds the most expansive path; otherwise, it finds the most restrictive path:
+    complexPolygon.prototype.convertToSimplePolygon = function(controlPointIndex, controlAngle, isOuterDesired) {
+        
+        //start keeping the points that will be used in the output polygon in the proper order:
+        var cleanPolygonPoints = [];
+        cleanPolygonPoints.push(this.points[controlPointIndex][0]);
+        
+        var iP = controlPointIndex; //index of current point
+        var a = controlAngle; //angle of prior segment
+        var loopLimit = 10000; //limit the loop iterations in case there's a bug or the equality clause ends up needing an epsilon
+        var firstIteration = true;
+        
+        //loop until the outside of the polygon has been traced:
+        while((loopLimit-- > 0) && !(!firstIteration && iP === controlPointIndex)) {
+            
+            firstIteration = false;
+            
+            /*
+            If isOuterDesired, find the longest segment originating from the current point that is the most counter-clockwise from the prior segment's angle:
+            If not isOuterDesired, find the shortest segment originating from the current point that is the least counter-clockwise from the prior segment's angle, without backtracking:
+            */
+            
+            //initialize variables:
+            var s;
+            var chosenSegment;
+            var sAngle;
+            var sLength = isOuterDesired ? 0 : 1000000000;
+            var sRelativeAngle = new angle(isOuterDesired ? 0.0001 : (2 * Math.PI) - 0.0001);
+        
+            //loop through the segments of this point:
+            for(var iS = 0; iS < this.points[iP][1].length; iS++) {
+                var seg = this.segments[this.points[iP][1][iS]];
+                var segAngle = seg.angle(this.points[iP][0]);
+                var relativeAngle = segAngle.subtract(a.radians);
+                
+                if((isOuterDesired &&
+                        ((relativeAngle.greaterThan(sRelativeAngle.radians))
+                        || (relativeAngle.equals(sRelativeAngle.radians) && seg.length() > sLength)))
+                    || (!isOuterDesired && relativeAngle.radians > 0.00001 &&
+                        ((relativeAngle.lessThan(sRelativeAngle.radians))
+                        || (relativeAngle.equals(sRelativeAngle.radians) && seg.length() < sLength)))) {
+                    s = iS;
+                    chosenSegment = this.segments[this.points[iP][1][s]];
+                    sAngle = chosenSegment.angle(this.points[iP][0]);
+                    sLength = chosenSegment.length();
+                    sRelativeAngle = relativeAngle;
+                }
+            }
+            
+            //the next point should be the endpoint of the segment that wasn't the prior point:
+            if(chosenSegment.a.equals(this.points[iP][0])) {
+                iP = this.getPointIndex(chosenSegment.b);
+            } else {
+                iP = this.getPointIndex(chosenSegment.a);
+            }
+            
+            //the angle of the current segment will be used as a limit for finding the next segment:
+            a = new angle((sAngle.radians + Math.PI) % (2 * Math.PI));
+            
+            //add the new point to the clean polygon:
+            cleanPolygonPoints.push(this.points[iP][0]);
+        }
+        
+        //create an simplePolygon with the points:
+        var op = new simplePolygon();
+        op.addPointsPath(cleanPolygonPoints);
+        return op;
+    };
+    
+    complexPolygon.prototype.convertToOuterSimplePolygon = function() {
+        
+        //find the smallest x points, and of those, take the greatest y:
+        var iTopLeftPoint = 0;
+        for(var i = 0; i < this.points.length; i++) {
+            if((this.points[i][0].x < this.points[iTopLeftPoint][0].x)
+                    || (this.points[i][0].x == this.points[iTopLeftPoint][0].x && this.points[i][0].y > this.points[iTopLeftPoint][0].y)) {
+                iTopLeftPoint = i;
+            }
+        }
+        
+        return this.convertToSimplePolygon(iTopLeftPoint, new angle(Math.PI / 2), true);
+    };
+    
+    
+    var graph = function() {
+        typedObject.call(this);
+        this._type.push('graph');
+        this.initializeCollectionProperty('simplePaths');
+        this.initializeCollectionProperty('complexPaths');
+        this.initializeCollectionProperty('simplePolygons');
+        this.initializeCollectionProperty('complexPolygons');
+    };
+    
+    inheritPrototype(graph, typedObject);
+    
+    graph.prototype.setProperty = function(property, value) {
+        switch(property) {
+            case 'simplePaths':
+            case 'complexPaths':
+            case 'simplePolygons':
+            case 'complexPolygons':
+                return this['_' + property].push(value) - 1;
+                break;
+            default:
+                typedObject.prototype.setProperty.call(this, property, value);
+                break;
+        }
+    };
+    
+    graph.prototype.initializeCollectionProperty = function(property) {
+        switch(property) {
+            case 'simplePaths':
+            case 'complexPaths':
+            case 'simplePolygons':
+            case 'complexPolygons':
+                this['_' + property] = [];
+                break;
+            default:
+                typedObject.prototype.initializeCollectionProperty.call(this, property);
+                break;
+        }
+    };
+    
+    graph.prototype.addSimplePath = function(rawPath, top, left, isFromEvent) {
+        if('undefined' === typeof(top)) {
+            top = 0;
+        }
+        
+        if('undefined' === typeof(left)) {
+            left = 0;
+        }
+        
+        var sp = new simplePath();
+        sp.addRawPath(rawPath, top, left, isFromEvent);
+        return this.setProperty('simplePaths', sp);
+    };
+    
+    graph.prototype.addSimplePathFromPoints = function(pointsPath) {
+        var sp = new simplePath();
+        sp.addPointsPath(pointsPath);
+        return this.setProperty('simplePaths', sp);
+    };
+    
+    graph.prototype.addSimplePathFromSegment = function(s, top, left) {
+        if('undefined' === typeof(top)) {
+            top = 0;
+        }
+        
+        if('undefined' === typeof(left)) {
+            left = 0;
+        }
+        
+        var sp = new simplePath();
+        
+        //convert s into a segment (because it may have been loaded and lost that property) and apply offsets:
+        sp.addSegment(new segment(new point(s.a.x + left, s.a.y + top), new point(s.b.x + left, s.b.y + top)));
+        
+        return this.setProperty('simplePaths', sp);
+    };
+    
+    graph.prototype.addComplexPath = function(rawPath, top, left, isFromEvent) {
+        var cp = new complexPath();
+        cp.addRawPath(rawPath, top, left, isFromEvent);
+        return this.setProperty('complexPaths', cp);
+    };
+    
+    graph.prototype.addSimplePolygon = function(rawPath, top, left, isFromEvent) {
+        if('undefined' === typeof(top)) {
+            top = 0;
+        }
+        
+        if('undefined' === typeof(left)) {
+            left = 0;
+        }
+        
+        var sp = new simplePolygon();
+        sp.addRawPath(rawPath, top, left, isFromEvent);
+        return this.setProperty('simplePolygons', sp);
+    };
+    
+    graph.prototype.addComplexPolygon = function(rawPath, top, left, isFromEvent) {
+        var cp = new complexPolygon();
+        cp.addRawPath(rawPath, top, left, isFromEvent);
+        return this.setProperty('complexPolygons', cp);
+    };
+    
+    graph.prototype.convertComplexPolygonToSimplePolygon = function(index) {
+        var op = this.getProperty('complexPolygons')[index].convertToOuterSimplePolygon();
+        this.getProperty('complexPolygons').splice(index, 1);
+        return this.setProperty('simplePolygons', op);
+    };
+    
+    graph.prototype.getRawPath = function(pathType, index) {
+        return this.getProperty(pathType)[index].getRawPath();
+    };
+    
+    graph.prototype.getPointsPath = function(pathType, index) {
+        return this.getProperty(pathType)[index].getPointsPath();
+    };
+    
+    graph.prototype.getContainedPoints = function(pathType1, index1, pathType2, index2) {
+        return this.getProperty(pathType1)[index1].getContainedPoints(this.getProperty(pathType2)[index2]);
+    };
+    
+    graph.prototype.mergeSimplePolygons = function(index1, index2) {
+        var cp = new complexPolygon();
+        var op1 = this.getProperty('simplePolygons')[index1];
+        
+        //stuff points from op1 into cp, rather than re-inserting, for the sake of efficiency:
+        cp.points = op1.points;
+        cp.segments = op1.segments;
+        
+        var op2 = this.getProperty('simplePolygons')[index2];
+        var cpResult = cp.addPointsPath(op2.getPointsPath());
+        
+        //polygons intersect, so return their merge:
+        if(cpResult.hadIntersections) {
+            var cpIndex = this.setProperty('complexPolygons', cp);
+            return this.convertComplexPolygonToSimplePolygon(cpIndex);
+        } 
+        //polygon 2 is fully contained within polygon 1, so return polygon 1:
+        else if(op1.hasInsidePoint(op2.points[0][0])) {
+            return index1;
+        }
+        //polygon 1 is fully contained within polygon 2, so return polygon 2:
+        else if(op2.hasInsidePoint(op1.points[0][0])) {
+            return index2;
+        }
+        //the polygons are siblings, so merging cannot be done:
+        else {
+            return null;
+        }
+    };
+    
+    //removes the intersection between the two polygons from the first:
+    graph.prototype.removeFromSimplePolygon = function(index1, index2) {
+        var cp = new complexPolygon();
+        var op1 = this.getProperty('simplePolygons')[index1];
+        var op2 = this.getProperty('simplePolygons')[index2];
+        var op3 = op1.removeIntersection(op2);
+        
+        if(!op3) {
+            return;
+        } 
+        
+        return this.setProperty('simplePolygons', op3);
+    };
+    
+    graph.prototype.invertSimplePolygon = function(index) {
+        var invertedOp = this.getProperty('simplePolygons')[index].invert();
+        return this.setProperty('simplePolygons', invertedOp);
+    };
+    
+    graph.prototype.removePathIntersections = function(pathType, index, intersectingPaths) {
+        return this.getProperty(pathType)[index].removePathIntersections(intersectingPaths);
+    };
+    
+    graph.prototype.getIntersectingPaths = function(pathType1, index1, pathType2, index2) {
+        return this.getProperty(pathType1)[index1].getIntersectingPaths(this.getProperty(pathType2)[index2]);
+    };
+    
+    graph.prototype.hasInsidePoint = function(pathType, index, p) {
+        return this.getProperty(pathType)[index].hasInsidePoint(p);
+    };
+    
+    graph.prototype.hasInsideSegment = function(pathType, index, s) {
+        return this.getProperty(pathType)[index].hasInsideSegment(s);
+    };
+    
+    graph.prototype.hasInsideEntirePath = function(pathType1, index1, pathType2, index2) {
+        return this.getProperty(pathType1)[index1].hasInsideEntirePath(this.getProperty(pathType2)[index2]);
+    };
+        
+     
+    /* polygon logic - end */
+    
+    /* roll20 object management - begin */
+    
+    var deleteObject = function(type, id) {
+        state.APIAreaMapper.tempIgnoreDrawingEvents = true;
+        
+        var obj = getObj(type, id);
+        if(obj) {
+            obj.remove();
+        }
+        
+        state.APIAreaMapper.tempIgnoreDrawingEvents = false;
+    },
+    
+    getRectanglePath = function(height, width) {
+        return "[[\"M\",0,0],[\"L\",0," + height + "],[\"L\"," + width + "," + height + "],[\"L\"," + width + ",0],[\"L\",0,0]]";
+    },
+    
+    createPathObject = function(pageId, layer, strokeColor, fillColor, path, top, left, height, width, strokeWidth, rotation) {
+        state.APIAreaMapper.tempIgnoreDrawingEvents = true;
+        
+        if('undefined' === typeof(strokeWidth)) {
+            strokeWidth = 1;
+        }
+        
+        if('undefined' === typeof(rotation)) {
+            rotation = 0;
+        }
+        
+        var obj = createObj('path', {
+            layer: layer,
+            pageid: pageId,
+            top: top + (height / 2),
+            left: left + (width / 2),
+            height: height,
+            width: width,
+            stroke: strokeColor,
+            stroke_width: strokeWidth,
+            fill: fillColor,
+            _path: path,
+            rotation: rotation
+        });
+        
+        state.APIAreaMapper.tempIgnoreDrawingEvents = false;
+        
+        return obj;
+    },
+    
+    createRectanglePathObject = function(pageId, layer, strokeColor, fillColor, top, left, height, width, rotation) {
+        return createPathObject(
+                pageId,
+                layer,
+                strokeColor,
+                fillColor,
+                getRectanglePath(height, width),
+                top,
+                left,
+                height,
+                width,
+                1,
+                rotation
+            );
+    },
+    
+    drawFeatureTag = function(graphic, tagBand, color) {
+        var tagStrokeWidth = 4;
+     
+        var height = graphic.get('height') + (2 * (tagBand * tagStrokeWidth));
+        var width = graphic.get('width') + (2 * (tagBand * tagStrokeWidth));
+        
+        return createPathObject(
+            graphic.get('_pageid'),
+            'gmlayer',
+            color,
+            'transparent',
+            getRectanglePath(height, width),
+            graphic.get('top') - (height / 2),
+            graphic.get('left') - (width / 2),
+            height,
+            width,
+            tagStrokeWidth,
+            graphic.get('rotation')
+        );
+    },
+    
+    //receives a graphic and an array of tag colors, and returns an array of new feature tag IDs:
+    drawFeatureTags = function(graphic, featureTagColors) {
+        var tagIds = [];
+        var tagBand = 0;
+        
+        featureTagColors.forEach(function(color) {
+            tagIds.push(drawFeatureTag(graphic, tagBand++, color).id);
+        }, this);
+        
+        return tagIds;
+    },
+    
+    createTokenObjectFromSegment = function(imgsrc, pageId, layer, segment, width, alternateWidthAndHeight) {
+        state.APIAreaMapper.tempIgnoreDrawingEvents = true;
+        
+        var height = segment.length() + 14;
+        
+        var obj = createObj('graphic', {
+            imgsrc: imgsrc,
+            layer: layer,
+            pageid: pageId,
+            width: alternateWidthAndHeight ? height : width,
+            top: segment.b.y + ((segment.a.y - segment.b.y) / 2),
+            left: segment.b.x + ((segment.a.x - segment.b.x) / 2),
+            height: alternateWidthAndHeight ? width : height,
+            rotation: segment.angleDegrees(segment.a) + (alternateWidthAndHeight ? 0 : 90)
+        });
+        
+        state.APIAreaMapper.tempIgnoreDrawingEvents = false;
+        
+        return obj;
+    },
+    
+    //creates a token object using a segment to define its dimensions:
+    createTokenObject = function(imgsrc, pageId, layer, segment, rotation) {
+        if('undefined' === typeof(rotation)) {
+            rotation = 0;
+        }
+        
+        state.APIAreaMapper.tempIgnoreDrawingEvents = true;
+        
+        var obj = createObj('graphic', {
+            imgsrc: imgsrc,
+            layer: layer,
+            pageid: pageId,
+            top: segment.b.y + ((segment.a.y - segment.b.y) / 2),
+            left: segment.b.x + ((segment.a.x - segment.b.x) / 2),
+            height: segment.b.y - segment.a.y,
+            width: segment.b.x - segment.a.x,
+            rotation: rotation
+        });
+        
+        state.APIAreaMapper.tempIgnoreDrawingEvents = false;
+        
+        return obj;
+    },
+    
+    /* roll20 object management - end */
+    
     /* area - begin */
     
-    var interactiveObject = function(isOpen, isLocked, isTrapped, isHidden) {
+    interactiveObject = function(isOpen, isLocked, isTrapped, isHidden) {
         typedObject.call(this);
         this._type.push('interactiveObject');
         
@@ -2120,1413 +3524,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     /* area - end */
     
-    /* polygon logic - begin */
+    /* business logic bridge - begin */
     
-    //note: this is a simple, non-polymorphic datatype for performance purposes:
-    var point = function(x, y) {
-        this.x = x;
-        this.y = y;
-        
-        this.equals = function(comparedPoint) {
-            return (this.x === comparedPoint.x && this.y === comparedPoint.y);
-        };
-    },
-    
-    //angle object to simplify comparisons with epsilons:
-    //note: this is a simple, non-polymorphic datatype for performance purposes:
-    angle = function(radians) {
-        this.radians = radians;
-        
-        this.equals = function(comparedRadians) {
-            return Math.round(this.radians * 10000) == Math.round(comparedRadians * 10000);
-        };
-        
-        this.lessThan = function(comparedRadians) {
-            return Math.round(this.radians * 10000) < Math.round(comparedRadians * 10000);
-        };
-        
-        this.greaterThan = function(comparedRadians) {
-            return Math.round(this.radians * 10000) > Math.round(comparedRadians * 10000);
-        };
-        
-        this.subtract = function(subtractedRadians) {
-            return new angle(((this.radians - subtractedRadians) + (2 * Math.PI) + 0.000001) % (2 * Math.PI));
-        };
-    },
-    
-    //segment between points a and b:
-    //note: this is a simple, non-polymorphic datatype for performance purposes:
-    segment = function(a, b) {
-        this.a = a;
-        this.b = b;
-        
-        this.equals = function(comparedSegment) {
-            return (this.a.equals(comparedSegment.a) && this.b.equals(comparedSegment.b))
-                    || (this.a.equals(comparedSegment.b) && this.b.equals(comparedSegment.a));
-        };
-            
-        this.length = function() {
-            var xDist = this.b.x - this.a.x;
-            var yDist = this.b.y - this.a.y;
-            return Math.sqrt((xDist * xDist) + (yDist * yDist));
-        };
-        
-        this.midpoint = function() {
-            return new point(this.a.x + ((this.b.x - this.a.x) / 2), this.a.y + ((this.b.y - this.a.y) / 2));
-        };
-        
-        //return an angle with respect to a specfic endpoint:
-        this.angle = function(p) {
-            var radians = (Math.atan2(this.b.y - this.a.y, this.b.x - this.a.x) + (2 * Math.PI)) % (2 * Math.PI);
-            
-            if(this.b.x === p.x && this.b.y === p.y) {
-                
-                //use angle with respect to b:
-                radians = (radians + (Math.PI)) % (2 * Math.PI);
-            }
-            
-            return new angle(radians);
-        };
-        
-        this.angleDegrees = function(p) {
-            return this.angle(p).radians * 180 / Math.PI;
-        };
-    },
-    
-    pointIntersectsSegment = function(s, p) {
-        
-        //boxing logic:
-        var xMin = Math.min(s.a.x, s.b.x);
-        var yMin = Math.min(s.a.y, s.b.y);
-        var xMax = Math.max(s.a.x, s.b.x);
-        var yMax = Math.max(s.a.y, s.b.y);
-        if(p.x < Math.min(s.a.x, s.b.x)
-                || p.y < Math.min(s.a.y, s.b.y)
-                || p.x > Math.max(s.a.x, s.b.x)
-                || p.y > Math.max(s.a.y, s.b.y)) {
-            return null;
-        }
-        
-        //test to see if p is on the line created by s:
-        var m = (s.b.y - s.a.y) / (s.b.x - s.a.x);
-        var b = s.a.y - (m * s.a.x);
-        
-        return (Math.abs(p.y - ((m * p.x) + b)) < 0.0001);
-    },
-    
-    //this is a modified version of https://gist.github.com/Joncom/e8e8d18ebe7fe55c3894
-    segmentsIntersect = function(s1, s2) {
-        
-        //exclude segments with shared endpoints:
-        if(s1.a.equals(s2.a) || s1.a.equals(s2.b) || s1.b.equals(s2.a) || s1.b.equals(s2.b)) {
-            return null;
-        }
-        
-        var s1_x = s1.b.x - s1.a.x;
-        var s1_y = s1.b.y - s1.a.y;
-        var s2_x = s2.b.x - s2.a.x;
-        var s2_y = s2.b.y - s2.a.y;
-        
-        var s = (-s1_y * (s1.a.x - s2.a.x) + s1_x * (s1.a.y - s2.a.y)) / (-s2_x * s1_y + s1_x * s2_y);
-        var t = (s2_x * (s1.a.y - s2.a.y) - s2_y * (s1.a.x - s2.a.x)) / (-s2_x * s1_y + s1_x * s2_y);
-        
-        if(s >= 0 && s <= 1 && t >= 0 && t <= 1) {
-            return new point(s1.a.x + (t * s1_x), s1.a.y + (t * s1_y));
-        }
-     
-        return null;
-    },
-    
-    
-    path = function() {
-        typedObject.call(this);
-        this._type.push('path');
-        this.points = []; //don't use getter/setter mechanism for the purpose of efficiency
-        this.segments = []; //don't use getter/setter mechanism for the purpose of efficiency
-    };
-    
-    inheritPrototype(path, typedObject);
-    
-    path.prototype.getPointIndex = function(p) {
-        for(var i = 0; i < this.points.length; i++) {
-            if(p.equals(this.points[i][0])) {
-                return i;
-            }
-        }
-        
-        return;
-    };
-    
-    path.prototype.getSegmentIndex = function(s) {
-        for(var i = 0; i < this.segments.length; i++) {
-            if(s.equals(this.segments[i])) {
-                return i;
-            }
-        }
-        
-        return;
-    };
-    
-    path.prototype.addPoint = function(p) {
-        var index = this.getPointIndex(p);
-        
-        if('undefined' === typeof(index)) {
-            
-            //add point and return its index:
-            return this.points.push([p, []]) - 1;
-        }
-        
-        return index;
-    };
-    
-    path.prototype.removeSegment = function(s) {
-        
-        var iS = this.getSegmentIndex(s);
-        
-        //remove segment from points:
-        for(var pI = this.points.length - 1; pI >= 0; pI--) {
-            for(var i = 0; i < this.points[pI][1].length; i++) {
-                if(this.points[pI][1][i] === iS) {
-                    
-                    //remove the segment reference:
-                    this.points[pI][1].splice(i, 1);
-                    
-                    //fix i since an item was deleted:
-                    i--;
-                } else if(this.points[pI][1][i] > iS) {
-                    
-                    //decrement segment index references, since a segment is being removed:
-                    this.points[pI][1][i]--;
-                }
-            }
-        }
-        
-        //remove segment from segments:
-        this.segments.splice(iS, 1);
-    };
-    
-    path.prototype.convertRawPathToPath = function(rawPath, top, left, isFromEvent) {
-        var pathPoints = [],
-            rawPathParsed = JSON.parse(rawPath);
-        
-        //if the path is from an event, the top/left is relative to the height/width of the path and needs to be corrected:
-        if(isFromEvent) {
-            var maxX = 0,
-                maxY = 0;
-                
-            rawPathParsed.forEach(function(pRaw) {
-                //TODO: handle types other than M and L:
-                var p = new point(pRaw[1], pRaw[2]);
-                pathPoints.push(p);
-                
-                //find the height and width as we loop through the points:
-                maxX = Math.max(maxX, p.x);
-                maxY = Math.max(maxY, p.y);
-            }, this);
-            
-            //fix top/left:
-            top -= maxY / 2;
-            left -= maxX / 2;
-            
-            //apply corrected top/left offsets to points:
-            pathPoints.forEach(function(p) {
-                p.x += left;
-                p.y += top;
-            }, this);
-        }
-        //if the path isn't from an event, the top/left can be interpreted literally and can be applied while creating the points:
-        else {
-            rawPathParsed.forEach(function(pRaw) {
-                //TODO: handle types other than M and L:
-                pathPoints.push(new point(pRaw[1] + left, pRaw[2] + top));
-            }, this);
-        }
-        
-        return pathPoints;
-    };
-    
-    path.prototype.addRawPath = function(rawPath, top, left, isFromEvent) {
-        var pathPoints = this.convertRawPathToPath(rawPath, top, left, isFromEvent);
-        return this.addPointsPath(pathPoints);
-    };
-    
-    path.prototype.addPointsPath = function(pathPoints) {
-        if(!(pathPoints && pathPoints.length > 1)) {
-            return;
-        }
-        
-        var hadIntersections = false;
-        
-        var pStart, //start point
-            pPrior; //prior point
-        
-        pathPoints.forEach(function(pCurrent) {
-            var iCurrent = this.addPoint(pCurrent); //index of current point
-            
-            if(pPrior) {
-                var result = this.addSegment(new segment(pPrior, pCurrent));
-                
-                if(result) {
-                    hadIntersections = hadIntersections || result.hadIntersections;
-                }
-            } else {
-                pStart = pCurrent;
-            }
-            
-            pPrior = pCurrent;
-        }, this);
-        
-        //if this is a polygon (broken polymorphism because it would be better to do multiple inheritence), close the polygon if it isn't closed already:
-        if(this.isType('polygon')) {
-            if(!pPrior.equals(pStart)) {
-                var result = this.addSegment(new segment(pPrior, pStart));
-                
-                if(result) {
-                    hadIntersections = hadIntersections || result.hadIntersections;
-                }
-            }
-        }
-        
-        /*
-        If prior to calling this method, only a simple polygon was stored, and then another simple polygon
-        is added, whether or not there were intersections reveals something about the interrelation of 
-        the two polygons that is useful for some algorithms. If two simple polygons don't intersect, then
-        either they are siblings, or one is completely contained within the other. This is detected in
-        this method because it would lead to redundant processing to do it elsewhere.
-        */
-        var returnObject = [];
-        returnObject.hadIntersections = hadIntersections;
-        return returnObject;
-    };
-    
-    
-    /*
-    A simple path has gauranteed properties. Each point can have one or an even number of segments. Only a point
-    at the beginning or end of the path can have one segment, and if one of them has one, then both must. If a point 
-    has more than two segments, then it is an intersection point. Segments are ordered such that they can be
-    traversed to find a walkable points path.
-    
-    If all points have an even number of segments, then it is a simple polygon and the first and last points 
-    have a shared segment.
-    */
-    var simplePath = function() {
-        path.call(this);
-        this._type.push('simplePath');
-    };
-    
-    inheritPrototype(simplePath, path);
-    
-    //adds the segment to the tail of the path:
-    simplePath.prototype.addSegment = function(s) {
-        if(!s.a.equals(s.b)) {
-            if(this.segments.length == 0) {
-            
-                //there are no segments, so insert this and establish orientation from s.a -> s.b:
-                var sI = this.segments.push(s) - 1;
-                var pAI = this.addPoint(s.a);
-                var pBI = this.addPoint(s.b);
-                this.points[pAI][1].push(sI);
-                this.points[pBI][1].push(sI);
-            } else {
-                
-                //fix the segment's orientation:
-                var sFixed = 
-                    new segment(
-                        this.segments[this.segments.length - 1].b,
-                        this.segments[this.segments.length - 1].b.equals(s.a)
-                            ? s.b
-                            : s.a
-                    );
-                
-                var sI = this.segments.push(sFixed) - 1;
-                var pAI = this.getPointIndex(sFixed.a);
-                var pBI = this.addPoint(sFixed.b);
-                this.points[pAI][1].push(sI);
-                this.points[pBI][1].push(sI);
-            }
-        }
-    };
-    
-    //breaks a segment at the specified point:
-    simplePath.prototype.breakSegment = function(s, p) {
-        if(!s.a.equals(p) && !s.b.equals(p)) {
-        
-            //get current indexes:
-            var sI = this.getSegmentIndex(s);
-            var pAI = this.getPointIndex(s.a);
-            var pBI = this.getPointIndex(s.b);
-            
-            //increment the references to all segments that are about to be shifted to the right:
-            this.points.forEach(function(p2) {
-                for(var i = 0; i < p2[1].length; i++) {
-                    if(p2[1][i] > sI) {
-                        p2[1][i]++;
-                    }
-                }
-            }, this);
-            
-            //add the new point:
-            var pI = this.addPoint(p);
-            
-            //splice in the right side of the broken segment:
-            this.segments.splice(sI + 1, 0, new segment(p, this.segments[sI].b));
-            
-            //modify the left side of the broken segment:
-            this.segments[sI].b = p;
-            
-            //increment point s.b's segment reference:
-            this.points[pBI][1][this.points[pBI][1].indexOf(sI)]++;
-            
-            //register the broken segments in point p:
-            this.points[pI][1].push(sI);
-            this.points[pI][1].push(sI + 1);
-        }
-    };
-    
-    //returns points in walking order:
-    simplePath.prototype.getPointsPath = function() {
-        if(!(this.segments && this.segments.length > 0)) {
-            return;
-        }
-        
-        var pointsPath = [];
-        pointsPath.push(this.segments[0].a);
-            
-        this.segments.forEach(function(s) {
-            pointsPath.push(s.b);
-        }, this);
-        
-        return pointsPath;
-    };
-    
-    //returns a raw path aligned at (0,0) with top/left offsets:
-    simplePath.prototype.getRawPath = function() {
-        if(!(this.segments && this.segments.length > 0)) {
-            return;
-        }
-        
-        //get a walkable path in the proper orientation:
-        var pointsPath = this.getPointsPath();
-        
-        var minX = pointsPath[0].x;
-        var minY = pointsPath[0].y;
-        var maxX = pointsPath[0].x;
-        var maxY = pointsPath[0].y;
-        
-        pointsPath.forEach(function(p) {
-            minX = Math.min(minX, p.x);
-            minY = Math.min(minY, p.y);
-            maxX = Math.max(maxX, p.x);
-            maxY = Math.max(maxY, p.y);
-        }, this);
-        
-        var rawPath = '[[\"M\",' + (pointsPath[0].x - minX) + ',' + (pointsPath[0].y - minY) + ']';
-        for(var i = 1; i < pointsPath.length; i++) {
-            rawPath += ',[\"L\",' + (pointsPath[i].x - minX) + ',' + (pointsPath[i].y - minY) + ']';
-        }
-        
-        //if this is a polygon, close the path:
-        if(this.isType('polygon' && !pointsPath[0].equals(pointsPath[pointsPath.length - 1]))) {
-            rawPath += ',[\"L\",' + (pointsPath[0].x - minX) + ',' + (pointsPath[0].y - minY) + ']';
-        }
-        
-        rawPath += ']';
-        
-        var returnObject = [];
-        returnObject.rawPath = rawPath;
-        returnObject.top = minY;
-        returnObject.left = minX;
-        returnObject.width = maxX - minX;
-        returnObject.height = maxY - minY;
-        return returnObject;
-    };
-    
-    //takes an array of path points that are gauranteed to intersect this path and returns paths that weren't intersected:
-    //note: this handles simple polygon logic as well
-    simplePath.prototype.removePathIntersections = function(intersectingPaths) {
-        
-        //Stuff this path's points into a data structure that has proper path order, but allows for tagging. Don't do tagging on this.points because it could get persisted when the points are saved.
-        var taggedPointsPath = [];
-        this.getPointsPath().forEach(function(p) {
-            taggedPointsPath.push([p, [false, false, false]]); //this consists of the point, whether or not there are intersections on it, if it's the start of an intersection, and if it's the end of an intersection
-        }, this);
-        
-        var getTaggedPointsPathPointIndex = function(taggedPointsPath, p) {
-            for(var i = 0; i < taggedPointsPath.length; i++) {
-                if(taggedPointsPath[i][0].equals(p)) {
-                    return i;
-                }
-            }
-            
-            return null;
-        };
-      
-        var breakSegmentIfPointNotFound = function(taggedPointsPath, p) {
-            if(getTaggedPointsPathPointIndex(taggedPointsPath, p) === null) {
-                for(var i = 0 + 1; i < taggedPointsPath.length; i++) {
-                    var s = new segment(taggedPointsPath[i - 1][0], taggedPointsPath[i][0]);
-                    if(pointIntersectsSegment(s, p)) {
-                        taggedPointsPath.splice(i, 0, [p, [false, false, false]]);
-                        return;
-                    }
-                }
-            }
-        };
-        
-        //break any intersections on this path with critical points on intersecting paths:
-        intersectingPaths.forEach(function(ip) {
-            breakSegmentIfPointNotFound(taggedPointsPath, ip[0]);
-            breakSegmentIfPointNotFound(taggedPointsPath, ip[1]);
-            breakSegmentIfPointNotFound(taggedPointsPath, ip[ip.length - 1]);
-        }, this);
-        
-        var fullyIntersected = false;
-        
-        //apply intersection tags to this path:
-        intersectingPaths.forEach(function(ip) {
-            
-            //test that ip is long enough to be used:
-            if(ip.length < 2) {
-                return;
-            }
-            
-            //test that the first, second, and last points from ip are all on this path, and the first and second are adjacent:
-            var iFirst = getTaggedPointsPathPointIndex(taggedPointsPath, ip[0]);
-            var iSecond = getTaggedPointsPathPointIndex(taggedPointsPath, ip[1]);
-            var iLast = getTaggedPointsPathPointIndex(taggedPointsPath, ip[ip.length - 1]);
-            
-            //if orientation is 1, the paths have the same orientation; otherwise, the orientation will be -1, if the orientation is anything else, the first and second points are not adjacent:
-            var orientation;
-            
-            //if this is a polygon and one of the points is at index 0, handle edge cases where the adjacent point is wrapped around; skip the last point in the polygon because it's redundant to the first point:
-            if(this.isType('polygon')) {
-                if(iFirst === 0 && iSecond === taggedPointsPath.length - 2) {
-                    orientation = -1;
-                } else if(iSecond === 0 && iFirst === taggedPointsPath.length - 2) {
-                    orientation = 1;
-                } else {
-                    orientation = iSecond - iFirst;
-                }
-            } else {
-                orientation = iSecond - iFirst;
-            }
-            
-            //abs(orientation) will normally be 1, as iFirst should be ajacent to iSecond. Give it an additional threshold in case there is a merge occurring where intersecting paths overlap.
-            if(iFirst === null || iSecond === null || iLast === null
-                    || Math.abs(orientation) === 0
-                    || Math.abs(orientation) > 3) {
-                return;
-            }
-            
-            //remove the grace from orientation so that it can be used for stepping:
-            orientation = (orientation > 0) ? 1 : -1;
-            
-            //as a special case, mark all as intersected if ip is a polygon (we already know it's of > 0 length):
-            if(iFirst === iLast) {
-                fullyIntersected = true;
-                return;
-            }
-            
-            //tag the points on this path as intersected that span between the first and last points exclusive:
-            for(var i = iFirst + 1; i !== iLast; i = (i + orientation) % taggedPointsPath.length) {
-                
-                //mark this point as intersected:
-                taggedPointsPath[i][1][0] = true;
-                
-                //clobber any other intersecting paths' endpoints:
-                taggedPointsPath[i][1][1] = false;
-                taggedPointsPath[i][1][2] = false;
-            }
-            
-            //tag this path with the endpoints of the intersecing path, with respect to this path's orientation:
-            //respect other intersecting paths' endpoints as if the new endpoints were clobbered:
-            if(orientation > 0) {
-                if(!taggedPointsPath[iFirst][1][0]) {
-                    taggedPointsPath[iFirst][1][1] = true;
-                }
-                
-                if(!taggedPointsPath[iLast][1][0]) {
-                    taggedPointsPath[iLast][1][2] = true;
-                }
-            } else {
-                if(!taggedPointsPath[iFirst][1][0]) {
-                    taggedPointsPath[iFirst][1][2] = true;
-                }
-                
-                if(!taggedPointsPath[iLast][1][0]) {
-                    taggedPointsPath[iLast][1][1] = true;
-                }
-            }
-            
-            //tag the endpoints:
-            taggedPointsPath[iFirst][1][0] = true;
-            taggedPointsPath[iLast][1][0] = true;
-        }, this);
-        
-        if(fullyIntersected) {
-            return [];
-        }
-        
-        var survivingPaths = [];
-        var initialPath = [];
-        var currentPath = initialPath;
-        
-        //determine the surviving paths that evaded intersection:
-        for(var i = 0; i < taggedPointsPath.length; i++) {
-            if(!taggedPointsPath[i][1][0]) {
-                
-                //add the current point:
-                currentPath.push(taggedPointsPath[i][0]);
-            } else {
-                
-                //handle start of intersections:
-                if(taggedPointsPath[i][1][1]) {
-                    
-                    //close off the current path:
-                    if(currentPath.length) {
-                        currentPath.push(taggedPointsPath[i][0]);
-                        survivingPaths.push(currentPath);
-                        currentPath = [];
-                    }
-                }
-                
-                //handle end of intersections:
-                if(taggedPointsPath[i][1][2]) {
-                    
-                    //begin a new current path:
-                    currentPath.push(taggedPointsPath[i][0]);
-                }
-            }
-        }
-        
-        /*
-        The initial path is special in that it might need to be prepended, but we won't know until we complete the circuit.
-        It will be prepended if: this path is a polygon, the initial path begins at point index 0, the initial path doesn't 
-        complete the circuit without intersections, and the final point of this path is not intersected.
-        */
-        //prepend to initialPath if necessary:
-        if(this.isType('polygon')
-                && !taggedPointsPath[0][1][0]
-                && currentPath !== initialPath
-                && currentPath.length > 0) {
-            survivingPaths[0] = currentPath.concat(survivingPaths[0]);
-        }
-        //include currentPath:
-        else {
-            if(currentPath.length > 1) {
-                survivingPaths.push(currentPath);
-            }
-        }
-        
-        return survivingPaths;
-    }
-    
-    
-    var complexPath = function() {
-        path.call(this);
-        this._type.push('complexPath');
-    };
-    
-    inheritPrototype(complexPath, path);
-    
-    //returns whether or not there were intersections, because this is useful information for certain algorithms:
-    complexPath.prototype.addSegment = function(s) {
-        
-        //note: it's illogical to return a segment's index, because it might have been broken into pieces:
-        //note: it's inconvient to do early detection of the segment being new, because of segment breaking:
-    
-        //don't add the segment if it's of 0 length:
-        if(s.a.equals(s.b)) {
-            return;
-        }
-        
-        var newSegments = [];
-        var brokenSegments = [];
-        var intersectingSegments = [];
-        
-        newSegments.push(s);
-        
-        //find segments that the new segment intersects:
-        this.segments.forEach(function(seg) {
-            if(segmentsIntersect(s, seg)) {
-                intersectingSegments.push(seg);
-            }
-        }, this);
-        
-        //break segment against all intersecting segments and remove intersecting segments:
-        intersectingSegments.forEach(function(seg) {
-           
-            //loop through new segments to look for intersections:
-            for(var i = 0; i < newSegments.length; i++) {
-               
-                //because we're breaking new segments, we have to retest for intersection:
-                var intersectionPoint = segmentsIntersect(newSegments[i], seg);
-                if(intersectionPoint) {
-                    
-                    //create broken segments out of old segment that was intersected:
-                    brokenSegments.push(new segment(seg.a, intersectionPoint));
-                    brokenSegments.push(new segment(intersectionPoint, seg.b));
-                    
-                    //remove the segment that was intersected from the graph:
-                    this.removeSegment(seg);
-                    
-                    //create new broken segments:
-                    newSegments.unshift(new segment(newSegments[i].a, intersectionPoint));
-                    newSegments.unshift(new segment(intersectionPoint, newSegments[i + 1].b));
-                    
-                    //remove the new segment that was just broken:
-                    newSegments.splice(i + 2, 1);
-                    
-                    //adjust the loop to bypass the broken newSegments that were already tested against seg:
-                    i++;
-                }
-            }
-        }, this);
-        
-        var hadIntersections = false;
-        
-        //add old broken segments:
-        brokenSegments.forEach(function(seg) {
-            if(!seg.a.equals(seg.b)) {
-                hadIntersections = true;
-                var iS = this.segments.push(seg) - 1;
-                var iPa = this.addPoint(seg.a);
-                var iPb = this.addPoint(seg.b);
-                this.points[iPa][1].push(iS);
-                this.points[iPb][1].push(iS);
-            }
-        }, this);
-        
-        //add new segments:
-        newSegments.forEach(function(seg) {
-            if(!seg.a.equals(seg.b)) {
-                var iS = this.segments.push(seg) - 1;
-                var iPa = this.addPoint(seg.a);
-                var iPb = this.addPoint(seg.b);
-                this.points[iPa][1].push(iS);
-                this.points[iPb][1].push(iS);
-            }
-        }, this);
-        
-        //create a return object with specific fields, so that the return values aren't misconstrued to be something more intuitive:
-        var returnObject = [];
-        returnObject.hadIntersections = hadIntersections;
-        return returnObject;
-    };
-    
-    
-    var simplePolygon = function() {
-        simplePath.call(this);
-        this._type.push('polygon');
-        this._type.push('simplePolygon');
-    };
-    
-    inheritPrototype(simplePolygon, simplePath);
-    
-    //tests if the point is inside the polygon:
-    simplePolygon.prototype.hasInsidePoint = function(p) {
-        
-        //use an arbitrarily long horizontal segment that goes into negatives (because of relative coordinates):
-        var horizontalSegment = new segment(new point(-1000000000, p.y), new point(1000000000, p.y));
-        
-        //count the intersecting points that appear to the left of the point in question:
-        var pointsOnLeft = 0;
-        
-        //find segments that intersect the point horizontally:
-        this.segments.forEach(function(s) {
-            
-            //find a naturally occurring intersection point:
-            var intersectingPoint = segmentsIntersect(horizontalSegment, s);
-            
-            //if there was no natural intersection point, test for a segment endpoint hitting the horizontal segment:
-            if(!intersectingPoint) {
-                
-                /*
-                If an endpoint on the segment is on the horizontal segment, count it as an intersecting segment if it is angling down from 
-                that point's perspective. This will result in two segments traveling through the horizontal segment to register as odd, and
-                will ignore any horizontal segments that are overlapping the horizontal segment.
-                */
-                if(s.a.y === p.y && s.b.y - s.a.y > 0) {
-                    intersectingPoint = s.a;
-                } else if(s.b.y === p.y && s.a.y - s.b.y > 0) {
-                    intersectingPoint = s.b;
-                }
-            }
-            
-            if(intersectingPoint && intersectingPoint.x < p.x) {
-                pointsOnLeft++;
-            }
-        }, this);
-        
-        //there will be an even number of intersections; if the point in question is between an odd number of intersections, it's inside the polygon:
-        return (pointsOnLeft % 2 === 1);
-    };
-    
-    //only tests segment's endpoints:
-    simplePolygon.prototype.hasInsideSegment = function(s) {
-        return (this.hasInsidePoint(s.a) && this.hasInsidePoint(s.b));
-    };
-    
-    simplePolygon.prototype.hasInsideEntirePath = function(sp) {
-        var pointsPath = sp.getPointsPath();
-        
-        for(var i = 0; i < pointsPath.length; i++) {
-            if(!this.hasInsidePoint(pointsPath[i])) {
-                return false;
-            }
-        }
-        
-        return true;
-    };
-    
-    //returns a point in this that is not contained in sp:
-    simplePolygon.prototype.getSinglePointIndexEvadingFilter = function(sp) {
-        var pointsPath = this.getPointsPath();
-      
-        for(var i = 0; i < pointsPath.length; i++) {
-            if(!sp.hasInsidePoint(pointsPath[i])) {
-                return i;
-            }
-        }
-        
-        return null;
-    };
-    
-    //returns all points in sp that are not contained in this:
-    simplePolygon.prototype.getContainedPoints = function(sp) {
-        var containedPoints = [];
-        
-        sp.getPointsPath().forEach(function(p) {
-            if(this.hasInsidePoint(p)) {
-                containedPoints.push(p);
-            }
-        }, this);
-        
-        return containedPoints;
-    };
-    
-    //returns intersecting paths (as an array of path points) for a simple path or simple polygon:
-    simplePolygon.prototype.getIntersectingPaths = function(sp) {
-        
-        //find all intersecting segments and their points of intersection:
-        var intersectingSegments = [];
-       
-        //break all intersecting segments, but keep references to them and check for further intersections:
-        for(var i = 0; i < sp.segments.length; i++) {
-            for(var i2 = 0; i2 < this.segments.length; i2++) {
-     
-                //because we're breaking new segments, we have to retest for intersection:
-                var intersectionPoint = segmentsIntersect(sp.segments[i], this.segments[i2]);
-                if(intersectionPoint) {
-                    
-                    //release reference to the broken segment if it exists:
-                    for(var i3 = 0; i3 < intersectingSegments.length; i3++) {
-                        if(intersectingSegments[i3][0].equals(sp.segments[i])) {
-                            intersectingSegments.splice(i3, 1);
-                        }
-                    }
-                    
-                    //break the segment in sp:
-                    sp.breakSegment(sp.segments[i], intersectionPoint);
-                    
-                    //store references to the broken segment pieces:
-                    intersectingSegments.push([sp.segments[i], false]);
-                    intersectingSegments.push([sp.segments[i + 1], false]);
-                    
-                    //break the segments in this so that we don't get repeated intersections in further tests:
-                    this.breakSegment(this.segments[i2], intersectionPoint);
-                }
-            }
-        }
-        
-        var intersectingPaths = [];
-        
-        //handle cases where there are no intersectingSegments:
-        if(!intersectingSegments.length) {
-            
-            //sp is fully contained in this:
-            if(this.hasInsidePoint(sp.points[0][0])) {
-                intersectingPaths.push(sp.getPointsPath());
-            }
-        } else {
-        
-            //intersectingSegments is now a stable array; loop through until all have been processed:
-            intersectingSegments.forEach(function(s) {
-                
-                //intersectingSegments can be processed inherently through processing others:
-                if(!s[1]) {
-                    
-                    //test the midpoint of the segment to see if it's contained in this polygon:
-                    if(this.hasInsidePoint(s[0].midpoint())) {
-                        var intersectingPath = [];
-                        
-                        intersectingPath.push(s[0].a);
-                        intersectingPath.push(s[0].b);
-                        
-                        //find the index of the segment in sp:
-                        var sIndex = sp.getSegmentIndex(s[0]);
-                        
-                        //walk the path forward until finding a segment that's not contained:
-                        var sWalkingIndex = sIndex + 1;
-                        
-                        if(sp.isType('polygon')) {
-                            sWalkingIndex %= sp.segments.length;
-                        }
-                        
-                        while(sWalkingIndex !== sIndex && sWalkingIndex < sp.segments.length && this.hasInsidePoint(sp.segments[sWalkingIndex].midpoint())) {
-                            var seg = sp.segments[sWalkingIndex];
-                            intersectingPath.push(seg.b);
-                            
-                            //if the segment is in intersectingSegments, mark it as processed:
-                            intersectingSegments.forEach(function(iSeg) {
-                                if(iSeg[0].equals(seg)) {
-                                    iSeg[1] = true;
-                                }
-                            }, this);
-                            
-                            sWalkingIndex++;
-                            
-                            if(sp.isType('polygon')) {
-                                sWalkingIndex %= sp.segments.length;
-                            }
-                        }
-                        
-                        //if the forward walk didn't complete the circuit, walk the path backward until finding a segment that's not contained:
-                        if(sWalkingIndex !== sIndex) {
-                            sWalkingIndex = sIndex - 1;
-                            
-                            if(sp.isType('polygon')) {
-                                sWalkingIndex = (sWalkingIndex + sp.segments.length) % sp.segments.length;
-                            }
-                            
-                            while(sWalkingIndex !== sIndex && sWalkingIndex >= 0 && this.hasInsidePoint(sp.segments[sWalkingIndex].midpoint())) {
-                                var seg = sp.segments[sWalkingIndex];
-                                intersectingPath.unshift(seg.a);
-                                    
-                                //if the segment is in intersectingSegments, mark it as processed:
-                                intersectingSegments.forEach(function(iSeg) {
-                                    if(iSeg[0].equals(seg)) {
-                                        iSeg[1] = true;
-                                    }
-                                }, this);
-                                
-                                sWalkingIndex--;
-                            
-                                if(sp.isType('polygon')) {
-                                    sWalkingIndex = (sWalkingIndex + sp.segments.length) % sp.segments.length;
-                                }
-                            }
-                        }
-                        
-                        intersectingPaths.push(intersectingPath);
-                    }
-                }
-            }, this);
-        }
-        
-        return intersectingPaths;
-    };
-    
-    //removes intersection with rsp (Removed Simple Polygon):
-    simplePolygon.prototype.removeIntersection = function(rsp) {
-        var controlPointIndex = this.getSinglePointIndexEvadingFilter(rsp);
-        
-        if(controlPointIndex === null) {
-            return;
-        }
-        
-        //get an angle from the control point to the prior point:
-        var controlSegment = new segment(this.points[controlPointIndex][0], this.points[(controlPointIndex - 1 + this.points.length) % this.points.length][0]);
-        var controlAngle = controlSegment.angle(controlSegment.a);
-        
-        //stuff both polygons into a complex polygon:
-        var cp = new complexPolygon();
-        cp.addPointsPath(this.getPointsPath());
-        cp.addPointsPath(rsp.getPointsPath());
-        
-        //get the point index out of cp in case it has changed since we found it in this.points:
-        var controlPointIndex = cp.getPointIndex(this.points[controlPointIndex][0]);
-        
-        return cp.convertToSimplePolygon(controlPointIndex, controlAngle, false);
-    };
-    
-    simplePolygon.prototype.invert = function() {
-        var invertedPoints = this.getPointsPath();
-        
-        var minX = invertedPoints[0].x;
-        var minY = invertedPoints[0].y;
-        var maxX = invertedPoints[0].x;
-        var maxY = invertedPoints[0].y;
-        var controlPointIndex = 0;
-        
-        //find the smallest x points, and of those, take the greatest y:
-        for(var i = 0; i < invertedPoints.length; i++) {
-            if((invertedPoints[i].x < invertedPoints[controlPointIndex].x)
-                    || (invertedPoints[i].x == invertedPoints[controlPointIndex].x && invertedPoints[i].y > invertedPoints[controlPointIndex].y)) {
-                controlPointIndex = i;
-            }
-            
-            minX = Math.min(minX, invertedPoints[i].x);
-            minY = Math.min(minY, invertedPoints[i].y);
-            maxX = Math.max(maxX, invertedPoints[i].x);
-            maxY = Math.max(maxY, invertedPoints[i].y);
-        }
-        
-        //the inverted border needs to be this much larger than the original polygon:
-        var invertedBorderDistance = 1;
-        
-        //insert a point immediately down from the control point to branch off from:
-        invertedPoints.splice(controlPointIndex + 1, 0, new point(invertedPoints[controlPointIndex].x, invertedPoints[controlPointIndex].y + 1));
-        
-        //branch the new point to the edge of the inverted border:
-        invertedPoints.splice(controlPointIndex + 1, 0, new point(minX - invertedBorderDistance, invertedPoints[controlPointIndex].y + 1));
-        
-        //draw the inverted border corners stemming from control point:
-        invertedPoints.splice(controlPointIndex + 1, 0, new point(minX - invertedBorderDistance, maxY + invertedBorderDistance));
-        invertedPoints.splice(controlPointIndex + 1, 0, new point(maxX + invertedBorderDistance, maxY + invertedBorderDistance));
-        invertedPoints.splice(controlPointIndex + 1, 0, new point(maxX + invertedBorderDistance, minY - invertedBorderDistance));
-        invertedPoints.splice(controlPointIndex + 1, 0, new point(minX - invertedBorderDistance, minY - invertedBorderDistance));
-        
-        //insert a point from the control point leading to the edge of the inverted border:
-        invertedPoints.splice(controlPointIndex + 1, 0, new point(minX - invertedBorderDistance, invertedPoints[controlPointIndex].y));
-        
-        var op = new simplePolygon();
-        op.addPointsPath(invertedPoints);
-        
-        return op;
-    };
-    
-  
-    var complexPolygon = function() {
-        complexPath.call(this);
-        this._type.push('polygon');
-        this._type.push('complexPolygon');
-    };
-    
-    inheritPrototype(complexPolygon, complexPath);
-    
-    //if isOuterDesired, this finds the most expansive path; otherwise, it finds the most restrictive path:
-    complexPolygon.prototype.convertToSimplePolygon = function(controlPointIndex, controlAngle, isOuterDesired) {
-        
-        //start keeping the points that will be used in the output polygon in the proper order:
-        var cleanPolygonPoints = [];
-        cleanPolygonPoints.push(this.points[controlPointIndex][0]);
-        
-        var iP = controlPointIndex; //index of current point
-        var a = controlAngle; //angle of prior segment
-        var loopLimit = 10000; //limit the loop iterations in case there's a bug or the equality clause ends up needing an epsilon
-        var firstIteration = true;
-        
-        //loop until the outside of the polygon has been traced:
-        while((loopLimit-- > 0) && !(!firstIteration && iP === controlPointIndex)) {
-            
-            firstIteration = false;
-            
-            /*
-            If isOuterDesired, find the longest segment originating from the current point that is the most counter-clockwise from the prior segment's angle:
-            If not isOuterDesired, find the shortest segment originating from the current point that is the least counter-clockwise from the prior segment's angle, without backtracking:
-            */
-            
-            //initialize variables:
-            var s;
-            var chosenSegment;
-            var sAngle;
-            var sLength = isOuterDesired ? 0 : 1000000000;
-            var sRelativeAngle = new angle(isOuterDesired ? 0.0001 : (2 * Math.PI) - 0.0001);
-        
-            //loop through the segments of this point:
-            for(var iS = 0; iS < this.points[iP][1].length; iS++) {
-                var seg = this.segments[this.points[iP][1][iS]];
-                var segAngle = seg.angle(this.points[iP][0]);
-                var relativeAngle = segAngle.subtract(a.radians);
-                
-                if((isOuterDesired &&
-                        ((relativeAngle.greaterThan(sRelativeAngle.radians))
-                        || (relativeAngle.equals(sRelativeAngle.radians) && seg.length() > sLength)))
-                    || (!isOuterDesired && relativeAngle.radians > 0.00001 &&
-                        ((relativeAngle.lessThan(sRelativeAngle.radians))
-                        || (relativeAngle.equals(sRelativeAngle.radians) && seg.length() < sLength)))) {
-                    s = iS;
-                    chosenSegment = this.segments[this.points[iP][1][s]];
-                    sAngle = chosenSegment.angle(this.points[iP][0]);
-                    sLength = chosenSegment.length();
-                    sRelativeAngle = relativeAngle;
-                }
-            }
-            
-            //the next point should be the endpoint of the segment that wasn't the prior point:
-            if(chosenSegment.a.equals(this.points[iP][0])) {
-                iP = this.getPointIndex(chosenSegment.b);
-            } else {
-                iP = this.getPointIndex(chosenSegment.a);
-            }
-            
-            //the angle of the current segment will be used as a limit for finding the next segment:
-            a = new angle((sAngle.radians + Math.PI) % (2 * Math.PI));
-            
-            //add the new point to the clean polygon:
-            cleanPolygonPoints.push(this.points[iP][0]);
-        }
-        
-        //create an simplePolygon with the points:
-        var op = new simplePolygon();
-        op.addPointsPath(cleanPolygonPoints);
-        return op;
-    };
-    
-    complexPolygon.prototype.convertToOuterSimplePolygon = function() {
-        
-        //find the smallest x points, and of those, take the greatest y:
-        var iTopLeftPoint = 0;
-        for(var i = 0; i < this.points.length; i++) {
-            if((this.points[i][0].x < this.points[iTopLeftPoint][0].x)
-                    || (this.points[i][0].x == this.points[iTopLeftPoint][0].x && this.points[i][0].y > this.points[iTopLeftPoint][0].y)) {
-                iTopLeftPoint = i;
-            }
-        }
-        
-        return this.convertToSimplePolygon(iTopLeftPoint, new angle(Math.PI / 2), true);
-    };
-    
-    
-    var graph = function() {
-        typedObject.call(this);
-        this._type.push('graph');
-        this.initializeCollectionProperty('simplePaths');
-        this.initializeCollectionProperty('complexPaths');
-        this.initializeCollectionProperty('simplePolygons');
-        this.initializeCollectionProperty('complexPolygons');
-    };
-    
-    inheritPrototype(graph, typedObject);
-    
-    graph.prototype.setProperty = function(property, value) {
-        switch(property) {
-            case 'simplePaths':
-            case 'complexPaths':
-            case 'simplePolygons':
-            case 'complexPolygons':
-                return this['_' + property].push(value) - 1;
-                break;
-            default:
-                typedObject.prototype.setProperty.call(this, property, value);
-                break;
-        }
-    };
-    
-    graph.prototype.initializeCollectionProperty = function(property) {
-        switch(property) {
-            case 'simplePaths':
-            case 'complexPaths':
-            case 'simplePolygons':
-            case 'complexPolygons':
-                this['_' + property] = [];
-                break;
-            default:
-                typedObject.prototype.initializeCollectionProperty.call(this, property);
-                break;
-        }
-    };
-    
-    graph.prototype.addSimplePath = function(rawPath, top, left, isFromEvent) {
-        if('undefined' === typeof(top)) {
-            top = 0;
-        }
-        
-        if('undefined' === typeof(left)) {
-            left = 0;
-        }
-        
-        var sp = new simplePath();
-        sp.addRawPath(rawPath, top, left, isFromEvent);
-        return this.setProperty('simplePaths', sp);
-    };
-    
-    graph.prototype.addSimplePathFromPoints = function(pointsPath) {
-        var sp = new simplePath();
-        sp.addPointsPath(pointsPath);
-        return this.setProperty('simplePaths', sp);
-    };
-    
-    graph.prototype.addSimplePathFromSegment = function(s, top, left) {
-        if('undefined' === typeof(top)) {
-            top = 0;
-        }
-        
-        if('undefined' === typeof(left)) {
-            left = 0;
-        }
-        
-        var sp = new simplePath();
-        
-        //convert s into a segment (because it may have been loaded and lost that property) and apply offsets:
-        sp.addSegment(new segment(new point(s.a.x + left, s.a.y + top), new point(s.b.x + left, s.b.y + top)));
-        
-        return this.setProperty('simplePaths', sp);
-    };
-    
-    graph.prototype.addComplexPath = function(rawPath, top, left, isFromEvent) {
-        var cp = new complexPath();
-        cp.addRawPath(rawPath, top, left, isFromEvent);
-        return this.setProperty('complexPaths', cp);
-    };
-    
-    graph.prototype.addSimplePolygon = function(rawPath, top, left, isFromEvent) {
-        if('undefined' === typeof(top)) {
-            top = 0;
-        }
-        
-        if('undefined' === typeof(left)) {
-            left = 0;
-        }
-        
-        var sp = new simplePolygon();
-        sp.addRawPath(rawPath, top, left, isFromEvent);
-        return this.setProperty('simplePolygons', sp);
-    };
-    
-    graph.prototype.addComplexPolygon = function(rawPath, top, left, isFromEvent) {
-        var cp = new complexPolygon();
-        cp.addRawPath(rawPath, top, left, isFromEvent);
-        return this.setProperty('complexPolygons', cp);
-    };
-    
-    graph.prototype.convertComplexPolygonToSimplePolygon = function(index) {
-        var op = this.getProperty('complexPolygons')[index].convertToOuterSimplePolygon();
-        this.getProperty('complexPolygons').splice(index, 1);
-        return this.setProperty('simplePolygons', op);
-    };
-    
-    graph.prototype.getRawPath = function(pathType, index) {
-        return this.getProperty(pathType)[index].getRawPath();
-    };
-    
-    graph.prototype.getPointsPath = function(pathType, index) {
-        return this.getProperty(pathType)[index].getPointsPath();
-    };
-    
-    graph.prototype.getContainedPoints = function(pathType1, index1, pathType2, index2) {
-        return this.getProperty(pathType1)[index1].getContainedPoints(this.getProperty(pathType2)[index2]);
-    };
-    
-    graph.prototype.mergeSimplePolygons = function(index1, index2) {
-        var cp = new complexPolygon();
-        var op1 = this.getProperty('simplePolygons')[index1];
-        
-        //stuff points from op1 into cp, rather than re-inserting, for the sake of efficiency:
-        cp.points = op1.points;
-        cp.segments = op1.segments;
-        
-        var op2 = this.getProperty('simplePolygons')[index2];
-        var cpResult = cp.addPointsPath(op2.getPointsPath());
-        
-        //polygons intersect, so return their merge:
-        if(cpResult.hadIntersections) {
-            var cpIndex = this.setProperty('complexPolygons', cp);
-            return this.convertComplexPolygonToSimplePolygon(cpIndex);
-        } 
-        //polygon 2 is fully contained within polygon 1, so return polygon 1:
-        else if(op1.hasInsidePoint(op2.points[0][0])) {
-            return index1;
-        }
-        //polygon 1 is fully contained within polygon 2, so return polygon 2:
-        else if(op2.hasInsidePoint(op1.points[0][0])) {
-            return index2;
-        }
-        //the polygons are siblings, so merging cannot be done:
-        else {
-            return null;
-        }
-    };
-    
-    //removes the intersection between the two polygons from the first:
-    graph.prototype.removeFromSimplePolygon = function(index1, index2) {
-        var cp = new complexPolygon();
-        var op1 = this.getProperty('simplePolygons')[index1];
-        var op2 = this.getProperty('simplePolygons')[index2];
-        var op3 = op1.removeIntersection(op2);
-        
-        if(!op3) {
-            return;
-        } 
-        
-        return this.setProperty('simplePolygons', op3);
-    };
-    
-    graph.prototype.invertSimplePolygon = function(index) {
-        var invertedOp = this.getProperty('simplePolygons')[index].invert();
-        return this.setProperty('simplePolygons', invertedOp);
-    };
-    
-    graph.prototype.removePathIntersections = function(pathType, index, intersectingPaths) {
-        return this.getProperty(pathType)[index].removePathIntersections(intersectingPaths);
-    };
-    
-    graph.prototype.getIntersectingPaths = function(pathType1, index1, pathType2, index2) {
-        return this.getProperty(pathType1)[index1].getIntersectingPaths(this.getProperty(pathType2)[index2]);
-    };
-    
-    graph.prototype.hasInsidePoint = function(pathType, index, p) {
-        return this.getProperty(pathType)[index].hasInsidePoint(p);
-    };
-    
-    graph.prototype.hasInsideSegment = function(pathType, index, s) {
-        return this.getProperty(pathType)[index].hasInsideSegment(s);
-    };
-    
-    graph.prototype.hasInsideEntirePath = function(pathType1, index1, pathType2, index2) {
-        return this.getProperty(pathType1)[index1].hasInsideEntirePath(this.getProperty(pathType2)[index2]);
-    };
-        
-     
-    /* polygon logic - end */
-    
-    /* roll20 object management - begin */
-    
-    var deleteObject = function(type, id) {
-        state.APIAreaMapper.tempIgnoreDrawingEvents = true;
-        
-        var obj = getObj(type, id);
-        if(obj) {
-            obj.remove();
-        }
-        
-        state.APIAreaMapper.tempIgnoreDrawingEvents = false;
-    },
-    
-    getRectanglePath = function(height, width) {
-        return "[[\"M\",0,0],[\"L\",0," + height + "],[\"L\"," + width + "," + height + "],[\"L\"," + width + ",0],[\"L\",0,0]]";
-    },
-    
-    createPathObject = function(pageId, layer, strokeColor, fillColor, path, top, left, height, width, strokeWidth, rotation) {
-        state.APIAreaMapper.tempIgnoreDrawingEvents = true;
-        
-        if('undefined' === typeof(strokeWidth)) {
-            strokeWidth = 1;
-        }
-        
-        if('undefined' === typeof(rotation)) {
-            rotation = 0;
-        }
-        
-        var obj = createObj('path', {
-            layer: layer,
-            pageid: pageId,
-            top: top + (height / 2),
-            left: left + (width / 2),
-            height: height,
-            width: width,
-            stroke: strokeColor,
-            stroke_width: strokeWidth,
-            fill: fillColor,
-            _path: path,
-            rotation: rotation
-        });
-        
-        state.APIAreaMapper.tempIgnoreDrawingEvents = false;
-        
-        return obj;
-    },
-    
-    createRectanglePathObject = function(pageId, layer, strokeColor, fillColor, top, left, height, width, rotation) {
-        return createPathObject(
-                pageId,
-                layer,
-                strokeColor,
-                fillColor,
-                getRectanglePath(height, width),
-                top,
-                left,
-                height,
-                width,
-                1,
-                rotation
-            );
-    },
-    
-    drawFeatureTag = function(graphic, tagBand, color) {
-        var tagStrokeWidth = 4;
-     
-        var height = graphic.get('height') + (2 * (tagBand * tagStrokeWidth));
-        var width = graphic.get('width') + (2 * (tagBand * tagStrokeWidth));
-        
-        return createPathObject(
-            graphic.get('_pageid'),
-            'gmlayer',
-            color,
-            'transparent',
-            getRectanglePath(height, width),
-            graphic.get('top') - (height / 2),
-            graphic.get('left') - (width / 2),
-            height,
-            width,
-            tagStrokeWidth,
-            graphic.get('rotation')
-        );
-    },
-    
-    //receives a graphic and an array of tag colors, and returns an array of new feature tag IDs:
-    drawFeatureTags = function(graphic, featureTagColors) {
-        var tagIds = [];
-        var tagBand = 0;
-        
-        featureTagColors.forEach(function(color) {
-            tagIds.push(drawFeatureTag(graphic, tagBand++, color).id);
-        }, this);
-        
-        return tagIds;
-    },
-    
-    createTokenObjectFromSegment = function(imgsrc, pageId, layer, segment, width, alternateWidthAndHeight) {
-        state.APIAreaMapper.tempIgnoreDrawingEvents = true;
-        
-        var height = segment.length() + 14;
-        
-        var obj = createObj('graphic', {
-            imgsrc: imgsrc,
-            layer: layer,
-            pageid: pageId,
-            width: alternateWidthAndHeight ? height : width,
-            top: segment.b.y + ((segment.a.y - segment.b.y) / 2),
-            left: segment.b.x + ((segment.a.x - segment.b.x) / 2),
-            height: alternateWidthAndHeight ? width : height,
-            rotation: segment.angleDegrees(segment.a) + (alternateWidthAndHeight ? 0 : 90)
-        });
-        
-        state.APIAreaMapper.tempIgnoreDrawingEvents = false;
-        
-        return obj;
-    },
-    
-    //creates a token object using a segment to define its dimensions:
-    createTokenObject = function(imgsrc, pageId, layer, segment, rotation) {
-        if('undefined' === typeof(rotation)) {
-            rotation = 0;
-        }
-        
-        state.APIAreaMapper.tempIgnoreDrawingEvents = true;
-        
-        var obj = createObj('graphic', {
-            imgsrc: imgsrc,
-            layer: layer,
-            pageid: pageId,
-            top: segment.b.y + ((segment.a.y - segment.b.y) / 2),
-            left: segment.b.x + ((segment.a.x - segment.b.x) / 2),
-            height: segment.b.y - segment.a.y,
-            width: segment.b.x - segment.a.x,
-            rotation: rotation
-        });
-        
-        state.APIAreaMapper.tempIgnoreDrawingEvents = false;
-        
-        return obj;
-    },
-    
-    /* roll20 object management - end */
-    
-    /* user interface - begin */
-    
-    toggleHandoutUi = function(who) {
+    var toggleHandoutUi = function(who) {
         
         //send a special drawing of the existing UI with a spoofed reversal value of handoutUi (as changing it for real would send it to the new UI); this way, the switch is clear and the user can switch back from either UI:
         interfaceSettings(who, true);
@@ -3671,6 +3671,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         return followUpAction;
     },
+    
+    /* business logic bridge - end */
+    
+    /* user interface core - begin */
     
     //character converter, credits to Aaron from https://github.com/shdwjk/Roll20API/blob/master/APIHeartBeat/APIHeartBeat.js
     ch = function(c) {
@@ -3855,6 +3859,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         return ['mode', text, commands[(currentState + 1) % commands.length], greyed, currentState];
     },
+    
+    /* user interface core - end */
+    
+    /* user interface windows - begin */
     
     interfaceDoor = function(who, managedGraphic) {
         state.APIAreaMapper.uiWindow = 'door';
@@ -4144,6 +4152,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
         );
     },
     
+    /* user interface windows - end */
+    
+    /* user interface navigation - begin */
+    
     //gets the selected graphic, and failing that, will use a false selection:
     getSelectedGraphic = function(selected) {
         var graphic = getObj('graphic', selected[0]._id);
@@ -4231,140 +4243,144 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }
     },
     
-    /* user interface - end */
+    processUserInput = function(msg) {
+        
+        //store player information to use for any future anonymous actions:
+        state.APIAreaMapper.playerId = msg.playerid;
+        state.APIAreaMapper.playerName = msg.who;
+        
+        var followUpAction = []; //might get clobbered
+        var chatCommand = msg.content.split(' ');
+        
+        var retainRecordAreaMode = false;
+        var retainFalseSelection = false;
+        
+        if(chatCommand.length === 1) {
+            followUpAction = intuit(msg.selected, msg.who);
+        } else {
+            switch(chatCommand[1]) {
+                case 'handoutUi':
+                    state.APIAreaMapper.uiWindow = 'settings';
+                    followUpAction = toggleHandoutUi(msg.who)
+                    followUpAction.ignoreSelection = true;
+                    break;
+                case 'mainMenu':
+                    state.APIAreaMapper.uiWindow = 'mainMenu';
+                    followUpAction.refresh = true;
+                    followUpAction.ignoreSelection = true;
+                    break;
+                case 'listAreas':
+                    state.APIAreaMapper.uiWindow = 'listAreas ' + chatCommand[2];
+                    followUpAction.refresh = true;
+                    followUpAction.ignoreSelection = true;
+                    break;
+                case 'manageArea':
+                    state.APIAreaMapper.uiWindow = 'area#' + chatCommand[2];
+                    followUpAction.refresh = true;
+                    followUpAction.ignoreSelection = true;
+                    break;
+                case 'activeArea':
+                    state.APIAreaMapper.uiWindow = 'area#' + state.APIAreaMapper.activeArea;
+                    followUpAction.refresh = true;
+                    followUpAction.ignoreSelection = true;
+                    break;
+                case 'areaActivate':
+                    if(state.APIAreaMapper.activeArea == chatCommand[2]) {
+                        delete state.APIAreaMapper.activeArea;
+                    } else {
+                        state.APIAreaMapper.activeArea = chatCommand[2]
+                    }
+                    followUpAction.refresh = true;
+                    followUpAction.ignoreSelection = true;
+                    break;
+                case 'areaHide':
+                    followUpAction = handleAreaHide(chatCommand[2]);
+                    break;
+                case 'areaArchive':
+                    followUpAction = handleAreaArchive(chatCommand[2]);
+                    break;
+                case 'areaCreate':
+                case 'areaAppend':
+                case 'areaRemove':
+                case 'edgeWallRemove':
+                case 'edgeWallGapRemove':
+                case 'innerWallAdd':
+                case 'innerWallRemove':
+                case 'doorAdd':
+                case 'doorRemove':
+                case 'chestAdd':
+                case 'chestRemove':
+                case 'areaInstanceCreate':
+                    retainRecordAreaMode = true;
+                    followUpAction = toggleOrSetAreaRecordMode(chatCommand[1]);
+                    followUpAction.ignoreSelection = true;
+                    break;
+                case 'endRecordAreaMode':
+                    followUpAction.ignoreSelection = true;
+                    followUpAction.refresh = true;
+                    break;
+                case 'chestReposition':
+                    retainFalseSelection = true;
+                    followUpAction = toggleChestReposition();
+                    break;
+                case 'redraw':
+                    retainRecordAreaMode = true;
+                    followUpAction = handleAreaRedraw();
+                    break;
+                case 'blueprint':
+                    retainRecordAreaMode = true;
+                    followUpAction = toggleBlueprintMode();
+                    followUpAction.ignoreSelection = true;
+                    break;
+                case 'interactiveObjectOpen':
+                case 'interactiveObjectLock':
+                case 'interactiveObjectTrap':
+                case 'interactiveObjectHide':
+                    retainFalseSelection = true;
+                    followUpAction = toggleInteractiveProperty(msg.selected, msg.who, chatCommand[1]);
+                    break;
+                case 'settings':
+                    interfaceSettings(msg.who);
+                    break;
+                case 'help':
+                    if(chatCommand.length < 3) {
+                        interfaceHelp(msg.who);
+                    } else {
+                        interfaceHelp(msg.who, chatCommand[2]);
+                    }
+                    break;
+                case 'about':
+                    interfaceAbout(msg.who);
+                    break;
+                case 'rename':
+                    var nameItems = chatCommand;
+                    nameItems.shift();
+                    nameItems.shift();
+                    followUpAction = handleAreaRename(nameItems.join(' '));
+                    break;
+                default:
+                    break;
+            }
+        }
+        
+        if(!retainRecordAreaMode) {
+            delete state.APIAreaMapper.recordAreaMode;
+        }
+        
+        if(!retainFalseSelection) {
+            delete state.APIAreaMapper.falseSelection;
+        }
+        
+        processFollowUpAction(followUpAction, msg.who, msg.selected);
+    },
+    
+    /* user interface navigation - end */
     
     /* event handlers - begin */
     
     handleUserInput = function(msg) {
         if(msg.type == 'api' && msg.content.match(/^!api-area/) && playerIsGM(msg.playerid)) {
-            
-            //store player information to use for any future anonymous actions:
-            state.APIAreaMapper.playerId = msg.playerid;
-            state.APIAreaMapper.playerName = msg.who;
-            
-            var followUpAction = []; //might get clobbered
-            var chatCommand = msg.content.split(' ');
-            
-            var retainRecordAreaMode = false;
-            var retainFalseSelection = false;
-            
-            if(chatCommand.length === 1) {
-                followUpAction = intuit(msg.selected, msg.who);
-            } else {
-                switch(chatCommand[1]) {
-                    case 'handoutUi':
-                        state.APIAreaMapper.uiWindow = 'settings';
-                        followUpAction = toggleHandoutUi(msg.who)
-                        followUpAction.ignoreSelection = true;
-                        break;
-                    case 'mainMenu':
-                        state.APIAreaMapper.uiWindow = 'mainMenu';
-                        followUpAction.refresh = true;
-                        followUpAction.ignoreSelection = true;
-                        break;
-                    case 'listAreas':
-                        state.APIAreaMapper.uiWindow = 'listAreas ' + chatCommand[2];
-                        followUpAction.refresh = true;
-                        followUpAction.ignoreSelection = true;
-                        break;
-                    case 'manageArea':
-                        state.APIAreaMapper.uiWindow = 'area#' + chatCommand[2];
-                        followUpAction.refresh = true;
-                        followUpAction.ignoreSelection = true;
-                        break;
-                    case 'activeArea':
-                        state.APIAreaMapper.uiWindow = 'area#' + state.APIAreaMapper.activeArea;
-                        followUpAction.refresh = true;
-                        followUpAction.ignoreSelection = true;
-                        break;
-                    case 'areaActivate':
-                        if(state.APIAreaMapper.activeArea == chatCommand[2]) {
-                            delete state.APIAreaMapper.activeArea;
-                        } else {
-                            state.APIAreaMapper.activeArea = chatCommand[2]
-                        }
-                        followUpAction.refresh = true;
-                        followUpAction.ignoreSelection = true;
-                        break;
-                    case 'areaHide':
-                        followUpAction = handleAreaHide(chatCommand[2]);
-                        break;
-                    case 'areaArchive':
-                        followUpAction = handleAreaArchive(chatCommand[2]);
-                        break;
-                    case 'areaCreate':
-                    case 'areaAppend':
-                    case 'areaRemove':
-                    case 'edgeWallRemove':
-                    case 'edgeWallGapRemove':
-                    case 'innerWallAdd':
-                    case 'innerWallRemove':
-                    case 'doorAdd':
-                    case 'doorRemove':
-                    case 'chestAdd':
-                    case 'chestRemove':
-                    case 'areaInstanceCreate':
-                        retainRecordAreaMode = true;
-                        followUpAction = toggleOrSetAreaRecordMode(chatCommand[1]);
-                        followUpAction.ignoreSelection = true;
-                        break;
-                    case 'endRecordAreaMode':
-                        followUpAction.ignoreSelection = true;
-                        followUpAction.refresh = true;
-                        break;
-                    case 'chestReposition':
-                        retainFalseSelection = true;
-                        followUpAction = toggleChestReposition();
-                        break;
-                    case 'redraw':
-                        retainRecordAreaMode = true;
-                        followUpAction = handleAreaRedraw();
-                        break;
-                    case 'blueprint':
-                        retainRecordAreaMode = true;
-                        followUpAction = toggleBlueprintMode();
-                        followUpAction.ignoreSelection = true;
-                        break;
-                    case 'interactiveObjectOpen':
-                    case 'interactiveObjectLock':
-                    case 'interactiveObjectTrap':
-                    case 'interactiveObjectHide':
-                        retainFalseSelection = true;
-                        followUpAction = toggleInteractiveProperty(msg.selected, msg.who, chatCommand[1]);
-                        break;
-                    case 'settings':
-                        interfaceSettings(msg.who);
-                        break;
-                    case 'help':
-                        if(chatCommand.length < 3) {
-                            interfaceHelp(msg.who);
-                        } else {
-                            interfaceHelp(msg.who, chatCommand[2]);
-                        }
-                        break;
-                    case 'about':
-                        interfaceAbout(msg.who);
-                        break;
-                    case 'rename':
-                        var nameItems = chatCommand;
-                        nameItems.shift();
-                        nameItems.shift();
-                        followUpAction = handleAreaRename(nameItems.join(' '));
-                        break;
-                    default:
-                        break;
-                }
-            }
-            
-            if(!retainRecordAreaMode) {
-                delete state.APIAreaMapper.recordAreaMode;
-            }
-            
-            if(!retainFalseSelection) {
-                delete state.APIAreaMapper.falseSelection;
-            }
-            
-            processFollowUpAction(followUpAction, msg.who, msg.selected);
+            processUserInput(msg);
         }
     },
     
