@@ -2266,8 +2266,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         //make sure that the inner wall is fully contained in the floorPlan:
         var floorPlanSpIndex = g.addSimplePolygon(this.getProperty('floorPlan'));
         if(!g.hasInsideEntirePath('simplePolygons', floorPlanSpIndex, 'simplePaths', innerWallAddSpIndex)) {
-            log('Attempt to add inner walls that exceed the floorPlan.');
-            return;
+            followUpAction.message = 'Attempt to add inner walls that exceed the floorplan.';
+            return followUpAction;
         }
         
         //add the inner wall:
