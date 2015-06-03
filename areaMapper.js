@@ -2752,6 +2752,38 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return followUpAction;
     };
     
+    area.prototype.cycleStandardAsset = function(objectType) {
+        switch(objectType) {
+            case 'floor':
+                var standardTexture = new texture(this.getProperty('floorTexture'));
+                
+                //if the texture is already a standard asset, cycle to the next one:
+                if(standardTexture.getProperty('textureType') == 'asset') {
+                    standardTexture.setProperty('value', ((standardTexture.getProperty('value') + 1) % state.APIAreaMapper.floorAssets.length));
+                }
+                //set the texture to the first standard asset:
+                else {
+                    standardTexture.setProperty('textureType', 'asset');
+                    standardTexture.setProperty('value', 0);
+                }
+                
+                this.setProperty('floorTexture', standardTexture.getStateObject());
+                break;
+            case 'walls':
+                break;
+            case 'doors':
+                break;
+            case 'chests':
+                break;
+            default:
+                log('Unhandled objectType of ' + objectType + ' in area.cycleStandardAsset().');
+                return;
+        }
+        
+        this.save();
+        this.draw();
+    };
+    
     area.prototype.getInstancePageIds = function() {
         var instancePageIds = [];
     
@@ -3820,7 +3852,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
         followUpAction.refresh = true;
         
         var a = new area(state.APIAreaMapper.activeArea);
-        a.undraw();
         a.draw();
         
         return followUpAction;
@@ -3843,6 +3874,16 @@ var APIAreaMapper = APIAreaMapper || (function() {
             followUpAction.refresh = true;
             followUpAction.ignoreSelection = true;
         }
+        
+        return followUpAction;
+    },
+    
+    handleAssetStandard = function(objectType) {
+        var followUpAction = [];
+        followUpAction.refresh = true;
+        
+        var a = new area(state.APIAreaMapper.activeArea);
+        a.cycleStandardAsset(objectType);
         
         return followUpAction;
     },
@@ -4075,6 +4116,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             return;
         }
         
+        //TODO: some of these may no longer be necessary:
         var hasEdgeWallGaps = a.getProperty('edgeWallGaps').length;
         var hasEdgeWalls = a.getProperty('edgeWalls').length;
         var hasInnerWalls = a.getProperty('innerWalls').length;
@@ -4136,6 +4178,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             uiSection('Manage', null, [
                     ['active', 'active', 'areaActivate ' + areaId, false, (state.APIAreaMapper.activeArea == areaId)],
                     ['navigation', 'rename', 'rename', (state.APIAreaMapper.activeArea != areaId), false],
+                    ['navigation', 'assets', 'areaAssets', (state.APIAreaMapper.activeArea != areaId), false],
                     ['active', 'draw instance', 'areaInstanceCreate', isArchived || (state.APIAreaMapper.activeArea != areaId), (state.APIAreaMapper.recordAreaMode == 'areaInstanceCreate')],
                     ['navigation', 'hide', 'areaHide ' + areaId, !hasInstances, false],
                     ['active', 'archive', 'areaArchive ' + areaId, false, isArchived],
@@ -4151,6 +4194,29 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     ['navigation', 'undo (TBA)', 'undo', true || !hasInstances || (state.APIAreaMapper.activeArea != areaId), false]
                 ])
             //TODO: instance-specific modifications: move, resize, rotate
+        );
+    },
+    
+    interfaceAreaAssets = function(who) {
+        sendStandardInterface(who, 'Manage Area Assets',
+            uiSection('Floor', null, [
+                    ['navigation', 'cycle asset', 'assetStandard floor', false, false],
+                    ['navigation', 'transparent (TBA)', 'assetTransparent floor', true, false],
+                    ['navigation', 'solid color (TBA)', 'assetColor floor', true, false],
+                    ['navigation', 'unique asset (TBA)', 'assetUnique floor', true, false]
+                ])
+            +uiSection('Walls', null, [
+                    ['navigation', 'cycle asset (TBA)', 'assetStandard walls', true, false],
+                    ['navigation', 'unique asset (TBA)', 'assetUnique walls', true, false]
+                ])
+            +uiSection('Doors', null, [
+                    ['navigation', 'cycle asset (TBA)', 'assetStandard doors', true, false],
+                    ['navigation', 'unique asset (TBA)', 'assetUnique doors', true, false]
+                ])
+            +uiSection('Chests', null, [
+                    ['navigation', 'cycle asset (TBA)', 'assetStandard chests', true, false],
+                    ['navigation', 'unique asset (TBA)', 'assetUnique chests', true, false]
+                ])
         );
     },
     
@@ -4366,6 +4432,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 return;
             }
             
+            if(state.APIAreaMapper.uiWindow.indexOf('areaAssets') === 0) {
+                interfaceAreaAssets(who);
+                return;
+            }
+            
             if(state.APIAreaMapper.uiWindow.indexOf('settings') === 0) {
                 interfaceSettings(who);
                 return;
@@ -4504,6 +4575,15 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 case 'blueprint':
                     retainRecordAreaMode = true;
                     followUpAction = toggleBlueprintMode();
+                    followUpAction.ignoreSelection = true;
+                    break;
+                case 'areaAssets':
+                    state.APIAreaMapper.uiWindow = 'areaAssets';
+                    followUpAction.refresh = true;
+                    followUpAction.ignoreSelection = true;
+                    break;
+                case 'assetStandard':
+                    followUpAction = handleAssetStandard(chatCommand[2]);
                     followUpAction.ignoreSelection = true;
                     break;
                 case 'interactiveObjectOpen':
