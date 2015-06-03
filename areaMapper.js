@@ -6,8 +6,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.132,
-        schemaVersion = 0.037,
+    var version = 0.133,
+        schemaVersion = 0.038,
         buttonBackgroundColor = '#CC1869',
         buttonGreyedColor = '#8D94A9',
         buttonHighlightLinkColor = '#D6F510',
@@ -22,7 +22,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
         trappedTagColor = '#E2274C',
         hiddenTagColor = '#277EE2',
         wallImagePic = 'https://s3.amazonaws.com/files.d20.io/images/9585786/x1-hhxavuLoUjMsgA5vYdA/thumb.png?1432007204',
-        floorImagePic = 'https://s3.amazonaws.com/files.d20.io/images/48971/thumb.jpg?1340229647',
         closedDoorImagePic = 'https://s3.amazonaws.com/files.d20.io/images/6951/thumb.png?1336359665',
         openDoorImagePic = 'https://s3.amazonaws.com/files.d20.io/images/7068/thumb.png?1336366825',
         closedDoorAlertPic = 'https://s3.amazonaws.com/files.d20.io/images/8543193/5XhwOpMaBUS_5B444UNC5Q/thumb.png?1427665106',
@@ -49,12 +48,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 blueprintInnerWallsPathColor: '#3535D1',
                 blueprintDoorPathColor: '#EC9B10',
                 blueprintChestPathColor: '#666666',
-                //TODO: work transparency / polygons into this system:
                 floorAssets: [
-                    ['https://s3.amazonaws.com/files.d20.io/images/48971/thumb.jpg?1340229647',0,0,0,0,0],
-                    ['https://s3.amazonaws.com/files.d20.io/images/3243309/fbP3iGSXAjodjtPzJfNy-Q/thumb.jpg?1393492761',0,0,0,0,0],
-                    ['https://s3.amazonaws.com/files.d20.io/images/224431/2KRtd2Vic84zocexdHKSDg/thumb.jpg?1348140031',0,0,0,0,0]
-                ]
+                        ['https://s3.amazonaws.com/files.d20.io/images/48971/thumb.jpg?1340229647',0,0,0,0,0],
+                        ['https://s3.amazonaws.com/files.d20.io/images/3243309/fbP3iGSXAjodjtPzJfNy-Q/thumb.jpg?1393492761',0,0,0,0,0],
+                        ['https://s3.amazonaws.com/files.d20.io/images/224431/2KRtd2Vic84zocexdHKSDg/thumb.jpg?1348140031',0,0,0,0,0]
+                    ],
+                wallAssets: [
+                        ['https://s3.amazonaws.com/files.d20.io/images/9585786/x1-hhxavuLoUjMsgA5vYdA/thumb.png?1432007204',0,0,0,0,0]
+                    ]
             };
         } 
         
@@ -1772,6 +1773,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'name':
             case 'floorplan': //simple polygon
             case 'floorTexture': //texture
+            case 'wallTexture': //texture
             case 'width':
             case 'height':
             case 'archived':
@@ -1850,6 +1852,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this.setProperty('name', this.createName('new'));
         this.setProperty('floorplan', rp.rawPath);
         this.setProperty('floorTexture', new texture().getStateObject());
+        this.setProperty('wallTexture', new texture().getStateObject());
         
         //initially, edge walls will be identical to the floorplan, because no gaps have been declared:
         this.setProperty('edgeWalls', [rp.rawPath, 0, 0, rp.height, rp.width]);
@@ -1907,6 +1910,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 case 'name':
                 case 'floorplan':
                 case 'floorTexture':
+                case 'wallTexture':
                 case 'width':
                 case 'height':
                 case 'archived':
@@ -1932,6 +1936,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         areaState.push(['name', this.getProperty('name')]);
         areaState.push(['floorplan', this.getProperty('floorplan')]);
         areaState.push(['floorTexture', this.getProperty('floorTexture')]);
+        areaState.push(['wallTexture', this.getProperty('wallTexture')]);
         areaState.push(['width', this.getProperty('width')]);
         areaState.push(['height', this.getProperty('height')]);
         areaState.push(['archived', this.getProperty('archived')]);
@@ -2770,6 +2775,19 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 this.setProperty('floorTexture', standardTexture.getStateObject());
                 break;
             case 'walls':
+                var standardTexture = new texture(this.getProperty('wallTexture'));
+                
+                //if the texture is already a standard asset, cycle to the next one:
+                if(standardTexture.getProperty('textureType') == 'asset') {
+                    standardTexture.setProperty('value', ((standardTexture.getProperty('value') + 1) % state.APIAreaMapper.wallAssets.length));
+                }
+                //set the texture to the first standard asset:
+                else {
+                    standardTexture.setProperty('textureType', 'asset');
+                    standardTexture.setProperty('value', 0);
+                }
+                
+                this.setProperty('wallTexture', standardTexture.getStateObject());
                 break;
             case 'doors':
                 break;
@@ -2777,6 +2795,23 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 break;
             default:
                 log('Unhandled objectType of ' + objectType + ' in area.cycleStandardAsset().');
+                return;
+        }
+        
+        this.save();
+        this.draw();
+    };
+    
+    area.prototype.useTransparentAsset = function(objectType) {
+        switch(objectType) {
+            case 'floor':
+                var standardTexture = new texture();
+                standardTexture.setProperty('textureType', 'transparent');
+                standardTexture.setProperty('value', '');
+                this.setProperty('floorTexture', standardTexture.getStateObject());
+                break;
+            default:
+                log('Unhandled objectType of ' + objectType + ' in area.useTransparentAsset().');
                 return;
         }
         
@@ -3110,8 +3145,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         //draw new floor tile:
         var floorTexture = new texture(a.getProperty('floorTexture'));
-        
-        //TODO: transparent, uniqueAsset, solidColor (polygon):
+        //TODO: uniqueAsset, solidColor (polygon):
         switch(floorTexture.getProperty('textureType')) {
             case 'asset':
                 var floorAsset = new asset(state.APIAreaMapper.floorAssets[floorTexture.getProperty('value')]);
@@ -3129,6 +3163,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     floorAsset.getProperty('rotation'));
                 this.setProperty('floorTileId', floorTile.id);
                 break;
+            case 'transparent':
+                break;
             default:
                 log('Unhandled textureType of ' + floorTexture.getProperty('textureType') + ' for floorTexture in areaInstance.drawObjects().');
                 break;
@@ -3144,6 +3180,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var floorMask = createPathObject(this.getProperty('pageId'), 'map', maskColor, maskColor, floorMaskRawPath.rawPath, floorMaskRawPath.top, floorMaskRawPath.left, floorMaskRawPath.height, floorMaskRawPath.width);
         this.setProperty('floorMaskId', floorMask.id);
         
+        //TODO: use wall texture:
         //draw edge walls:
         a.getProperty('edgeWalls').forEach(function(ew) {
             
@@ -3158,6 +3195,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             this.setProperty('losWallIds', losWall.id);
         }, this);
         
+        //TODO: use wall texture:
         //draw inner walls:
         a.getProperty('innerWalls').forEach(function(iw) {
             
@@ -3248,12 +3286,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 //create a new door:
                 else {
                 
+                    //TODO: use door texture pair:
                     //TODO: replace open hidden door image with something unique:
                     //draw the door (hidden or standard):
                     doorToken = 
                         doorState.getProperty('isHidden')
                             ? (doorState.getProperty('isOpen')
                                 ? createTokenObjectFromSegment(openDoorImagePic, this.getProperty('pageId'), 'objects', s, 30, true)
+                                //TODO: use wall texture:
                                 : createTokenObjectFromSegment(wallImagePic, this.getProperty('pageId'), 'objects', s, 20, false))
                             : createTokenObjectFromSegment((doorState.getProperty('isOpen') ? openDoorImagePic : closedDoorImagePic), this.getProperty('pageId'), 'objects', s, 30, true);
                     
@@ -3350,6 +3390,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     var chestTop = chestState.getProperty('top') + this.getProperty('top');
                     var chestLeft = chestState.getProperty('left') + this.getProperty('left');
                     
+                    //TODO: use chest texture pair:
                     //draw the chest (on the object or gm layer depending on it being hidden):
                     chestToken = createTokenObject(
                         (chestState.getProperty('isOpen') ? openChestPic : closedChestPic), 
@@ -3888,6 +3929,16 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return followUpAction;
     },
     
+    handleAssetTransparent = function(objectType) {
+        var followUpAction = [];
+        followUpAction.refresh = true;
+        
+        var a = new area(state.APIAreaMapper.activeArea);
+        a.useTransparentAsset(objectType);
+        
+        return followUpAction;
+    },
+    
     /* business logic bridge - end */
     
     /* user interface core - begin */
@@ -4201,7 +4252,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         sendStandardInterface(who, 'Manage Area Assets',
             uiSection('Floor', null, [
                     ['navigation', 'cycle asset', 'assetStandard floor', false, false],
-                    ['navigation', 'transparent (TBA)', 'assetTransparent floor', true, false],
+                    ['navigation', 'transparent', 'assetTransparent floor', false, false],
                     ['navigation', 'solid color (TBA)', 'assetColor floor', true, false],
                     ['navigation', 'unique asset (TBA)', 'assetUnique floor', true, false]
                 ])
@@ -4584,6 +4635,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     break;
                 case 'assetStandard':
                     followUpAction = handleAssetStandard(chatCommand[2]);
+                    followUpAction.ignoreSelection = true;
+                    break;
+                case 'assetTransparent':
+                    followUpAction = handleAssetTransparent(chatCommand[2]);
                     followUpAction.ignoreSelection = true;
                     break;
                 case 'interactiveObjectOpen':
