@@ -6,8 +6,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.134,
-        schemaVersion = 0.039,
+    var version = 0.135,
+        schemaVersion = 0.0401,
         buttonBackgroundColor = '#CC1869',
         buttonGreyedColor = '#8D94A9',
         buttonHighlightLinkColor = '#D6F510',
@@ -21,7 +21,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
         lockedTagColor = '#E5DB50',
         trappedTagColor = '#E2274C',
         hiddenTagColor = '#277EE2',
-        wallImagePic = 'https://s3.amazonaws.com/files.d20.io/images/9585786/x1-hhxavuLoUjMsgA5vYdA/thumb.png?1432007204',
         closedDoorImagePic = 'https://s3.amazonaws.com/files.d20.io/images/6951/thumb.png?1336359665',
         openDoorImagePic = 'https://s3.amazonaws.com/files.d20.io/images/7068/thumb.png?1336366825',
         closedDoorAlertPic = 'https://s3.amazonaws.com/files.d20.io/images/8543193/5XhwOpMaBUS_5B444UNC5Q/thumb.png?1427665106',
@@ -49,14 +48,15 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 blueprintDoorPathColor: '#EC9B10',
                 blueprintChestPathColor: '#666666',
                 floorAssets: [
-                        ['https://s3.amazonaws.com/files.d20.io/images/48971/thumb.jpg?1340229647',0,0,0,0,0],
-                        ['https://s3.amazonaws.com/files.d20.io/images/224431/2KRtd2Vic84zocexdHKSDg/thumb.jpg?1348140031',0,0,0,0,0],
-                        ['https://s3.amazonaws.com/files.d20.io/images/170063/-IZTPfD81DHYpTbzvEUyAQ/thumb.png?1345800193',0,0,0,0,0],
-                        ['https://s3.amazonaws.com/files.d20.io/images/30830/thumb.png?1339416039',0,0,0,0,0],
-                        ['https://s3.amazonaws.com/files.d20.io/images/2830294/BaNT6qoN5O0WRiY3TS0azA/thumb.png?1390392180',0,0,0,0,0]
+                        ['https://s3.amazonaws.com/files.d20.io/images/48971/thumb.jpg?1340229647',0,0,0,0,0,0],
+                        ['https://s3.amazonaws.com/files.d20.io/images/224431/2KRtd2Vic84zocexdHKSDg/thumb.jpg?1348140031',0,0,0,0,0,0],
+                        ['https://s3.amazonaws.com/files.d20.io/images/170063/-IZTPfD81DHYpTbzvEUyAQ/thumb.png?1345800193',0,0,0,0,0,0],
+                        ['https://s3.amazonaws.com/files.d20.io/images/30830/thumb.png?1339416039',0,0,0,0,0,0],
+                        ['https://s3.amazonaws.com/files.d20.io/images/2830294/BaNT6qoN5O0WRiY3TS0azA/thumb.png?1390392180',0,0,0,0,0,0]
                     ],
                 wallAssets: [
-                        ['https://s3.amazonaws.com/files.d20.io/images/9585786/x1-hhxavuLoUjMsgA5vYdA/thumb.png?1432007204',0,0,0,0,0]
+                        ['https://s3.amazonaws.com/files.d20.io/images/9585786/x1-hhxavuLoUjMsgA5vYdA/thumb.png?1432007204',90,0,0,0,0,0],
+                        ['https://s3.amazonaws.com/files.d20.io/images/452469/9KJ1s2PJhuMbDICeYETXZQ/thumb.png?1355660278',0,1,0,28,10,28]
                     ]
             };
         } 
@@ -1525,6 +1525,39 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return obj;
     },
     
+    createTokenObjectFromAssetAndSegment = function(assetObject, pageId, layer, segment, width) {
+        state.APIAreaMapper.tempIgnoreDrawingEvents = true;
+        
+        log('a');
+        
+        var height = segment.length() + 14 + assetObject.getProperty('cropTop') + assetObject.getProperty('cropBottom');
+        width += assetObject.getProperty('cropLeft') + assetObject.getProperty('cropRight');
+        
+        log("assetObject.getProperty('imagesrc')");
+        log(assetObject.getProperty('imagesrc'));
+        log("width + assetObject.getProperty('cropLeft') + assetObject.getProperty('cropRight')");
+        log(width + assetObject.getProperty('cropLeft') + assetObject.getProperty('cropRight'));
+        
+        log('b');
+        
+        var obj = createObj('graphic', {
+            imgsrc: assetObject.getProperty('imagesrc'),
+            layer: layer,
+            pageid: pageId,
+            width: (assetObject.getProperty('alternate') ? height : width),
+            top: segment.b.y + ((segment.a.y - segment.b.y) / 2),
+            left: segment.b.x + ((segment.a.x - segment.b.x) / 2),
+            height: assetObject.getProperty('alternate') ? width : height,
+            rotation: segment.angleDegrees(segment.a) + assetObject.getProperty('rotation')
+        });
+        
+        log('c');
+        
+        state.APIAreaMapper.tempIgnoreDrawingEvents = false;
+        
+        return obj;
+    },
+    
     //creates a token object using a segment to define its dimensions:
     createTokenObject = function(imgsrc, pageId, layer, segment, rotation) {
         if('undefined' === typeof(rotation)) {
@@ -1564,10 +1597,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         this._imagesrc = stateObject[0];
         this._rotation = stateObject[1];
-        this._cropTop = stateObject[2];
-        this._cropLeft = stateObject[3];
-        this._cropBottom = stateObject[4];
-        this._cropRight = stateObject[5];
+        this._alternate = stateObject[2];
+        this._cropTop = stateObject[3];
+        this._cropLeft = stateObject[4];
+        this._cropBottom = stateObject[5];
+        this._cropRight = stateObject[6];
     }
     
     inheritPrototype(asset, typedObject);
@@ -1576,6 +1610,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         switch(property) {
             case 'imagesrc':
             case 'rotation':
+            case 'alternate':
             case 'cropTop':
             case 'cropLeft':
             case 'cropBottom':
@@ -1591,7 +1626,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     };
     
     asset.prototype.getStateObject = function() {
-        return [this._imagesrc, this._rotation, this._cropTop, this._cropLeft, this._cropBottom, this._cropRight];
+        return [this._imagesrc, this._rotation, this._alternate, this._cropTop, this._cropLeft, this._cropBottom, this._cropRight];
     };
     
     
@@ -3182,14 +3217,25 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var floorMask = createPathObject(this.getProperty('pageId'), 'map', maskColor, maskColor, floorMaskRawPath.rawPath, floorMaskRawPath.top, floorMaskRawPath.left, floorMaskRawPath.height, floorMaskRawPath.width);
         this.setProperty('floorMaskId', floorMask.id);
         
-        //TODO: use wall texture:
+        //TODO: unique texture (just sub it in as an alternate texture to use here):
+        var wallTexture = new texture(a.getProperty('wallTexture'));
+        var wallAsset;
+        switch(wallTexture.getProperty('textureType')) {
+            case 'asset':
+                wallAsset = new asset(state.APIAreaMapper.wallAssets[wallTexture.getProperty('value')]);
+                break;
+            default:
+                log('Unhandled textureType of ' + wallTexture.getProperty('textureType') + ' for wallTexture in areaInstance.drawObjects().');
+                break;
+        }
+        
         //draw edge walls:
         a.getProperty('edgeWalls').forEach(function(ew) {
             
             //draw wall tokens:
             var ewIndex = g.addSimplePath(ew[0], top + ew[1], left + ew[2]);
             g.getProperty('simplePaths')[ewIndex].segments.forEach(function(s) {
-                this.setProperty('wallIds', createTokenObjectFromSegment(wallImagePic, this.getProperty('pageId'), 'objects', s, 20).id);
+                this.setProperty('wallIds', createTokenObjectFromAssetAndSegment(wallAsset, this.getProperty('pageId'), 'objects', s, 20).id);
             }, this);
             
             //draw line of sight blocking wall:
@@ -3197,14 +3243,13 @@ var APIAreaMapper = APIAreaMapper || (function() {
             this.setProperty('losWallIds', losWall.id);
         }, this);
         
-        //TODO: use wall texture:
         //draw inner walls:
         a.getProperty('innerWalls').forEach(function(iw) {
             
             //draw wall tokens:
             var iwIndex = g.addSimplePath(iw[0], top + iw[1], left + iw[2]);
             g.getProperty('simplePaths')[iwIndex].segments.forEach(function(s) {
-                this.setProperty('wallIds', createTokenObjectFromSegment(wallImagePic, this.getProperty('pageId'), 'objects', s, 20).id);
+                this.setProperty('wallIds', createTokenObjectFromAssetAndSegment(wallAsset, this.getProperty('pageId'), 'objects', s, 20).id);
             }, this);
             
             //draw line of sight blocking wall:
@@ -3287,7 +3332,19 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 }
                 //create a new door:
                 else {
-                
+                    
+                    //TODO: unique texture (just sub it in as an alternate texture to use here):
+                    var wallTexture = new texture(a.getProperty('wallTexture'));
+                    var wallAsset;
+                    switch(wallTexture.getProperty('textureType')) {
+                        case 'asset':
+                            wallAsset = new asset(state.APIAreaMapper.wallAssets[wallTexture.getProperty('value')]);
+                            break;
+                        default:
+                            log('Unhandled textureType of ' + wallTexture.getProperty('textureType') + ' for wallTexture in areaInstance.drawObjects().');
+                            break;
+                    }
+                    
                     //TODO: use door texture pair:
                     //TODO: replace open hidden door image with something unique:
                     //draw the door (hidden or standard):
@@ -3295,8 +3352,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         doorState.getProperty('isHidden')
                             ? (doorState.getProperty('isOpen')
                                 ? createTokenObjectFromSegment(openDoorImagePic, this.getProperty('pageId'), 'objects', s, 30, true)
-                                //TODO: use wall texture:
-                                : createTokenObjectFromSegment(wallImagePic, this.getProperty('pageId'), 'objects', s, 20, false))
+                                : createTokenObjectFromAssetAndSegment(wallAsset, this.getProperty('pageId'), 'objects', s, 20, false))
                             : createTokenObjectFromSegment((doorState.getProperty('isOpen') ? openDoorImagePic : closedDoorImagePic), this.getProperty('pageId'), 'objects', s, 30, true);
                     
                     //set door privs to players unless the door is hidden:
@@ -4258,7 +4314,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     ['navigation', 'unique asset (TBA)', 'assetUnique floor', true, false]
                 ])
             +uiSection('Walls', null, [
-                    ['navigation', 'cycle asset (TBA)', 'assetStandard walls', true, false],
+                    ['navigation', 'cycle asset', 'assetStandard walls', false, false],
                     ['navigation', 'unique asset (TBA)', 'assetUnique walls', true, false]
                 ])
             +uiSection('Doors', null, [
