@@ -1599,7 +1599,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         typedObject.call(this);
         this._type.push('texture');
         
-        //note: stateObject is structured as [textureType, value (can be null, an asset index, an asset, or a color)]
+        //note: stateObject is structured as [textureType, value (can be null, an asset index, or a unique asset)]
         
         //if the stateObject isn't sent in, use the first generic asset:
         if('undefined' === typeof(stateObject)) {
@@ -3147,7 +3147,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         //draw new floor tile:
         var floorTexture = new texture(a.getProperty('floorTexture'));
-        //TODO: uniqueAsset, solidColor (polygon):
+        //TODO: uniqueAsset:
         switch(floorTexture.getProperty('textureType')) {
             case 'asset':
                 var floorAsset = new asset(state.APIAreaMapper.floorAssets[floorTexture.getProperty('value')]);
@@ -4255,7 +4255,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
             uiSection('Floor', null, [
                     ['navigation', 'cycle asset', 'assetStandard floor', false, false],
                     ['navigation', 'transparent', 'assetTransparent floor', false, false],
-                    ['navigation', 'solid color (TBA)', 'assetColor floor', true, false],
                     ['navigation', 'unique asset (TBA)', 'assetUnique floor', true, false]
                 ])
             +uiSection('Walls', null, [
