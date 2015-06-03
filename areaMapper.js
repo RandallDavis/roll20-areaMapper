@@ -21,8 +21,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
         lockedTagColor = '#E5DB50',
         trappedTagColor = '#E2274C',
         hiddenTagColor = '#277EE2',
-        //TODO: delete:
-        wallImagePic = 'https://s3.amazonaws.com/files.d20.io/images/9585786/x1-hhxavuLoUjMsgA5vYdA/thumb.png?1432007204',
         closedDoorImagePic = 'https://s3.amazonaws.com/files.d20.io/images/6951/thumb.png?1336359665',
         openDoorImagePic = 'https://s3.amazonaws.com/files.d20.io/images/7068/thumb.png?1336366825',
         closedDoorAlertPic = 'https://s3.amazonaws.com/files.d20.io/images/8543193/5XhwOpMaBUS_5B444UNC5Q/thumb.png?1427665106',
@@ -3334,7 +3332,19 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 }
                 //create a new door:
                 else {
-                
+                    
+                    //TODO: unique texture (just sub it in as an alternate texture to use here):
+                    var wallTexture = new texture(a.getProperty('wallTexture'));
+                    var wallAsset;
+                    switch(wallTexture.getProperty('textureType')) {
+                        case 'asset':
+                            wallAsset = new asset(state.APIAreaMapper.wallAssets[wallTexture.getProperty('value')]);
+                            break;
+                        default:
+                            log('Unhandled textureType of ' + wallTexture.getProperty('textureType') + ' for wallTexture in areaInstance.drawObjects().');
+                            break;
+                    }
+                    
                     //TODO: use door texture pair:
                     //TODO: replace open hidden door image with something unique:
                     //draw the door (hidden or standard):
@@ -3342,8 +3352,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         doorState.getProperty('isHidden')
                             ? (doorState.getProperty('isOpen')
                                 ? createTokenObjectFromSegment(openDoorImagePic, this.getProperty('pageId'), 'objects', s, 30, true)
-                                //TODO: use wall texture:
-                                : createTokenObjectFromSegment(wallImagePic, this.getProperty('pageId'), 'objects', s, 20, false))
+                                : createTokenObjectFromAssetAndSegment(wallAsset, this.getProperty('pageId'), 'objects', s, 20, false))
                             : createTokenObjectFromSegment((doorState.getProperty('isOpen') ? openDoorImagePic : closedDoorImagePic), this.getProperty('pageId'), 'objects', s, 30, true);
                     
                     //set door privs to players unless the door is hidden:
