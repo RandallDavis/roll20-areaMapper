@@ -56,6 +56,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     ],
                 wallAssets: [
                         ['https://s3.amazonaws.com/files.d20.io/images/9585786/x1-hhxavuLoUjMsgA5vYdA/thumb.png?1432007204',90,0,0,0,0,0],
+                        //TODO: get rid of this image - it's horrible for feature tags, but good for testing:
                         ['https://s3.amazonaws.com/files.d20.io/images/452469/9KJ1s2PJhuMbDICeYETXZQ/thumb.png?1355660278',0,1,0,28,10,28]
                     ]
             };
