@@ -6,8 +6,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.135,
-        schemaVersion = 0.041,
+    var version = 0.136,
+        schemaVersion = 0.042,
         buttonBackgroundColor = '#CC1869',
         buttonGreyedColor = '#8D94A9',
         buttonHighlightLinkColor = '#D6F510',
@@ -25,8 +25,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
         openDoorAlertPic = 'https://s3.amazonaws.com/files.d20.io/images/8543205/QBOWp1MHHlJCrPWn9kcVqQ/thumb.png?1427665124',
         padlockAlertPic = 'https://s3.amazonaws.com/files.d20.io/images/8546285/bdyuCfZSGRXr3qrVkcPkAg/thumb.png?1427673372',
         skullAlertPic = 'https://s3.amazonaws.com/files.d20.io/images/8779089/aM1ujMQboacuc2fEMFk7Eg/thumb.png?1428784948',
-        closedChestPic = 'https://s3.amazonaws.com/files.d20.io/images/7962/thumb.png?1336489213',
-        openChestPic = 'https://s3.amazonaws.com/files.d20.io/images/2839308/_RR8niUb3sTQgLSoxDhM4g/thumb.png?1390469385',
         wallThickness = 18,
         wallLengthExtension = 14,
         doorThickness = 13,
@@ -56,15 +54,18 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         ['https://s3.amazonaws.com/files.d20.io/images/30830/thumb.png?1339416039',0,0,0,0,0,0],
                         ['https://s3.amazonaws.com/files.d20.io/images/2830294/BaNT6qoN5O0WRiY3TS0azA/thumb.png?1390392180',0,0,0,0,0,0]
                     ],
-                //TODO: wall assets need to be pairs, with open hidden doors
+                //TODO: wall assets need to be pairs, with open hidden doors:
                 wallAssets: [
                         ['https://s3.amazonaws.com/files.d20.io/images/9585786/x1-hhxavuLoUjMsgA5vYdA/thumb.png?1432007204',90,0,0,0,0,0],
                         ['https://s3.amazonaws.com/files.d20.io/images/452469/9KJ1s2PJhuMbDICeYETXZQ/thumb.png?1355660278',0,1,25,0,25,5]
                     ],
                 doorAssets: [
-                        //TODO: adjust cropping after feature tagging takes it into account:
                         [['https://s3.amazonaws.com/files.d20.io/images/6951/thumb.png?1336359665',0,1,20,10,20,10],
                             ['https://s3.amazonaws.com/files.d20.io/images/7068/thumb.png?1336366825',0,1,20,10,20,10]]
+                    ],
+                chestAssets: [
+                        [['https://s3.amazonaws.com/files.d20.io/images/7962/thumb.png?1336489213',0,0,0,0,0,0],
+                            ['https://s3.amazonaws.com/files.d20.io/images/2839308/_RR8niUb3sTQgLSoxDhM4g/thumb.png?1390469385',0,0,0,0,0,0]]
                     ]
             };
         } 
@@ -1588,6 +1589,36 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return obj;
     };
     
+    //creates a token object using a segment to define its dimensions:
+    createTokenObjectFromAsset = function(assetObject, pageId, layer, segment, rotation) {
+        if('undefined' === typeof(rotation)) {
+            rotation = 0;
+        }
+        
+        state.APIAreaMapper.tempIgnoreDrawingEvents = true;
+        
+        var cropHeight = ((70 - assetObject.getProperty('cropTop') - assetObject.getProperty('cropBottom')) / 70);
+        var cropWidth = ((70 - assetObject.getProperty('cropLeft') - assetObject.getProperty('cropRight')) / 70);
+        
+        var height = (segment.b.y - segment.a.y) / (assetObject.getProperty('alternate') ? cropWidth : cropHeight);
+        var width = (segment.b.x - segment.a.x) / (assetObject.getProperty('alternate') ? cropHeight : cropWidth);
+        
+        var obj = createObj('graphic', {
+            imgsrc: assetObject.getProperty('imagesrc'),
+            layer: layer,
+            pageid: pageId,
+            top: segment.b.y + ((segment.a.y - segment.b.y) / 2),
+            left: segment.b.x + ((segment.a.x - segment.b.x) / 2),
+            height: assetObject.getProperty('alternate') ? width : height,
+            width: assetObject.getProperty('alternate') ? height : width,
+            rotation: rotation + assetObject.getProperty('rotation')
+        });
+        
+        state.APIAreaMapper.tempIgnoreDrawingEvents = false;
+        
+        return obj;
+    };
+    
     /* roll20 object management - end */
     
     /* area - begin */
@@ -1818,6 +1849,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'floorTexture': //texture
             case 'wallTexture': //texture
             case 'doorTexture': //texture
+            case 'chestTexture': //texture
             case 'width':
             case 'height':
             case 'archived':
@@ -1898,6 +1930,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this.setProperty('floorTexture', new texture().getStateObject());
         this.setProperty('wallTexture', new texture().getStateObject());
         this.setProperty('doorTexture', new texture().getStateObject());
+        this.setProperty('chestTexture', new texture().getStateObject());
         
         //initially, edge walls will be identical to the floorplan, because no gaps have been declared:
         this.setProperty('edgeWalls', [rp.rawPath, 0, 0, rp.height, rp.width]);
@@ -1957,6 +1990,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 case 'floorTexture':
                 case 'wallTexture':
                 case 'doorTexture':
+                case 'chestTexture':
                 case 'width':
                 case 'height':
                 case 'archived':
@@ -1984,6 +2018,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         areaState.push(['floorTexture', this.getProperty('floorTexture')]);
         areaState.push(['wallTexture', this.getProperty('wallTexture')]);
         areaState.push(['doorTexture', this.getProperty('doorTexture')]);
+        areaState.push(['chestTexture', this.getProperty('chestTexture')]);
         areaState.push(['width', this.getProperty('width')]);
         areaState.push(['height', this.getProperty('height')]);
         areaState.push(['archived', this.getProperty('archived')]);
@@ -2852,6 +2887,19 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 this.setProperty('doorTexture', standardTexture.getStateObject());
                 break;
             case 'chests':
+                var standardTexture = new texture(this.getProperty('chestTexture'));
+                
+                //if the texture is already a standard asset pair, cycle to the next one:
+                if(standardTexture.getProperty('textureType') == 'asset') {
+                    standardTexture.setProperty('value', ((standardTexture.getProperty('value') + 1) % state.APIAreaMapper.chestAssets.length));
+                }
+                //set the texture to the first standard asset pair:
+                else {
+                    standardTexture.setProperty('textureType', 'asset');
+                    standardTexture.setProperty('value', 0);
+                }
+                
+                this.setProperty('chestTexture', standardTexture.getStateObject());
                 break;
             default:
                 log('Unhandled objectType of ' + objectType + ' in area.cycleStandardAsset().');
@@ -3447,6 +3495,19 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'chests':
                 var chestState = new chest(master);
                 var chestProperty = [];
+                var chestAsset;
+                
+                //identify the chest asset:
+                //TODO: unique texture (just sub it in as an alternate texture to use here):
+                var chestTexture = new texture(a.getProperty('chestTexture'));
+                switch(chestTexture.getProperty('textureType')) {
+                    case 'asset':
+                        chestAsset = new asset(state.APIAreaMapper.chestAssets[chestTexture.getProperty('value')][chestState.getProperty('isOpen') ? 1 : 0]);
+                        break;
+                    default:
+                        log('Unhandled textureType of ' + chestTexture.getProperty('textureType') + ' for chestTexture in areaInstance.drawObjects().');
+                        break;
+                }
                 
                 //if the number of objects in the area and the instance are equal, then this is modifying an existing object:
                 var existingChest = this.getProperty('chestIds').length === a.getProperty(objectType).length;
@@ -3492,10 +3553,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     var chestTop = chestState.getProperty('top') + this.getProperty('top');
                     var chestLeft = chestState.getProperty('left') + this.getProperty('left');
                     
-                    //TODO: use chest texture pair:
                     //draw the chest (on the object or gm layer depending on it being hidden):
-                    chestToken = createTokenObject(
-                        (chestState.getProperty('isOpen') ? openChestPic : closedChestPic), 
+                    chestToken = createTokenObjectFromAsset(
+                        chestAsset, 
                         this.getProperty('pageId'), 
                         (chestState.getProperty('isHidden') ? 'gmlayer' : 'objects'),
                         new segment(
@@ -3522,7 +3582,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 if(chestState.getProperty('isHidden')) {
                     featureTagColors.push(hiddenTagColor);
                 }
-                var tagIds = drawFeatureTags(chestToken, featureTagColors);
+                var tagIds = drawFeatureTags(chestToken, featureTagColors, chestAsset);
                 
                 chestProperty.push(tagIds);
                 
@@ -4366,7 +4426,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     ['navigation', 'unique asset (TBA)', 'assetUnique doors', true, false]
                 ])
             +uiSection('Chests', null, [
-                    ['navigation', 'cycle asset (TBA)', 'assetStandard chests', true, false],
+                    ['navigation', 'cycle asset', 'assetStandard chests', false, false],
                     ['navigation', 'unique asset (TBA)', 'assetUnique chests', true, false]
                 ])
         );
