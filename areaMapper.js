@@ -6,8 +6,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.136,
-        schemaVersion = 0.042,
+    var version = 0.137,
+        schemaVersion = 0.043,
         buttonBackgroundColor = '#CC1869',
         buttonGreyedColor = '#8D94A9',
         buttonHighlightLinkColor = '#D6F510',
@@ -54,10 +54,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         ['https://s3.amazonaws.com/files.d20.io/images/30830/thumb.png?1339416039',0,0,0,0,0,0],
                         ['https://s3.amazonaws.com/files.d20.io/images/2830294/BaNT6qoN5O0WRiY3TS0azA/thumb.png?1390392180',0,0,0,0,0,0]
                     ],
-                //TODO: wall assets need to be pairs, with open hidden doors:
                 wallAssets: [
-                        ['https://s3.amazonaws.com/files.d20.io/images/9585786/x1-hhxavuLoUjMsgA5vYdA/thumb.png?1432007204',90,0,0,0,0,0],
-                        ['https://s3.amazonaws.com/files.d20.io/images/452469/9KJ1s2PJhuMbDICeYETXZQ/thumb.png?1355660278',0,1,25,0,25,5]
+                        [['https://s3.amazonaws.com/files.d20.io/images/9585786/x1-hhxavuLoUjMsgA5vYdA/thumb.png?1432007204',90,0,0,0,0,0],
+                            ['https://s3.amazonaws.com/files.d20.io/images/7068/thumb.png?1336366825',0,1,20,10,20,10]],
+                        [['https://s3.amazonaws.com/files.d20.io/images/452469/9KJ1s2PJhuMbDICeYETXZQ/thumb.png?1355660278',0,1,25,0,25,5],
+                            ['https://s3.amazonaws.com/files.d20.io/images/7068/thumb.png?1336366825',0,1,20,10,20,10]]
                     ],
                 doorAssets: [
                         [['https://s3.amazonaws.com/files.d20.io/images/6951/thumb.png?1336359665',0,1,20,10,20,10],
@@ -3293,7 +3294,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var wallAsset;
         switch(wallTexture.getProperty('textureType')) {
             case 'asset':
-                wallAsset = new asset(state.APIAreaMapper.wallAssets[wallTexture.getProperty('value')]);
+                wallAsset = new asset(state.APIAreaMapper.wallAssets[wallTexture.getProperty('value')][0]);
                 break;
             default:
                 log('Unhandled textureType of ' + wallTexture.getProperty('textureType') + ' for wallTexture in areaInstance.drawObjects().');
@@ -3362,29 +3363,15 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 
                 //identify the door (or wall) asset:
                 if(doorState.getProperty('isHidden')) {
-                    if(doorState.getProperty('isOpen')) {
-                        //TODO: this should use an open wall asset instead of a door asset:
-                        //TODO: unique texture (just sub it in as an alternate texture to use here):
-                        var doorTexture = new texture(a.getProperty('doorTexture'));
-                        switch(doorTexture.getProperty('textureType')) {
-                            case 'asset':
-                                doorAsset = new asset(state.APIAreaMapper.doorAssets[doorTexture.getProperty('value')][1]);
-                                break;
-                            default:
-                                log('Unhandled textureType of ' + doorTexture.getProperty('textureType') + ' for doorTexture in areaInstance.drawObjects().');
-                                break;
-                        }
-                    } else {
-                        //TODO: unique texture (just sub it in as an alternate texture to use here):
-                        var wallTexture = new texture(a.getProperty('wallTexture'));
-                        switch(wallTexture.getProperty('textureType')) {
-                            case 'asset':
-                                doorAsset = new asset(state.APIAreaMapper.wallAssets[wallTexture.getProperty('value')]);
-                                break;
-                            default:
-                                log('Unhandled textureType of ' + wallTexture.getProperty('textureType') + ' for wallTexture in areaInstance.drawObjects().');
-                                break;
-                        }
+                    //TODO: unique texture (just sub it in as an alternate texture to use here):
+                    var wallTexture = new texture(a.getProperty('wallTexture'));
+                    switch(wallTexture.getProperty('textureType')) {
+                        case 'asset':
+                            doorAsset = new asset(state.APIAreaMapper.wallAssets[wallTexture.getProperty('value')][doorState.getProperty('isOpen') ? 1 : 0]);
+                            break;
+                        default:
+                            log('Unhandled textureType of ' + wallTexture.getProperty('textureType') + ' for wallTexture in areaInstance.drawObjects().');
+                            break;
                     }
                 } else {
                     //TODO: unique texture (just sub it in as an alternate texture to use here):
