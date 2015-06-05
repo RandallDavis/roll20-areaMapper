@@ -85,6 +85,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         delete state.APIAreaMapper.falseSelection;
         delete state.APIAreaMapper.chestReposition;
         delete state.APIAreaMapper.globalAssetManagement;
+        delete state.APIAreaMapper.globalAssetEdit;
         
         //reset the handout:
         if(state.APIAreaMapper.handoutUi) {
@@ -3951,8 +3952,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     /* modals - begin */
     
-    var drawAssetManagementEditModal = function() {
+    var drawAssetManagementEditModal = function(highlightEditedAsset) {
         hideAssetManagementEditModal();
+        
+        //TODO: highlight edited asset
         
         if(!state.APIAreaMapper.globalAssetManagement) {
             return;
@@ -4413,7 +4416,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var followUpAction = [];
         
         if('undefined' === typeof(newName) || !newName.length) {
-            followUpAction.message = 'To change the active area'+ch("'")+'s name, type "<b>!api-area rename '+ch("lt")+'NEW NAME'+ch("gt")+'</b>".';
+            followUpAction.message = 'To change the active area'+ch("'")+'s name, type "<b>!api-area rename '+ch("<")+'new name'+ch(">")+'</b>".';
         } else {
             var a = new area(state.APIAreaMapper.activeArea);
             a.setProperty('name', newName);
@@ -4912,40 +4915,153 @@ var APIAreaMapper = APIAreaMapper || (function() {
             uiSection('Floors', 
                 activeClassification == 'floor' ? 'The floor asset can be seen on the top left corner of the player page.' : null, 
                 [
-                    ['active', 'active', 'globalAssetActivateClassification floor', false, activeClassification == 'floor'],
-                    ['navigation', 'create (TBA)', 'globalAssetCreate floor', true || activeClassification != 'floor', false],
-                    ['navigation', 'cycle', 'globalAssetCycle', activeClassification != 'floor', false],
-                    ['navigation', 'edit (TBA)', 'globalAssetEdit floor', true || activeClassification != 'floor', false],
-                    ['navigation', 'delete (TBA)', 'globalAssetDelete floor', true || activeClassification != 'floor', false]
-                ])
+                        ['active', 'active', 'globalAssetActivateClassification floor', false, activeClassification == 'floor'],
+                        ['navigation', 'create (TBA)', 'globalAssetCreate floor', true || activeClassification != 'floor', false],
+                        ['navigation', 'cycle', 'globalAssetCycle', activeClassification != 'floor', false],
+                        ['navigation', 'edit', 'globalAssetEdit', activeClassification != 'floor', false],
+                        ['navigation', 'delete (TBA)', 'globalAssetDelete floor', true || activeClassification != 'floor', false]
+                    ])
             +uiSection('Walls', 
                 activeClassification == 'wall' ? 'The wall assets can be seen on the top left corner of the player page.' : null, 
                 [
-                    ['active', 'active', 'globalAssetActivateClassification wall', false, activeClassification == 'wall'],
-                    ['navigation', 'create (TBA)', 'globalAssetCreate wall', true || activeClassification != 'wall', false],
-                    ['navigation', 'cycle', 'globalAssetCycle', activeClassification != 'wall', false],
-                    ['navigation', 'edit (TBA)', 'globalAssetEdit wall', true || activeClassification != 'wall', false],
-                    ['navigation', 'delete (TBA)', 'globalAssetDelete wall', true || activeClassification != 'wall', false]
-                ])
+                        ['active', 'active', 'globalAssetActivateClassification wall', false, activeClassification == 'wall'],
+                        ['navigation', 'create (TBA)', 'globalAssetCreate wall', true || activeClassification != 'wall', false],
+                        ['navigation', 'cycle', 'globalAssetCycle', activeClassification != 'wall', false],
+                        ['navigation', 'edit', 'globalAssetEdit', activeClassification != 'wall', false],
+                        ['navigation', 'delete (TBA)', 'globalAssetDelete wall', true || activeClassification != 'wall', false]
+                    ])
             +uiSection('Doors', 
                 activeClassification == 'door' ? 'The door assets can be seen on the top left corner of the player page.' : null, 
                 [
-                    ['active', 'active', 'globalAssetActivateClassification door', false, activeClassification == 'door'],
-                    ['navigation', 'create (TBA)', 'globalAssetCreate door', true || activeClassification != 'door', false],
-                    ['navigation', 'cycle', 'globalAssetCycle', activeClassification != 'door', false],
-                    ['navigation', 'edit (TBA)', 'globalAssetEdit door', true || activeClassification != 'door', false],
-                    ['navigation', 'delete (TBA)', 'globalAssetDelete door', true || activeClassification != 'door', false]
-                ])
+                        ['active', 'active', 'globalAssetActivateClassification door', false, activeClassification == 'door'],
+                        ['navigation', 'create (TBA)', 'globalAssetCreate door', true || activeClassification != 'door', false],
+                        ['navigation', 'cycle', 'globalAssetCycle', activeClassification != 'door', false],
+                        ['navigation', 'edit', 'globalAssetEdit', activeClassification != 'door', false],
+                        ['navigation', 'delete (TBA)', 'globalAssetDelete door', true || activeClassification != 'door', false]
+                    ])
             +uiSection('Chests', 
                 activeClassification == 'chest' ? 'The chest assets can be seen on the top left corner of the player page.' : null, 
                 [
-                    ['active', 'active', 'globalAssetActivateClassification chest', false, activeClassification == 'chest'],
-                    ['navigation', 'create (TBA)', 'globalAssetCreate chest', true || activeClassification != 'chest', false],
-                    ['navigation', 'cycle', 'globalAssetCycle', activeClassification != 'chest', false],
-                    ['navigation', 'edit (TBA)', 'globalAssetEdit chest', true || activeClassification != 'chest', false],
-                    ['navigation', 'delete (TBA)', 'globalAssetDelete chest', true || activeClassification != 'chest', false]
-                ])
+                        ['active', 'active', 'globalAssetActivateClassification chest', false, activeClassification == 'chest'],
+                        ['navigation', 'create (TBA)', 'globalAssetCreate chest', true || activeClassification != 'chest', false],
+                        ['navigation', 'cycle', 'globalAssetCycle', activeClassification != 'chest', false],
+                        ['navigation', 'edit', 'globalAssetEdit', activeClassification != 'chest', false],
+                        ['navigation', 'delete (TBA)', 'globalAssetDelete chest', true || activeClassification != 'chest', false]
+                    ])
         );
+    },
+    
+    interfaceGlobalAssetEdit = function(who) {
+        if(!state.APIAreaMapper.globalAssetManagement) {
+            log('interfaceGlobalAssetEdit() called without state.APIAreaMapper.globalAssetManagement.');
+            return;
+        }
+        
+        if(!state.APIAreaMapper.globalAssetEdit) {
+            log('interfaceGlobalAssetEdit() called wihtout state.APIAreaMapper.globalAssetEdit.');
+            return;
+        }
+        
+        var assetClassification = state.APIAreaMapper.globalAssetManagement[0];
+        var assetIndex = state.APIAreaMapper.globalAssetManagement[1];
+        //var assetItemOfPair = state.APIAreaMapper.globalAssetEdit[0];
+        
+        var asset1,
+            asset2;
+        
+        //get asset(s):
+        switch(assetClassification) {
+            case 'floor':
+                asset1 = new asset(state.APIAreaMapper.floorAssets[assetIndex]);
+                break;
+            case 'wall':
+                asset1 = new asset(state.APIAreaMapper.wallAssets[assetIndex][0]);
+                asset2 = new asset(state.APIAreaMapper.wallAssets[assetIndex][1]);
+                break;
+            case 'door':
+                asset1 = new asset(state.APIAreaMapper.doorAssets[assetIndex][0]);
+                asset2 = new asset(state.APIAreaMapper.doorAssets[assetIndex][1]);
+                break;
+            case 'chest':
+                asset1 = new asset(state.APIAreaMapper.chestAssets[assetIndex][0]);
+                asset2 = new asset(state.APIAreaMapper.chestAssets[assetIndex][1]);
+                break;
+            default:
+                log('Unhandled assetClassification of ' + assetClassification + ' in interfaceGlobalAssetEdit().');
+                return;
+        }
+        
+        var activeAsest = state.APIAreaMapper.globalAssetEdit[0] ? asset2 : asset1;
+        
+        var text = null;
+        var links = [['navigation', 'done', 'globalAssets', false, false]];
+        switch(assetClassification) {
+            case 'floor':
+                break;
+            case 'wall':
+            case 'door':
+            case 'chest':
+                links.push(['active', 'left asset (TBA)', 'globalAssetEditToggleActiveAsset', true, !state.APIAreaMapper.globalAssetEdit[0]]);
+                links.push(['navigation', 'swap assets (TBA)', 'globalAssetEditSwapAssets', true, false]);
+                break;
+            default:
+                log('Unhandled assetClassification of ' + assetClassification + ' in interfaceGlobalAssetEdit().');
+                return;
+        }
+        var html = uiSection('General', text, links);
+        
+        text = null;
+        links = [['navigation', ch("<") + '---', 'globalAssetEditRotate ccw lots', true, false],
+                    ['navigation', ch("<") + '--', 'globalAssetEditRotate ccw some', true, false],
+                    ['navigation', ch("<") + '-', 'globalAssetEditRotate ccw tad', true, false],
+                    ['navigation', '-' + ch(">"), 'globalAssetEditRotate cw tad', true, false],
+                    ['navigation', '--' + ch(">"), 'globalAssetEditRotate cw some', true, false],
+                    ['navigation', '---' + ch(">"), 'globalAssetEditRotate cw lots', true, false]];
+        switch(assetClassification) {
+            case 'floor':
+                break;
+            case 'wall':
+            case 'door':
+                links.push(['active', 'alternate stretch (TBA)', 'globalAssetEditAlternateStretch', true, activeAsest.getProperty('alternate')]);
+                text = 'Assets should be horizontal.';
+                break;
+            case 'chest':
+                break;
+            default:
+                log('Unhandled assetClassification of ' + assetClassification + ' in interfaceGlobalAssetEdit().');
+                return;
+        }
+        html += uiSection('Rotation', text, links);
+        
+        text = null;
+        links = [['navigation', 'up lots', 'globalAssetEditCrop top up lots', true, false],
+                    ['navigation', 'up', 'globalAssetEditCrop top up tad', true, false],
+                    ['navigation', 'down', 'globalAssetEditCrop top down tad', true, false],
+                    ['navigation', 'down lots', 'globalAssetEditCrop top down lots', true, false]];
+        html += uiSection('Top Cropping', text, links);
+        
+        text = null;
+        links = [['navigation', 'up lots', 'globalAssetEditCrop bottom up lots', true, false],
+                    ['navigation', 'up', 'globalAssetEditCrop bottom up tad', true, false],
+                    ['navigation', 'down', 'globalAssetEditCrop bottom down tad', true, false],
+                    ['navigation', 'down lots', 'globalAssetEditCrop bottom down lots', true, false]];
+        html += uiSection('Bottom Cropping', text, links);
+        
+        text = null;
+        links = [['navigation', 'left lots', 'globalAssetEditCrop left left lots', true, false],
+                    ['navigation', 'left', 'globalAssetEditCrop left left tad', true, false],
+                    ['navigation', 'right', 'globalAssetEditCrop left right tad', true, false],
+                    ['navigation', 'right lots', 'globalAssetEditCrop left right lots', true, false]];
+        html += uiSection('Left Cropping', text, links);
+        
+        text = null;
+        links = [['navigation', 'left lots', 'globalAssetEditCrop right left lots', true, false],
+                    ['navigation', 'left', 'globalAssetEditCrop right left tad', true, false],
+                    ['navigation', 'right', 'globalAssetEditCrop right right tad', true, false],
+                    ['navigation', 'right lots', 'globalAssetEditCrop right right lots', true, false]];
+        html += uiSection('Right Cropping', text, links);
+        
+        sendStandardInterface(who, 'Edit Global Asset', html);
     },
     
     interfaceHelp = function(who, topic) {
@@ -5056,6 +5172,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 return;
             }
             
+            if(state.APIAreaMapper.uiWindow.indexOf('globalAssetEdit') === 0) {
+                drawAssetManagementEditModal(true);
+                interfaceGlobalAssetEdit(who);
+                return;
+            }
+            
             interfaceMainMenu(who);
             return;
         }
@@ -5140,6 +5262,13 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     followUpAction = handleGlobalAssetCycle();
                     followUpAction.ignoreSelection = true;
                     retainAssetManagementModal = true;
+                    break;
+                case 'globalAssetEdit':
+                    state.APIAreaMapper.uiWindow = 'globalAssetEdit';
+                    state.APIAreaMapper.globalAssetEdit = [];
+                    state.APIAreaMapper.globalAssetEdit.push(0);
+                    followUpAction.refresh = true;
+                    followUpAction.ignoreSelection = true;
                     break;
                 case 'mainMenu':
                     state.APIAreaMapper.uiWindow = 'mainMenu';
