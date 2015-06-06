@@ -4029,10 +4029,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 asset1 = new asset(state.APIAreaMapper.wallAssets[state.APIAreaMapper.globalAssetManagement[1]][0]);
                 asset2 = new asset(state.APIAreaMapper.wallAssets[state.APIAreaMapper.globalAssetManagement[1]][1]);
                 
-                //TODO: remove:
-                asset1.setProperty('alternate', !asset1.getProperty('alternate'));
-                asset2.setProperty('alternate', !asset2.getProperty('alternate'));
-                
                 token1 = createTokenObjectFromAsset(
                         asset1,
                         pageId,
@@ -4295,6 +4291,160 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }
         
         state.APIAreaMapper.globalAssetManagement[1] = (state.APIAreaMapper.globalAssetManagement[1] + 1) % assetLength;
+        
+        return followUpAction;
+    },
+    
+    editGlobalAssetUpdateSetProperty = function(property, value, isReplacement) {
+        var assetClassification = state.APIAreaMapper.globalAssetManagement[0];
+        var assetIndex = state.APIAreaMapper.globalAssetManagement[1];
+        
+        var setPropertyToValue = function(assetObject, property, value, isReplacement) {
+            if(value == 'toggle') {
+                assetObject.setProperty(property, (assetObject.getProperty(property) + 1) % 2);
+            } else {
+                assetObject.setProperty(property, isReplacement ? value : assetObject.getProperty(property) + value);
+            }
+        };
+        
+        switch(assetClassification) {
+            case 'floor':
+                var assetObject = new asset(state.APIAreaMapper.floorAssets[assetIndex]);
+                setPropertyToValue(assetObject, property, value, isReplacement);
+                state.APIAreaMapper.floorAssets[assetIndex] = assetObject.getStateObject();
+                break;
+            case 'wall':
+                var assetObject = new asset(state.APIAreaMapper.wallAssets[assetIndex][state.APIAreaMapper.globalAssetEdit[0]]);
+                setPropertyToValue(assetObject, property, value, isReplacement);
+                state.APIAreaMapper.wallAssets[assetIndex][state.APIAreaMapper.globalAssetEdit[0]] = assetObject.getStateObject();
+                break;
+            case 'door':
+                var assetObject = new asset(state.APIAreaMapper.doorAssets[assetIndex][state.APIAreaMapper.globalAssetEdit[0]]);
+                setPropertyToValue(assetObject, property, value, isReplacement);
+                state.APIAreaMapper.doorAssets[assetIndex][state.APIAreaMapper.globalAssetEdit[0]] = assetObject.getStateObject();
+                break;
+            case 'chest':
+                var assetObject = new asset(state.APIAreaMapper.chestAssets[assetIndex][state.APIAreaMapper.globalAssetEdit[0]]);
+                setPropertyToValue(assetObject, property, value, isReplacement);
+                state.APIAreaMapper.chestAssets[assetIndex][state.APIAreaMapper.globalAssetEdit[0]] = assetObject.getStateObject();
+                break;
+            default:
+                log('Unhandled assetClassification of ' + assetClassification + ' in interfaceGlobalAssetEdit().');
+                return;
+        }
+    },
+    
+    handleGlobalAssetEditRotate = function(direction, amount) {
+        var followUpAction = [];
+        followUpAction.refresh = true;
+        
+        var rotationAmount = 0;
+        
+        switch(amount) {
+            case 'lots':
+                rotationAmount = 90;
+                break;
+            case 'some':
+                rotationAmount = 15;
+                break;
+            case 'tad':
+                rotationAmount = 1;
+                break;
+            default:
+                log('Unhandled amount of ' + amount + ' in handleGlobalAssetRotate().');
+                break;
+        }
+        
+        editGlobalAssetUpdateSetProperty('rotation', (direction == 'cw' ? rotationAmount : 0 - rotationAmount), false);
+        
+        return followUpAction;
+    },
+    
+    toggleGlobalAssetEditAlternateStretch = function() {
+        var followUpAction = [];
+        followUpAction.refresh = true;
+         
+        editGlobalAssetUpdateSetProperty('alternate', 'toggle', true);
+        
+        return followUpAction;
+    },
+    
+    handleGlobalAssetEditSwapAssets = function() {
+        var followUpAction = [];
+        followUpAction.refresh = true;
+        
+        var assetClassification = state.APIAreaMapper.globalAssetManagement[0];
+        var assetIndex = state.APIAreaMapper.globalAssetManagement[1];
+        
+        switch(assetClassification) {
+            case 'wall':
+                var tempAsset = state.APIAreaMapper.wallAssets[assetIndex][0];
+                state.APIAreaMapper.wallAssets[assetIndex][0] = state.APIAreaMapper.wallAssets[assetIndex][1];
+                state.APIAreaMapper.wallAssets[assetIndex][1] = tempAsset;
+                break;
+            case 'door':
+                var tempAsset = state.APIAreaMapper.doorAssets[assetIndex][0];
+                state.APIAreaMapper.doorAssets[assetIndex][0] = state.APIAreaMapper.doorAssets[assetIndex][1];
+                state.APIAreaMapper.doorAssets[assetIndex][1] = tempAsset;
+                break;
+            case 'chest':
+                var tempAsset = state.APIAreaMapper.chestAssets[assetIndex][0];
+                state.APIAreaMapper.chestAssets[assetIndex][0] = state.APIAreaMapper.chestAssets[assetIndex][1];
+                state.APIAreaMapper.chestAssets[assetIndex][1] = tempAsset;
+                break;
+            default:
+                log('Unhandled assetClassification of ' + assetClassification + ' in handleGlobalAssetEditSwapAssets().');
+                return;
+        }
+        
+        return followUpAction;
+    },
+    
+    handleGlobalAssetEditCropChange = function(side, direction, amount) {
+        var followUpAction = [];
+        followUpAction.refresh = true;
+       
+        var property,
+            addPositive,
+            amountValue;
+        
+        switch(side) {
+            case 'top':
+                property = 'cropTop';
+                addPositive = direction == 'down';
+                break;
+            case 'bottom':
+                property = 'cropBottom';
+                addPositive = direction == 'up';
+                break;
+            case 'left':
+                property = 'cropLeft';
+                addPositive = direction == 'right';
+                break;
+            case 'right':
+                property = 'cropRight';
+                addPositive = direction == 'left';
+                break;
+            default:
+                log('Unhandled side of ' + side + ' in handleGlobalAssetEditCropChange().');
+                followUpAction.message = 'There was a problem; see the log for details.';
+                return followUpAction;
+        }
+        
+        switch(amount) {
+            case 'lots':
+                amountValue = 7;
+                break;
+            case 'tad':
+                amountValue = 1;
+                break;
+            default:
+                log('Unhandled amount of ' + amount + ' in handleGlobalAssetEditCropChange().');
+                followUpAction.message = 'There was a problem; see the log for details.';
+                return followUpAction;
+        }
+        
+        editGlobalAssetUpdateSetProperty(property, addPositive ? amountValue : 0 - amountValue, false);
         
         return followUpAction;
     },
@@ -4964,7 +5114,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         var assetClassification = state.APIAreaMapper.globalAssetManagement[0];
         var assetIndex = state.APIAreaMapper.globalAssetManagement[1];
-        //var assetItemOfPair = state.APIAreaMapper.globalAssetEdit[0];
         
         var asset1,
             asset2;
@@ -5001,8 +5150,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'wall':
             case 'door':
             case 'chest':
-                links.push(['active', 'left asset (TBA)', 'globalAssetEditToggleActiveAsset', true, !state.APIAreaMapper.globalAssetEdit[0]]);
-                links.push(['navigation', 'swap assets (TBA)', 'globalAssetEditSwapAssets', true, false]);
+                links.push(['active', 'left asset', 'globalAssetEditToggleActiveAsset', false, !state.APIAreaMapper.globalAssetEdit[0]]);
+                links.push(['navigation', 'swap assets', 'globalAssetEditSwapAssets', false, false]);
                 break;
             default:
                 log('Unhandled assetClassification of ' + assetClassification + ' in interfaceGlobalAssetEdit().');
@@ -5011,18 +5160,18 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var html = uiSection('General', text, links);
         
         text = null;
-        links = [['navigation', ch("<") + '---', 'globalAssetEditRotate ccw lots', true, false],
-                    ['navigation', ch("<") + '--', 'globalAssetEditRotate ccw some', true, false],
-                    ['navigation', ch("<") + '-', 'globalAssetEditRotate ccw tad', true, false],
-                    ['navigation', '-' + ch(">"), 'globalAssetEditRotate cw tad', true, false],
-                    ['navigation', '--' + ch(">"), 'globalAssetEditRotate cw some', true, false],
-                    ['navigation', '---' + ch(">"), 'globalAssetEditRotate cw lots', true, false]];
+        links = [['navigation', ch("<") + '---', 'globalAssetEditRotate ccw lots', false, false],
+                    ['navigation', ch("<") + '--', 'globalAssetEditRotate ccw some', false, false],
+                    ['navigation', ch("<") + '-', 'globalAssetEditRotate ccw tad', false, false],
+                    ['navigation', '-' + ch(">"), 'globalAssetEditRotate cw tad', false, false],
+                    ['navigation', '--' + ch(">"), 'globalAssetEditRotate cw some', false, false],
+                    ['navigation', '---' + ch(">"), 'globalAssetEditRotate cw lots', false, false]];
         switch(assetClassification) {
             case 'floor':
                 break;
             case 'wall':
             case 'door':
-                links.push(['active', 'alternate stretch (TBA)', 'globalAssetEditAlternateStretch', true, activeAsest.getProperty('alternate')]);
+                links.push(['active', 'alternate stretch', 'globalAssetEditAlternateStretch', false, activeAsest.getProperty('alternate')]);
                 text = 'Assets should be horizontal.';
                 break;
             case 'chest':
@@ -5034,31 +5183,31 @@ var APIAreaMapper = APIAreaMapper || (function() {
         html += uiSection('Rotation', text, links);
         
         text = null;
-        links = [['navigation', 'up lots', 'globalAssetEditCrop top up lots', true, false],
-                    ['navigation', 'up', 'globalAssetEditCrop top up tad', true, false],
-                    ['navigation', 'down', 'globalAssetEditCrop top down tad', true, false],
-                    ['navigation', 'down lots', 'globalAssetEditCrop top down lots', true, false]];
+        links = [['navigation', 'up lots', 'globalAssetEditCrop top up lots', false, false],
+                    ['navigation', 'up', 'globalAssetEditCrop top up tad', false, false],
+                    ['navigation', 'down', 'globalAssetEditCrop top down tad', false, false],
+                    ['navigation', 'down lots', 'globalAssetEditCrop top down lots', false, false]];
         html += uiSection('Top Cropping', text, links);
         
         text = null;
-        links = [['navigation', 'up lots', 'globalAssetEditCrop bottom up lots', true, false],
-                    ['navigation', 'up', 'globalAssetEditCrop bottom up tad', true, false],
-                    ['navigation', 'down', 'globalAssetEditCrop bottom down tad', true, false],
-                    ['navigation', 'down lots', 'globalAssetEditCrop bottom down lots', true, false]];
+        links = [['navigation', 'up lots', 'globalAssetEditCrop bottom up lots', false, false],
+                    ['navigation', 'up', 'globalAssetEditCrop bottom up tad', false, false],
+                    ['navigation', 'down', 'globalAssetEditCrop bottom down tad', false, false],
+                    ['navigation', 'down lots', 'globalAssetEditCrop bottom down lots', false, false]];
         html += uiSection('Bottom Cropping', text, links);
         
         text = null;
-        links = [['navigation', 'left lots', 'globalAssetEditCrop left left lots', true, false],
-                    ['navigation', 'left', 'globalAssetEditCrop left left tad', true, false],
-                    ['navigation', 'right', 'globalAssetEditCrop left right tad', true, false],
-                    ['navigation', 'right lots', 'globalAssetEditCrop left right lots', true, false]];
+        links = [['navigation', 'left lots', 'globalAssetEditCrop left left lots', false, false],
+                    ['navigation', 'left', 'globalAssetEditCrop left left tad', false, false],
+                    ['navigation', 'right', 'globalAssetEditCrop left right tad', false, false],
+                    ['navigation', 'right lots', 'globalAssetEditCrop left right lots', false, false]];
         html += uiSection('Left Cropping', text, links);
         
         text = null;
-        links = [['navigation', 'left lots', 'globalAssetEditCrop right left lots', true, false],
-                    ['navigation', 'left', 'globalAssetEditCrop right left tad', true, false],
-                    ['navigation', 'right', 'globalAssetEditCrop right right tad', true, false],
-                    ['navigation', 'right lots', 'globalAssetEditCrop right right lots', true, false]];
+        links = [['navigation', 'left lots', 'globalAssetEditCrop right left lots', false, false],
+                    ['navigation', 'left', 'globalAssetEditCrop right left tad', false, false],
+                    ['navigation', 'right', 'globalAssetEditCrop right right tad', false, false],
+                    ['navigation', 'right lots', 'globalAssetEditCrop right right lots', false, false]];
         html += uiSection('Right Cropping', text, links);
         
         sendStandardInterface(who, 'Edit Global Asset', html);
@@ -5235,7 +5384,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         var retainRecordAreaMode = false;
         var retainFalseSelection = false;
-        var retainAssetManagementModal = false;
         
         if(chatCommand.length === 1) {
             followUpAction = intuit(msg.selected, msg.who);
@@ -5250,24 +5398,42 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     state.APIAreaMapper.uiWindow = 'globalAssets';
                     followUpAction.refresh = true;
                     followUpAction.ignoreSelection = true;
-                    retainAssetManagementModal = true;
                     break;
                 case 'globalAssetActivateClassification':
                     state.APIAreaMapper.uiWindow = 'globalAssets';
                     followUpAction = toggleGlobalAssetClassification(chatCommand[2]);
                     followUpAction.ignoreSelection = true;
-                    retainAssetManagementModal = true;
                     break;
                 case 'globalAssetCycle':
                     followUpAction = handleGlobalAssetCycle();
                     followUpAction.ignoreSelection = true;
-                    retainAssetManagementModal = true;
                     break;
                 case 'globalAssetEdit':
                     state.APIAreaMapper.uiWindow = 'globalAssetEdit';
                     state.APIAreaMapper.globalAssetEdit = [];
                     state.APIAreaMapper.globalAssetEdit.push(0);
                     followUpAction.refresh = true;
+                    followUpAction.ignoreSelection = true;
+                    break;
+                case 'globalAssetEditRotate':
+                    followUpAction = handleGlobalAssetEditRotate(chatCommand[2], chatCommand[3]);
+                    followUpAction.ignoreSelection = true;
+                    break;
+                case 'globalAssetEditAlternateStretch':
+                    followUpAction = toggleGlobalAssetEditAlternateStretch();
+                    followUpAction.ignoreSelection = true;
+                    break;
+                case 'globalAssetEditToggleActiveAsset':
+                    state.APIAreaMapper.globalAssetEdit[0] = (state.APIAreaMapper.globalAssetEdit[0] + 1) % 2;
+                    followUpAction.refresh = true;
+                    followUpAction.ignoreSelection = true;
+                    break;
+                case 'globalAssetEditSwapAssets':
+                    followUpAction = handleGlobalAssetEditSwapAssets();
+                    followUpAction.ignoreSelection = true;
+                    break;
+                case 'globalAssetEditCrop':
+                    followUpAction = handleGlobalAssetEditCropChange(chatCommand[2], chatCommand[3], chatCommand[4]);
                     followUpAction.ignoreSelection = true;
                     break;
                 case 'mainMenu':
@@ -5390,9 +5556,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             delete state.APIAreaMapper.falseSelection;
         }
         
-        if(!retainAssetManagementModal) {
-            hideAssetManagementEditModal();
-        }
+        hideAssetManagementEditModal();
         
         processFollowUpAction(followUpAction, msg.who, msg.selected);
     },
