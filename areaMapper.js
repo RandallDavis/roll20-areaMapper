@@ -6,8 +6,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.137,
-        schemaVersion = 0.043,
+    var version = 0.138,
+        schemaVersion = 0.044,
         buttonBackgroundColor = '#CC1869',
         buttonGreyedColor = '#8D94A9',
         buttonHighlightLinkColor = '#D6F510',
@@ -48,25 +48,25 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 blueprintDoorPathColor: '#EC9B10',
                 blueprintChestPathColor: '#666666',
                 floorAssets: [
-                        ['https://s3.amazonaws.com/files.d20.io/images/48971/thumb.jpg?1340229647',0,0,0,0,0,0],
-                        ['https://s3.amazonaws.com/files.d20.io/images/224431/2KRtd2Vic84zocexdHKSDg/thumb.jpg?1348140031',0,0,0,0,0,0],
-                        ['https://s3.amazonaws.com/files.d20.io/images/170063/-IZTPfD81DHYpTbzvEUyAQ/thumb.png?1345800193',0,0,0,0,0,0],
-                        ['https://s3.amazonaws.com/files.d20.io/images/30830/thumb.png?1339416039',0,0,0,0,0,0],
-                        ['https://s3.amazonaws.com/files.d20.io/images/2830294/BaNT6qoN5O0WRiY3TS0azA/thumb.png?1390392180',0,0,0,0,0,0]
+                        ['https://s3.amazonaws.com/files.d20.io/images/48971/thumb.jpg?1340229647',0,0,1,1,0,0],
+                        ['https://s3.amazonaws.com/files.d20.io/images/224431/2KRtd2Vic84zocexdHKSDg/thumb.jpg?1348140031',0,0,1,1,0,0],
+                        ['https://s3.amazonaws.com/files.d20.io/images/170063/-IZTPfD81DHYpTbzvEUyAQ/thumb.png?1345800193',0,0,1,1,0,0],
+                        ['https://s3.amazonaws.com/files.d20.io/images/30830/thumb.png?1339416039',0,0,1,1,0,0],
+                        ['https://s3.amazonaws.com/files.d20.io/images/2830294/BaNT6qoN5O0WRiY3TS0azA/thumb.png?1390392180',0,0,1,1,0,0]
                     ],
                 wallAssets: [
-                        [['https://s3.amazonaws.com/files.d20.io/images/9585786/x1-hhxavuLoUjMsgA5vYdA/thumb.png?1432007204',90,0,0,0,0,0],
-                            ['https://s3.amazonaws.com/files.d20.io/images/7068/thumb.png?1336366825',0,1,20,10,20,10]],
-                        [['https://s3.amazonaws.com/files.d20.io/images/452469/9KJ1s2PJhuMbDICeYETXZQ/thumb.png?1355660278',0,1,25,0,25,5],
-                            ['https://s3.amazonaws.com/files.d20.io/images/7068/thumb.png?1336366825',0,1,20,10,20,10]]
+                        [['https://s3.amazonaws.com/files.d20.io/images/9585786/x1-hhxavuLoUjMsgA5vYdA/thumb.png?1432007204',90,0,1,1,0,0],
+                            ['https://s3.amazonaws.com/files.d20.io/images/7068/thumb.png?1336366825',0,1,1,1,0,0]],
+                        [['https://s3.amazonaws.com/files.d20.io/images/452469/9KJ1s2PJhuMbDICeYETXZQ/thumb.png?1355660278',0,1,1,1,0,0],
+                            ['https://s3.amazonaws.com/files.d20.io/images/7068/thumb.png?1336366825',0,1,1,1,0,0]]
                     ],
                 doorAssets: [
-                        [['https://s3.amazonaws.com/files.d20.io/images/6951/thumb.png?1336359665',0,1,20,10,20,10],
-                            ['https://s3.amazonaws.com/files.d20.io/images/7068/thumb.png?1336366825',0,1,20,10,20,10]]
+                        [['https://s3.amazonaws.com/files.d20.io/images/6951/thumb.png?1336359665',0,1,1,1,0,0],
+                            ['https://s3.amazonaws.com/files.d20.io/images/7068/thumb.png?1336366825',0,1,1,1,0,0]]
                     ],
                 chestAssets: [
-                        [['https://s3.amazonaws.com/files.d20.io/images/7962/thumb.png?1336489213',0,0,0,0,0,0],
-                            ['https://s3.amazonaws.com/files.d20.io/images/2839308/_RR8niUb3sTQgLSoxDhM4g/thumb.png?1390469385',0,0,0,0,0,0]]
+                        [['https://s3.amazonaws.com/files.d20.io/images/7962/thumb.png?1336489213',0,0,1,1,0,0],
+                            ['https://s3.amazonaws.com/files.d20.io/images/2839308/_RR8niUb3sTQgLSoxDhM4g/thumb.png?1390469385',0,0,1,1,0,0]]
                     ]
             };
         } 
@@ -1592,7 +1592,47 @@ var APIAreaMapper = APIAreaMapper || (function() {
         state.APIAreaMapper.tempIgnoreDrawingEvents = false;
         
         return obj;
-    };
+    },
+    
+    /*
+    createTokenObjectFromImage_new = function(imageSrc, pageId, layer, top, left, height, width, rotation) {},
+    createTextObject_new = function(text, pageId, layer, top, left, height, width, rotation) {},
+    createBandPathObjectFromToken_new = function(token, bandIndex, color) {},
+    createBandPathObjectFromAsset_new = function(assetObject, pageId, layer, top, left, height, width, rotation, bandIndex, color) {},
+    createBandsFromToken_new = function(token, bandColors) {},
+    createBandsFromAsset_new = function(assetObject, pageId, layer, top, left, height, width, rotatation, bandColors) {},
+    createRectanglePathObject_new = function(pageId, layer, strokeColor, fillColor, top, left, height, width, rotation) {},
+    createPathObject_new = function(pageId, layer, strokeColor, fillColor, path, top, left, height, width, strokeWidth, rotation) {},    
+    */
+    
+    createTokenObjectFromAsset_new = function(assetObject, pageId, layer, top, left, height, width, rotation) {
+        if('undefined' === typeof(rotation)) {
+            rotation = 0;
+        }
+        
+        //TODO: does this cover tokens?
+        state.APIAreaMapper.tempIgnoreDrawingEvents = true;
+        
+        //TODO: handle alternate:
+        
+        var scaledHeight = height * assetObject.getProperty('scaleVertical');
+        var scaledWidth = width * assetObject.getProperty('scaleHorizontal');
+        
+        var obj = createObj('graphic', {
+            imgsrc: assetObject.getProperty('imagesrc'),
+            layer: layer,
+            pageid: pageId,
+            top: top + (height / 2) + assetObject.getProperty('offsetVertical'),
+            left: left + (width / 2) + assetObject.getProperty('offsetHorizontal'),
+            height: scaledHeight,
+            width: scaledWidth,
+            rotation: rotation + assetObject.getProperty('rotation')
+        });
+        
+        state.APIAreaMapper.tempIgnoreDrawingEvents = false;
+        
+        return obj;
+    },
     
     //creates a token object using a segment to define its dimensions:
     createTokenObjectFromAsset = function(assetObject, pageId, layer, segment, rotation) {
@@ -1662,13 +1702,13 @@ var APIAreaMapper = APIAreaMapper || (function() {
             return;
         }
         
-        this._imagesrc = stateObject[0];
-        this._rotation = stateObject[1];
-        this._alternate = stateObject[2];
-        this._cropTop = stateObject[3];
-        this._cropLeft = stateObject[4];
-        this._cropBottom = stateObject[5];
-        this._cropRight = stateObject[6];
+        this.setProperty('imagesrc', stateObject[0]);
+        this.setProperty('rotation', stateObject[1]);
+        this.setProperty('alternate', stateObject[2]);
+        this.setProperty('scaleVertical', stateObject[3]);
+        this.setProperty('scaleHorizontal', stateObject[4]);
+        this.setProperty('offsetVertical', stateObject[5]);
+        this.setProperty('offsetHorizontal', stateObject[6]);
     }
     
     inheritPrototype(asset, typedObject);
@@ -1678,10 +1718,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'imagesrc':
             case 'rotation':
             case 'alternate':
-            case 'cropTop':
-            case 'cropLeft':
-            case 'cropBottom':
-            case 'cropRight':
+            case 'scaleVertical':
+            case 'scaleHorizontal':
+            case 'offsetVertical':
+            case 'offsetHorizontal':
                 this['_' + property] = value;
                 break;
             default:
@@ -1693,7 +1733,15 @@ var APIAreaMapper = APIAreaMapper || (function() {
     };
     
     asset.prototype.getStateObject = function() {
-        return [this._imagesrc, this._rotation, this._alternate, this._cropTop, this._cropLeft, this._cropBottom, this._cropRight];
+        return [
+                this.getProperty('imagesrc'),
+                this.getProperty('rotation'),
+                this.getProperty('alternate'),
+                this.getProperty('scaleVertical'),
+                this.getProperty('scaleHorizontal'),
+                this.getProperty('offsetVertical'),
+                this.getProperty('offsetHorizontal')
+            ];
     };
     
     
@@ -3992,18 +4040,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
        
                 //draw asset:
                 asset1 = new asset(state.APIAreaMapper.floorAssets[state.APIAreaMapper.globalAssetManagement[1]]);
-                token1 = createTokenObjectFromAsset(
+                token1 = createTokenObjectFromAsset_new(
                         asset1,
                         pageId,
                         'objects',
-                        new segment(
-                            new point(
-                                modalLeft + ((modalWidth - assetNonStretchSize) / 2),
-                                modalTop + modalTopMargin),
-                            new point(
-                                modalLeft + modalWidth - ((modalWidth - assetNonStretchSize) / 2),
-                                modalTop + modalTopMargin + assetNonStretchSize)),
-                        0
+                        modalTop + modalTopMargin,
+                        modalLeft + ((modalWidth - assetNonStretchSize) / 2),
+                        assetNonStretchSize,
+                        assetNonStretchSize
                     );
                 state.APIAreaMapper.assetManagementEditModalIds.push(['graphic', token1.id]);
                 
@@ -4029,31 +4073,23 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 asset1 = new asset(state.APIAreaMapper.wallAssets[state.APIAreaMapper.globalAssetManagement[1]][0]);
                 asset2 = new asset(state.APIAreaMapper.wallAssets[state.APIAreaMapper.globalAssetManagement[1]][1]);
                 
-                token1 = createTokenObjectFromAsset(
+                token1 = createTokenObjectFromAsset_new(
                         asset1,
                         pageId,
                         'objects',
-                        new segment(
-                            new point(
-                                modalLeft + (modalWidth / 2) - (assetStretchWidth + assetPairStretchSpacing),
-                                modalTop + modalTopMargin),
-                            new point(
-                                modalLeft + (modalWidth / 2) - assetPairStretchSpacing,
-                                modalTop + modalTopMargin + assetStretchHeight)),
-                        0
+                        modalTop + modalTopMargin,
+                        modalLeft + (modalWidth / 2) - assetStretchWidth - assetPairStretchSpacing,
+                        assetStretchHeight,
+                        assetStretchWidth
                     );
-                token2 = createTokenObjectFromAsset(
+                token2 = createTokenObjectFromAsset_new(
                         asset2,
                         pageId,
                         'objects',
-                        new segment(
-                            new point(
-                                modalLeft + (modalWidth / 2) + assetPairStretchSpacing,
-                                modalTop + modalTopMargin),
-                            new point(
-                                modalLeft + (modalWidth / 2) + assetPairStretchSpacing + assetStretchWidth,
-                                modalTop + modalTopMargin + assetStretchHeight)),
-                        0
+                        modalTop + modalTopMargin,
+                        modalLeft + (modalWidth / 2) + assetPairStretchSpacing,
+                        assetStretchHeight,
+                        assetStretchWidth
                     );
                 state.APIAreaMapper.assetManagementEditModalIds.push(['graphic', token1.id]);
                 state.APIAreaMapper.assetManagementEditModalIds.push(['graphic', token2.id]);
@@ -4090,31 +4126,23 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 //draw assets:
                 asset1 = new asset(state.APIAreaMapper.doorAssets[state.APIAreaMapper.globalAssetManagement[1]][0]);
                 asset2 = new asset(state.APIAreaMapper.doorAssets[state.APIAreaMapper.globalAssetManagement[1]][1]);
-                token1 = createTokenObjectFromAsset(
+                token1 = createTokenObjectFromAsset_new(
                         asset1,
                         pageId,
                         'objects',
-                        new segment(
-                            new point(
-                                modalLeft + (modalWidth / 2) - (assetStretchWidth + assetPairStretchSpacing),
-                                modalTop + modalTopMargin),
-                            new point(
-                                modalLeft + (modalWidth / 2) - assetPairStretchSpacing,
-                                modalTop + modalTopMargin + assetStretchHeight)),
-                        90
+                        modalTop + modalTopMargin,
+                        modalLeft + (modalWidth / 2) - assetStretchWidth - assetPairStretchSpacing,
+                        assetStretchHeight,
+                        assetStretchWidth
                     );
-                token2 = createTokenObjectFromAsset(
+                token2 = createTokenObjectFromAsset_new(
                         asset2,
                         pageId,
                         'objects',
-                        new segment(
-                            new point(
-                                modalLeft + (modalWidth / 2) + assetPairStretchSpacing,
-                                modalTop + modalTopMargin),
-                            new point(
-                                modalLeft + (modalWidth / 2) + assetPairStretchSpacing + assetStretchWidth,
-                                modalTop + modalTopMargin + assetStretchHeight)),
-                        90
+                        modalTop + modalTopMargin,
+                        modalLeft + (modalWidth / 2) + assetPairStretchSpacing,
+                        assetStretchHeight,
+                        assetStretchWidth
                     );
                 state.APIAreaMapper.assetManagementEditModalIds.push(['graphic', token1.id]);
                 state.APIAreaMapper.assetManagementEditModalIds.push(['graphic', token2.id]);
@@ -4147,35 +4175,27 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 
                 //create the modal frame:
                 state.APIAreaMapper.assetManagementEditModalIds.push(['path', createRectanglePathObject(pageId, 'objects', '#000000', headerBackgroundColor, modalTop, modalLeft, modalPairNonStretchHeight, modalWidth).id]);
-       
+                
                 //draw assets:
                 asset1 = new asset(state.APIAreaMapper.chestAssets[state.APIAreaMapper.globalAssetManagement[1]][0]);
                 asset2 = new asset(state.APIAreaMapper.chestAssets[state.APIAreaMapper.globalAssetManagement[1]][1]);
-                token1 = createTokenObjectFromAsset(
+                token1 = createTokenObjectFromAsset_new(
                         asset1,
                         pageId,
                         'objects',
-                        new segment(
-                            new point(
-                                modalLeft + (modalWidth / 2) - (assetPairNonStretchSize + assetPairNonStretchSpacing),
-                                modalTop + modalTopMargin),
-                            new point(
-                                modalLeft + (modalWidth / 2) - assetPairNonStretchSpacing,
-                                modalTop + modalTopMargin + assetPairNonStretchSize)),
-                        0
+                        modalTop + modalTopMargin,
+                        modalLeft + (modalWidth / 2) - assetPairNonStretchSize - assetPairNonStretchSpacing,
+                        assetPairNonStretchSize,
+                        assetPairNonStretchSize
                     );
-                token2 = createTokenObjectFromAsset(
+                token2 = createTokenObjectFromAsset_new(
                         asset2,
                         pageId,
                         'objects',
-                        new segment(
-                            new point(
-                                modalLeft + (modalWidth / 2) + assetPairNonStretchSpacing,
-                                modalTop + modalTopMargin),
-                            new point(
-                                modalLeft + (modalWidth / 2) + assetPairNonStretchSpacing + assetPairNonStretchSize,
-                                modalTop + modalTopMargin + assetPairNonStretchSize)),
-                        0
+                        modalTop + modalTopMargin,
+                        modalLeft + (modalWidth / 2) + assetPairNonStretchSpacing,
+                        assetPairNonStretchSize,
+                        assetPairNonStretchSize
                     );
                 state.APIAreaMapper.assetManagementEditModalIds.push(['graphic', token1.id]);
                 state.APIAreaMapper.assetManagementEditModalIds.push(['graphic', token2.id]);
@@ -4209,12 +4229,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 return;
         }
         
+        log(asset1.getStateObject());
+        
         //draw feature tags:
         if(token1) {
-            state.APIAreaMapper.assetManagementEditModalIds.push(['path', drawFeatureTag(token1, 0, '#00ff00', asset1).id]);
+            //state.APIAreaMapper.assetManagementEditModalIds.push(['path', drawFeatureTag(token1, 0, '#00ff00', asset1).id]);
         }
         if(token2) {
-            state.APIAreaMapper.assetManagementEditModalIds.push(['path', drawFeatureTag(token2, 0, '#00ff00', asset2).id]);
+            //state.APIAreaMapper.assetManagementEditModalIds.push(['path', drawFeatureTag(token2, 0, '#00ff00', asset2).id]);
         }
     },
     
@@ -4295,37 +4317,50 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return followUpAction;
     },
     
-    editGlobalAssetUpdateSetProperty = function(property, value, isReplacement) {
+    //editGlobalAssetUpdateSetProperty = function(property, value, isReplacement) {
+    editGlobalAssetUpdateSetProperty = function(property, value, updateType) {
         var assetClassification = state.APIAreaMapper.globalAssetManagement[0];
         var assetIndex = state.APIAreaMapper.globalAssetManagement[1];
         
-        var setPropertyToValue = function(assetObject, property, value, isReplacement) {
-            if(value == 'toggle') {
-                assetObject.setProperty(property, (assetObject.getProperty(property) + 1) % 2);
-            } else {
-                assetObject.setProperty(property, isReplacement ? value : assetObject.getProperty(property) + value);
+        var setPropertyToValue = function(assetObject, property, value, updateType) {
+            switch(updateType) {
+                case 'toggle':
+                    assetObject.setProperty(property, (assetObject.getProperty(property) + 1) % 2);
+                    break;
+                case 'add':
+                    assetObject.setProperty(property, assetObject.getProperty(property) + value);
+                    break;
+                case 'multiply':
+                    assetObject.setProperty(property, assetObject.getProperty(property) * value);
+                    break;
+                case 'replace':
+                    assetObject.setProperty(property, value);
+                    break;
+                default:
+                    log('Unhandled updateType of ' + updateType + ' in editGlobalAssetUpdateSetProperty().');
+                    return;
             }
         };
         
         switch(assetClassification) {
             case 'floor':
                 var assetObject = new asset(state.APIAreaMapper.floorAssets[assetIndex]);
-                setPropertyToValue(assetObject, property, value, isReplacement);
+                setPropertyToValue(assetObject, property, value, updateType);
                 state.APIAreaMapper.floorAssets[assetIndex] = assetObject.getStateObject();
                 break;
             case 'wall':
                 var assetObject = new asset(state.APIAreaMapper.wallAssets[assetIndex][state.APIAreaMapper.globalAssetEdit[0]]);
-                setPropertyToValue(assetObject, property, value, isReplacement);
+                setPropertyToValue(assetObject, property, value, updateType);
                 state.APIAreaMapper.wallAssets[assetIndex][state.APIAreaMapper.globalAssetEdit[0]] = assetObject.getStateObject();
                 break;
             case 'door':
                 var assetObject = new asset(state.APIAreaMapper.doorAssets[assetIndex][state.APIAreaMapper.globalAssetEdit[0]]);
-                setPropertyToValue(assetObject, property, value, isReplacement);
+                setPropertyToValue(assetObject, property, value, updateType);
                 state.APIAreaMapper.doorAssets[assetIndex][state.APIAreaMapper.globalAssetEdit[0]] = assetObject.getStateObject();
                 break;
             case 'chest':
                 var assetObject = new asset(state.APIAreaMapper.chestAssets[assetIndex][state.APIAreaMapper.globalAssetEdit[0]]);
-                setPropertyToValue(assetObject, property, value, isReplacement);
+                setPropertyToValue(assetObject, property, value, updateType);
                 state.APIAreaMapper.chestAssets[assetIndex][state.APIAreaMapper.globalAssetEdit[0]] = assetObject.getStateObject();
                 break;
             default:
@@ -4355,7 +4390,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 break;
         }
         
-        editGlobalAssetUpdateSetProperty('rotation', (direction == 'cw' ? rotationAmount : 0 - rotationAmount), false);
+        editGlobalAssetUpdateSetProperty('rotation', (direction == 'cw' ? rotationAmount : 0 - rotationAmount), 'add');
         
         return followUpAction;
     },
@@ -4364,7 +4399,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var followUpAction = [];
         followUpAction.refresh = true;
          
-        editGlobalAssetUpdateSetProperty('alternate', 'toggle', true);
+        editGlobalAssetUpdateSetProperty('alternate', null, 'toggle');
         
         return followUpAction;
     },
@@ -4400,51 +4435,56 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return followUpAction;
     },
     
-    handleGlobalAssetEditCropChange = function(side, direction, amount) {
+    handleGlobalAssetEditScaleChange = function(axis, action, amount) {
         var followUpAction = [];
         followUpAction.refresh = true;
        
-        var property,
-            addPositive,
-            amountValue;
+        var amountValue;
         
-        switch(side) {
-            case 'top':
-                property = 'cropTop';
-                addPositive = direction == 'down';
+        var property = axis == 'vertical' ? 'scaleVertical' : 'scaleHorizontal';
+        var isIncreasing = (action == 'increase');
+        
+        switch(amount) {
+            case 'lots':
+                amountValue = 1.05;
                 break;
-            case 'bottom':
-                property = 'cropBottom';
-                addPositive = direction == 'up';
-                break;
-            case 'left':
-                property = 'cropLeft';
-                addPositive = direction == 'right';
-                break;
-            case 'right':
-                property = 'cropRight';
-                addPositive = direction == 'left';
+            case 'tad':
+                amountValue = 1.01;
                 break;
             default:
-                log('Unhandled side of ' + side + ' in handleGlobalAssetEditCropChange().');
+                log('Unhandled amount of ' + amount + ' in handleGlobalAssetEditScaleChange().');
                 followUpAction.message = 'There was a problem; see the log for details.';
                 return followUpAction;
         }
         
+        editGlobalAssetUpdateSetProperty(property, isIncreasing ? amountValue : 1 / amountValue, 'multiply');
+        
+        return followUpAction;
+    },
+    
+    handleGlobalAssetEditOffsetChange = function(axis, action, amount) {
+        var followUpAction = [];
+        followUpAction.refresh = true;
+       
+        var amountValue;
+        
+        var property = axis == 'vertical' ? 'offsetVertical' : 'offsetHorizontal';
+        var isIncreasing = (action == 'increase');
+        
         switch(amount) {
             case 'lots':
-                amountValue = 7;
+                amountValue = 5;
                 break;
             case 'tad':
                 amountValue = 1;
                 break;
             default:
-                log('Unhandled amount of ' + amount + ' in handleGlobalAssetEditCropChange().');
+                log('Unhandled amount of ' + amount + ' in handleGlobalAssetEditOffsetChange().');
                 followUpAction.message = 'There was a problem; see the log for details.';
                 return followUpAction;
         }
         
-        editGlobalAssetUpdateSetProperty(property, addPositive ? amountValue : 0 - amountValue, false);
+        editGlobalAssetUpdateSetProperty(property, isIncreasing ? amountValue : 0 - amountValue, 'add');
         
         return followUpAction;
     },
@@ -5142,6 +5182,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         var activeAsest = state.APIAreaMapper.globalAssetEdit[0] ? asset2 : asset1;
         
+        //TODO: reset button? - would need to be on an individual asset, not the pair
+        
         var text = null;
         var links = [['navigation', 'done', 'globalAssets', false, false]];
         switch(assetClassification) {
@@ -5183,32 +5225,32 @@ var APIAreaMapper = APIAreaMapper || (function() {
         html += uiSection('Rotation', text, links);
         
         text = null;
-        links = [['navigation', 'up lots', 'globalAssetEditCrop top up lots', false, false],
-                    ['navigation', 'up', 'globalAssetEditCrop top up tad', false, false],
-                    ['navigation', 'down', 'globalAssetEditCrop top down tad', false, false],
-                    ['navigation', 'down lots', 'globalAssetEditCrop top down lots', false, false]];
-        html += uiSection('Top Cropping', text, links);
+        links = [['navigation', 'increase lots', 'globalAssetEditScale vertical increase lots', false, false],
+                    ['navigation', 'increase', 'globalAssetEditScale vertical increase tad', false, false],
+                    ['navigation', 'decrease', 'globalAssetEditScale vertical decrease tad', false, false],
+                    ['navigation', 'decrease lots', 'globalAssetEditScale vertical decrease lots', false, false]];
+        html += uiSection('Vertical Scale', text, links);
         
         text = null;
-        links = [['navigation', 'up lots', 'globalAssetEditCrop bottom up lots', false, false],
-                    ['navigation', 'up', 'globalAssetEditCrop bottom up tad', false, false],
-                    ['navigation', 'down', 'globalAssetEditCrop bottom down tad', false, false],
-                    ['navigation', 'down lots', 'globalAssetEditCrop bottom down lots', false, false]];
-        html += uiSection('Bottom Cropping', text, links);
+        links = [['navigation', 'increase lots', 'globalAssetEditScale horizontal increase lots', false, false],
+                    ['navigation', 'increase', 'globalAssetEditScale horizontal increase tad', false, false],
+                    ['navigation', 'decrease', 'globalAssetEditScale horizontal decrease tad', false, false],
+                    ['navigation', 'decrease lots', 'globalAssetEditScale horizontal decrease lots', false, false]];
+        html += uiSection('Horizontal Scale', text, links);
         
         text = null;
-        links = [['navigation', 'left lots', 'globalAssetEditCrop left left lots', false, false],
-                    ['navigation', 'left', 'globalAssetEditCrop left left tad', false, false],
-                    ['navigation', 'right', 'globalAssetEditCrop left right tad', false, false],
-                    ['navigation', 'right lots', 'globalAssetEditCrop left right lots', false, false]];
-        html += uiSection('Left Cropping', text, links);
+        links = [['navigation', 'increase lots', 'globalAssetEditOffset vertical increase lots', false, false],
+                    ['navigation', 'increase', 'globalAssetEditOffset vertical increase tad', false, false],
+                    ['navigation', 'decrease', 'globalAssetEditOffset vertical decrease tad', false, false],
+                    ['navigation', 'decrease lots', 'globalAssetEditOffset vertical decrease lots', false, false]];
+        html += uiSection('Vertical Position', text, links);
         
         text = null;
-        links = [['navigation', 'left lots', 'globalAssetEditCrop right left lots', false, false],
-                    ['navigation', 'left', 'globalAssetEditCrop right left tad', false, false],
-                    ['navigation', 'right', 'globalAssetEditCrop right right tad', false, false],
-                    ['navigation', 'right lots', 'globalAssetEditCrop right right lots', false, false]];
-        html += uiSection('Right Cropping', text, links);
+        links = [['navigation', 'increase lots', 'globalAssetEditOffset horizontal increase lots', false, false],
+                    ['navigation', 'increase', 'globalAssetEditOffset horizontal increase tad', false, false],
+                    ['navigation', 'decrease', 'globalAssetEditOffset horizontal decrease tad', false, false],
+                    ['navigation', 'decrease lots', 'globalAssetEditOffset horizontal decrease lots', false, false]];
+        html += uiSection('Horizontal Position', text, links);
         
         sendStandardInterface(who, 'Edit Global Asset', html);
     },
@@ -5432,8 +5474,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     followUpAction = handleGlobalAssetEditSwapAssets();
                     followUpAction.ignoreSelection = true;
                     break;
-                case 'globalAssetEditCrop':
-                    followUpAction = handleGlobalAssetEditCropChange(chatCommand[2], chatCommand[3], chatCommand[4]);
+                case 'globalAssetEditScale':
+                    followUpAction = handleGlobalAssetEditScaleChange(chatCommand[2], chatCommand[3], chatCommand[4]);
+                    followUpAction.ignoreSelection = true;
+                    break;
+                case 'globalAssetEditOffset':
+                    followUpAction = handleGlobalAssetEditOffsetChange(chatCommand[2], chatCommand[3], chatCommand[4]);
                     followUpAction.ignoreSelection = true;
                     break;
                 case 'mainMenu':
