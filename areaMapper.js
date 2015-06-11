@@ -1613,10 +1613,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
         //TODO: does this cover tokens?
         state.APIAreaMapper.tempIgnoreDrawingEvents = true;
         
-        //TODO: handle alternate:
-        
         var scaledHeight = height * assetObject.getProperty('scaleVertical');
         var scaledWidth = width * assetObject.getProperty('scaleHorizontal');
+        
+        //the inbound height and width are reversed if the asset's alternate property is true:
+        var usedHeight = assetObject.getProperty('alternate') ? scaledWidth : scaledHeight;
+        var usedWidth = assetObject.getProperty('alternate') ? scaledHeight : scaledWidth;
         
         var obj = createObj('graphic', {
             imgsrc: assetObject.getProperty('imagesrc'),
@@ -1624,9 +1626,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
             pageid: pageId,
             top: top + (height / 2) + assetObject.getProperty('offsetVertical'),
             left: left + (width / 2) + assetObject.getProperty('offsetHorizontal'),
-            height: scaledHeight,
-            width: scaledWidth,
-            rotation: rotation + assetObject.getProperty('rotation')
+            height: usedHeight,
+            width: usedWidth,
+            rotation: rotation + assetObject.getProperty('rotation') + (assetObject.getProperty('alternate') ? 90 : 0)
         });
         
         state.APIAreaMapper.tempIgnoreDrawingEvents = false;
