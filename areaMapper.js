@@ -1439,6 +1439,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return "[[\"M\",0,0],[\"L\",0," + height + "],[\"L\"," + width + "," + height + "],[\"L\"," + width + ",0],[\"L\",0,0]]";
     },
     
+    //TODO: delete:
     createPathObject = function(pageId, layer, strokeColor, fillColor, path, top, left, height, width, strokeWidth, rotation) {
         state.APIAreaMapper.tempIgnoreDrawingEvents = true;
         
@@ -1469,6 +1470,37 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return obj;
     },
     
+    createPathObject_new = function(path, pageId, layer, strokeColor, fillColor, top, left, height, width, strokeWidth, rotation) {
+        if('undefined' === typeof(strokeWidth)) {
+            strokeWidth = 1;
+        }
+        
+        if('undefined' === typeof(rotation)) {
+            rotation = 0;
+        }
+        
+        state.APIAreaMapper.tempIgnoreDrawingEvents = true;
+        
+        var obj = createObj('path', {
+                layer: layer,
+                pageid: pageId,
+                top: top + (height / 2),
+                left: left + (width / 2),
+                height: height,
+                width: width,
+                stroke: strokeColor,
+                stroke_width: strokeWidth,
+                fill: fillColor,
+                _path: path,
+                rotation: rotation
+            });
+        
+        state.APIAreaMapper.tempIgnoreDrawingEvents = false;
+        
+        return obj;
+    }, 
+    
+    //TODO: delete:
     createRectanglePathObject = function(pageId, layer, strokeColor, fillColor, top, left, height, width, rotation) {
         return createPathObject(
             pageId,
@@ -1484,6 +1516,22 @@ var APIAreaMapper = APIAreaMapper || (function() {
             rotation);
     },
     
+    createRectanglePathObject_new = function(pageId, layer, strokeColor, fillColor, top, left, height, width, strokeWidth, rotation) {
+        return createPathObject_new(
+            getRectanglePath(height, width),
+            pageId,
+            layer,
+            strokeColor,
+            fillColor,
+            top,
+            left,
+            height,
+            width,
+            strokeWidth,
+            rotation);
+    },
+    
+    //TODO: delete:
     drawFeatureTag = function(graphic, tagBand, color, assetObject) {
         var tagStrokeWidth = 4;
         
@@ -1512,6 +1560,30 @@ var APIAreaMapper = APIAreaMapper || (function() {
             graphic.get('rotation'));
     },
     
+    createBandPathObjectFromToken_new = function(token, bandIndex, color, layer) {
+        if('undefined' === typeof(layer)) {
+            layer = 'gmlayer';
+        }
+        
+        var bandStrokeWidth = 4;
+        
+        var height = token.get('height') + (2 * (bandIndex * bandStrokeWidth));
+        var width = token.get('width') + (2 * (bandIndex * bandStrokeWidth));
+        
+        return createRectanglePathObject_new(
+            token.get('_pageid'),
+            layer,
+            color,
+            'transparent',
+            token.get('top') - (token.get('height') / 2),
+            token.get('left') - (token.get('width') / 2),
+            height,
+            width,
+            bandStrokeWidth,
+            token.get('rotation'));
+    },
+    
+    //TODO: delete:
     //receives a graphic and an array of tag colors, and returns an array of new feature tag IDs:
     drawFeatureTags = function(graphic, featureTagColors, assetObject) {
         var tagIds = [];
@@ -1524,6 +1596,18 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return tagIds;
     },
     
+    createBandsFromToken_new = function(token, bandColors, layer) {
+        var bandIds = [];
+        var bandIndex = 0;
+        
+        bandColors.forEach(function(color) {
+            bandIds.push(createBandPathObjectFromToken_new(token, bandIndex++, color, layer).id);
+        }, this);
+        
+        return bandIds;
+    },
+    
+    //TODO: delete:
     createTokenObjectFromSegment = function(imgsrc, pageId, layer, segment, width, alternateWidthAndHeight) {
         state.APIAreaMapper.tempIgnoreDrawingEvents = true;
         
@@ -1545,6 +1629,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return obj;
     },
     
+    //TODO: delete:
     createTokenObjectFromAssetAndSegment = function(assetObject, pageId, layer, segment, width, lengthExtension) {
         state.APIAreaMapper.tempIgnoreDrawingEvents = true;
         
@@ -1570,6 +1655,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return obj;
     },
     
+    //TODO: delete:
     //creates a token object using a segment to define its dimensions:
     createTokenObject = function(imgsrc, pageId, layer, segment, rotation) {
         if('undefined' === typeof(rotation)) {
@@ -1595,15 +1681,34 @@ var APIAreaMapper = APIAreaMapper || (function() {
     },
     
     /*
-    createTokenObjectFromImage_new = function(imageSrc, pageId, layer, top, left, height, width, rotation) {},
-    createTextObject_new = function(text, pageId, layer, top, left, height, width, rotation) {},
-    createBandPathObjectFromToken_new = function(token, bandIndex, color) {},
+    //createTokenObjectFromAssetAndSegment = function(assetObject, pageId, layer, segment, width, lengthExtension) {
     createBandPathObjectFromAsset_new = function(assetObject, pageId, layer, top, left, height, width, rotation, bandIndex, color) {},
-    createBandsFromToken_new = function(token, bandColors) {},
     createBandsFromAsset_new = function(assetObject, pageId, layer, top, left, height, width, rotatation, bandColors) {},
-    createRectanglePathObject_new = function(pageId, layer, strokeColor, fillColor, top, left, height, width, rotation) {},
-    createPathObject_new = function(pageId, layer, strokeColor, fillColor, path, top, left, height, width, strokeWidth, rotation) {},    
     */
+    
+    createTokenObjectFromImage_new = function(imagesrc, pageId, layer, top, left, height, width, rotation) {
+        if('undefined' === typeof(rotation)) {
+            rotation = 0;
+        }
+        
+        //TODO: does this cover tokens?
+        state.APIAreaMapper.tempIgnoreDrawingEvents = true;
+        
+        var obj = createObj('graphic', {
+            imgsrc: imagesrc,
+            layer: layer,
+            pageid: pageId,
+            top: top + (height / 2),
+            left: left + (width / 2),
+            height: height,
+            width: width,
+            rotation: rotation
+        });
+        
+        state.APIAreaMapper.tempIgnoreDrawingEvents = false;
+        
+        return obj;
+    },
     
     createTokenObjectFromAsset_new = function(assetObject, pageId, layer, top, left, height, width, rotation) {
         if('undefined' === typeof(rotation)) {
@@ -1667,6 +1772,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return obj;
     },
     
+    //createTextObject_new (same as below):
     createTextObject = function(text, pageId, layer, top, left, height, width, rotation) {
         if('undefined' === typeof(rotation)) {
             rotation = 0;
@@ -4236,9 +4342,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
         //draw feature tags:
         if(token1) {
             //state.APIAreaMapper.assetManagementEditModalIds.push(['path', drawFeatureTag(token1, 0, '#00ff00', asset1).id]);
+            state.APIAreaMapper.assetManagementEditModalIds.push(['path', createBandPathObjectFromToken_new(token1, 0, '#00ff00', 'objects').id]);
         }
         if(token2) {
             //state.APIAreaMapper.assetManagementEditModalIds.push(['path', drawFeatureTag(token2, 0, '#00ff00', asset2).id]);
+            state.APIAreaMapper.assetManagementEditModalIds.push(['path', createBandPathObjectFromToken_new(token2, 0, '#00ff00', 'objects').id]);
         }
     },
     
