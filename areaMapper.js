@@ -1583,6 +1583,33 @@ var APIAreaMapper = APIAreaMapper || (function() {
             token.get('rotation'));
     },
     
+    createBandPathObject_new = function(pageId, top, left, height, width, bandIndex, color, rotation, layer) {
+        if('undefined' === typeof(rotation)) {
+            rotation = 0;
+        }
+        
+        if('undefined' === typeof(layer)) {
+            layer = 'gmlayer';
+        }
+        
+        var bandStrokeWidth = 4;
+        
+        height += (2 * (bandIndex * bandStrokeWidth));
+        width += (2 * (bandIndex * bandStrokeWidth));
+        
+        return createRectanglePathObject_new(
+            pageId,
+            layer,
+            color,
+            'transparent',
+            top,
+            left,
+            height,
+            width,
+            bandStrokeWidth,
+            rotation);
+    },
+    
     //TODO: delete:
     //receives a graphic and an array of tag colors, and returns an array of new feature tag IDs:
     drawFeatureTags = function(graphic, featureTagColors, assetObject) {
@@ -1602,6 +1629,17 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         bandColors.forEach(function(color) {
             bandIds.push(createBandPathObjectFromToken_new(token, bandIndex++, color, layer).id);
+        }, this);
+        
+        return bandIds;
+    },
+    
+    createBands_new = function(pageId, top, left, height, width, bandColors, rotatation, layer) {
+        var bandIds = [];
+        var bandIndex = 0;
+        
+        bandColors.forEach(function(color) {
+            bandIds.push(createBandPathObject_new(pageId, top, left, height, width, bandIndex++, color, rotation, layer).id);
         }, this);
         
         return bandIds;
@@ -1682,8 +1720,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     /*
     //createTokenObjectFromAssetAndSegment = function(assetObject, pageId, layer, segment, width, lengthExtension) {
-    createBandPathObjectFromAsset_new = function(assetObject, pageId, layer, top, left, height, width, rotation, bandIndex, color) {},
-    createBandsFromAsset_new = function(assetObject, pageId, layer, top, left, height, width, rotatation, bandColors) {},
     */
     
     createTokenObjectFromImage_new = function(imagesrc, pageId, layer, top, left, height, width, rotation) {
@@ -4159,6 +4195,21 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     );
                 state.APIAreaMapper.assetManagementEditModalIds.push(['graphic', token1.id]);
                 
+                //draw band:
+                state.APIAreaMapper.assetManagementEditModalIds.push(['path', 
+                        createBandPathObject_new(
+                                pageId, 
+                                modalTop + modalTopMargin,
+                                modalLeft + ((modalWidth - assetNonStretchSize) / 2),
+                                assetNonStretchSize,
+                                assetNonStretchSize, 
+                                0, 
+                                '#00ff00', 
+                                0, 
+                                'objects'
+                            ).id
+                    ]);
+                
                 //draw label:
                 state.APIAreaMapper.assetManagementEditModalIds.push(['text',
                         createTextObject(
@@ -4201,6 +4252,34 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     );
                 state.APIAreaMapper.assetManagementEditModalIds.push(['graphic', token1.id]);
                 state.APIAreaMapper.assetManagementEditModalIds.push(['graphic', token2.id]);
+                
+                //draw bands:
+                state.APIAreaMapper.assetManagementEditModalIds.push(['path', 
+                        createBandPathObject_new(
+                                pageId, 
+                                modalTop + modalTopMargin,
+                                modalLeft + (modalWidth / 2) - assetStretchWidth - assetPairStretchSpacing,
+                                assetStretchHeight,
+                                assetStretchWidth, 
+                                0, 
+                                '#00ff00', 
+                                0, 
+                                'objects'
+                            ).id
+                    ]);
+                state.APIAreaMapper.assetManagementEditModalIds.push(['path', 
+                        createBandPathObject_new(
+                                pageId, 
+                                modalTop + modalTopMargin,
+                                modalLeft + (modalWidth / 2) + assetPairStretchSpacing,
+                                assetStretchHeight,
+                                assetStretchWidth, 
+                                0, 
+                                '#00ff00', 
+                                0, 
+                                'objects'
+                            ).id
+                    ]);
                 
                 //draw labels:
                 state.APIAreaMapper.assetManagementEditModalIds.push(['text',
@@ -4255,6 +4334,34 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 state.APIAreaMapper.assetManagementEditModalIds.push(['graphic', token1.id]);
                 state.APIAreaMapper.assetManagementEditModalIds.push(['graphic', token2.id]);
                 
+                //draw bands:
+                state.APIAreaMapper.assetManagementEditModalIds.push(['path', 
+                        createBandPathObject_new(
+                                pageId, 
+                                modalTop + modalTopMargin,
+                                modalLeft + (modalWidth / 2) - assetStretchWidth - assetPairStretchSpacing,
+                                assetStretchHeight,
+                                assetStretchWidth, 
+                                0, 
+                                '#00ff00', 
+                                0, 
+                                'objects'
+                            ).id
+                    ]);
+                state.APIAreaMapper.assetManagementEditModalIds.push(['path', 
+                        createBandPathObject_new(
+                                pageId, 
+                                modalTop + modalTopMargin,
+                                modalLeft + (modalWidth / 2) + assetPairStretchSpacing,
+                                assetStretchHeight,
+                                assetStretchWidth, 
+                                0, 
+                                '#00ff00', 
+                                0, 
+                                'objects'
+                            ).id
+                    ]);
+                
                 //draw labels:
                 state.APIAreaMapper.assetManagementEditModalIds.push(['text',
                         createTextObject(
@@ -4308,6 +4415,34 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 state.APIAreaMapper.assetManagementEditModalIds.push(['graphic', token1.id]);
                 state.APIAreaMapper.assetManagementEditModalIds.push(['graphic', token2.id]);
                 
+                //draw bands:
+                state.APIAreaMapper.assetManagementEditModalIds.push(['path', 
+                        createBandPathObject_new(
+                                pageId, 
+                                modalTop + modalTopMargin,
+                                modalLeft + (modalWidth / 2) - assetPairNonStretchSize - assetPairNonStretchSpacing,
+                                assetPairNonStretchSize,
+                                assetPairNonStretchSize, 
+                                0, 
+                                '#00ff00', 
+                                0, 
+                                'objects'
+                            ).id
+                    ]);
+                state.APIAreaMapper.assetManagementEditModalIds.push(['path', 
+                        createBandPathObject_new(
+                                pageId, 
+                                modalTop + modalTopMargin,
+                                modalLeft + (modalWidth / 2) + assetPairNonStretchSpacing,
+                                assetPairNonStretchSize,
+                                assetPairNonStretchSize, 
+                                0, 
+                                '#00ff00', 
+                                0, 
+                                'objects'
+                            ).id
+                    ]);
+                
                 //draw labels:
                 state.APIAreaMapper.assetManagementEditModalIds.push(['text',
                         createTextObject(
@@ -4335,18 +4470,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
             default:
                 log('Unhandled asset classification of ' + state.APIAreaMapper.globalAssetManagement[0] + ' in drawAssetManagementEditModal().');
                 return;
-        }
-        
-        log(asset1.getStateObject());
-        
-        //draw feature tags:
-        if(token1) {
-            //state.APIAreaMapper.assetManagementEditModalIds.push(['path', drawFeatureTag(token1, 0, '#00ff00', asset1).id]);
-            state.APIAreaMapper.assetManagementEditModalIds.push(['path', createBandPathObjectFromToken_new(token1, 0, '#00ff00', 'objects').id]);
-        }
-        if(token2) {
-            //state.APIAreaMapper.assetManagementEditModalIds.push(['path', drawFeatureTag(token2, 0, '#00ff00', asset2).id]);
-            state.APIAreaMapper.assetManagementEditModalIds.push(['path', createBandPathObjectFromToken_new(token2, 0, '#00ff00', 'objects').id]);
         }
     },
     
