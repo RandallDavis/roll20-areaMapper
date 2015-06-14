@@ -6,8 +6,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.137,
-        schemaVersion = 0.043,
+    var version = 0.138,
+        schemaVersion = 0.044,
         buttonBackgroundColor = '#CC1869',
         buttonGreyedColor = '#8D94A9',
         buttonHighlightLinkColor = '#D6F510',
@@ -48,25 +48,25 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 blueprintDoorPathColor: '#EC9B10',
                 blueprintChestPathColor: '#666666',
                 floorAssets: [
-                        ['https://s3.amazonaws.com/files.d20.io/images/48971/thumb.jpg?1340229647',0,0,0,0,0,0],
-                        ['https://s3.amazonaws.com/files.d20.io/images/224431/2KRtd2Vic84zocexdHKSDg/thumb.jpg?1348140031',0,0,0,0,0,0],
-                        ['https://s3.amazonaws.com/files.d20.io/images/170063/-IZTPfD81DHYpTbzvEUyAQ/thumb.png?1345800193',0,0,0,0,0,0],
-                        ['https://s3.amazonaws.com/files.d20.io/images/30830/thumb.png?1339416039',0,0,0,0,0,0],
-                        ['https://s3.amazonaws.com/files.d20.io/images/2830294/BaNT6qoN5O0WRiY3TS0azA/thumb.png?1390392180',0,0,0,0,0,0]
+                        ['https://s3.amazonaws.com/files.d20.io/images/48971/thumb.jpg?1340229647',0,0,1,1,0,0],
+                        ['https://s3.amazonaws.com/files.d20.io/images/224431/2KRtd2Vic84zocexdHKSDg/thumb.jpg?1348140031',0,0,1,1,0,0],
+                        ['https://s3.amazonaws.com/files.d20.io/images/170063/-IZTPfD81DHYpTbzvEUyAQ/thumb.png?1345800193',0,0,1,1,0,0],
+                        ['https://s3.amazonaws.com/files.d20.io/images/30830/thumb.png?1339416039',0,0,1,1,0,0],
+                        ['https://s3.amazonaws.com/files.d20.io/images/2830294/BaNT6qoN5O0WRiY3TS0azA/thumb.png?1390392180',0,0,1,1,0,0]
                     ],
                 wallAssets: [
-                        [['https://s3.amazonaws.com/files.d20.io/images/9585786/x1-hhxavuLoUjMsgA5vYdA/thumb.png?1432007204',90,0,0,0,0,0],
-                            ['https://s3.amazonaws.com/files.d20.io/images/7068/thumb.png?1336366825',0,1,20,10,20,10]],
-                        [['https://s3.amazonaws.com/files.d20.io/images/452469/9KJ1s2PJhuMbDICeYETXZQ/thumb.png?1355660278',0,1,25,0,25,5],
-                            ['https://s3.amazonaws.com/files.d20.io/images/7068/thumb.png?1336366825',0,1,20,10,20,10]]
+                        [['https://s3.amazonaws.com/files.d20.io/images/9585786/x1-hhxavuLoUjMsgA5vYdA/thumb.png?1432007204',90,0,1,1,0,0],
+                            ['https://s3.amazonaws.com/files.d20.io/images/7068/thumb.png?1336366825',0,1,1,1,0,0]],
+                        [['https://s3.amazonaws.com/files.d20.io/images/452469/9KJ1s2PJhuMbDICeYETXZQ/thumb.png?1355660278',0,1,1,1,0,0],
+                            ['https://s3.amazonaws.com/files.d20.io/images/7068/thumb.png?1336366825',0,1,1,1,0,0]]
                     ],
                 doorAssets: [
-                        [['https://s3.amazonaws.com/files.d20.io/images/6951/thumb.png?1336359665',0,1,20,10,20,10],
-                            ['https://s3.amazonaws.com/files.d20.io/images/7068/thumb.png?1336366825',0,1,20,10,20,10]]
+                        [['https://s3.amazonaws.com/files.d20.io/images/6951/thumb.png?1336359665',0,1,1,1,0,0],
+                            ['https://s3.amazonaws.com/files.d20.io/images/7068/thumb.png?1336366825',0,1,1,1,0,0]]
                     ],
                 chestAssets: [
-                        [['https://s3.amazonaws.com/files.d20.io/images/7962/thumb.png?1336489213',0,0,0,0,0,0],
-                            ['https://s3.amazonaws.com/files.d20.io/images/2839308/_RR8niUb3sTQgLSoxDhM4g/thumb.png?1390469385',0,0,0,0,0,0]]
+                        [['https://s3.amazonaws.com/files.d20.io/images/7962/thumb.png?1336489213',0,0,1,1,0,0],
+                            ['https://s3.amazonaws.com/files.d20.io/images/2839308/_RR8niUb3sTQgLSoxDhM4g/thumb.png?1390469385',0,0,1,1,0,0]]
                     ]
             };
         } 
@@ -1439,9 +1439,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return "[[\"M\",0,0],[\"L\",0," + height + "],[\"L\"," + width + "," + height + "],[\"L\"," + width + ",0],[\"L\",0,0]]";
     },
     
-    createPathObject = function(pageId, layer, strokeColor, fillColor, path, top, left, height, width, strokeWidth, rotation) {
-        state.APIAreaMapper.tempIgnoreDrawingEvents = true;
-        
+    createPathObject = function(path, pageId, layer, strokeColor, fillColor, top, left, height, width, strokeWidth, rotation) {
         if('undefined' === typeof(strokeWidth)) {
             strokeWidth = 1;
         }
@@ -1449,6 +1447,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         if('undefined' === typeof(rotation)) {
             rotation = 0;
         }
+        
+        state.APIAreaMapper.tempIgnoreDrawingEvents = true;
         
         var obj = createObj('path', {
                 layer: layer,
@@ -1467,111 +1467,113 @@ var APIAreaMapper = APIAreaMapper || (function() {
         state.APIAreaMapper.tempIgnoreDrawingEvents = false;
         
         return obj;
-    },
+    }, 
     
-    createRectanglePathObject = function(pageId, layer, strokeColor, fillColor, top, left, height, width, rotation) {
+    createRectanglePathObject = function(pageId, layer, strokeColor, fillColor, top, left, height, width, strokeWidth, rotation) {
         return createPathObject(
+            getRectanglePath(height, width),
             pageId,
             layer,
             strokeColor,
             fillColor,
-            getRectanglePath(height, width),
             top,
             left,
             height,
             width,
-            1,
+            strokeWidth,
             rotation);
     },
     
-    drawFeatureTag = function(graphic, tagBand, color, assetObject) {
-        var tagStrokeWidth = 4;
-        
-        var cropWidth = 1;
-        var cropHeight = 1;
-        
-        if('undefined' !== typeof(assetObject)) {
-            cropHeight = ((70 - assetObject.getProperty('cropTop') - assetObject.getProperty('cropBottom')) / 70);
-            cropWidth = ((70 - assetObject.getProperty('cropLeft') - assetObject.getProperty('cropRight')) / 70);
+    createBandPathObjectFromToken = function(token, bandIndex, color, layer) {
+        if('undefined' === typeof(layer)) {
+            layer = 'gmlayer';
         }
         
-        var height = (graphic.get('height') * cropHeight) + (2 * (tagBand * tagStrokeWidth));
-        var width = (graphic.get('width') * cropWidth) + (2 * (tagBand * tagStrokeWidth));
+        var bandStrokeWidth = 4;
         
-        return createPathObject(
-            graphic.get('_pageid'),
-            'gmlayer',
+        var height = token.get('height') + (2 * (bandIndex * bandStrokeWidth));
+        var width = token.get('width') + (2 * (bandIndex * bandStrokeWidth));
+        
+        return createRectanglePathObject(
+            token.get('_pageid'),
+            layer,
             color,
             'transparent',
-            getRectanglePath(height, width),
-            graphic.get('top') - (height / 2),
-            graphic.get('left') - (width / 2),
+            token.get('top') - (token.get('height') / 2),
+            token.get('left') - (token.get('width') / 2),
             height,
             width,
-            tagStrokeWidth,
-            graphic.get('rotation'));
+            bandStrokeWidth,
+            token.get('rotation'));
     },
     
-    //receives a graphic and an array of tag colors, and returns an array of new feature tag IDs:
-    drawFeatureTags = function(graphic, featureTagColors, assetObject) {
-        var tagIds = [];
-        var tagBand = 0;
+    createBandPathObject = function(pageId, top, left, height, width, bandIndex, color, rotation, layer) {
+        if('undefined' === typeof(rotation)) {
+            rotation = 0;
+        }
         
-        featureTagColors.forEach(function(color) {
-            tagIds.push(drawFeatureTag(graphic, tagBand++, color, assetObject).id);
+        if('undefined' === typeof(layer)) {
+            layer = 'gmlayer';
+        }
+        
+        var bandStrokeWidth = 4;
+        
+        top -= (bandIndex * bandStrokeWidth);
+        left -= (bandIndex * bandStrokeWidth);
+        height += (2 * (bandIndex * bandStrokeWidth));
+        width += (2 * (bandIndex * bandStrokeWidth));
+        
+        return createRectanglePathObject(
+            pageId,
+            layer,
+            color,
+            'transparent',
+            top,
+            left,
+            height,
+            width,
+            bandStrokeWidth,
+            rotation);
+    },
+    
+    createBandsFromToken = function(token, bandColors, layer) {
+        var bandIds = [];
+        var bandIndex = 0;
+        
+        bandColors.forEach(function(color) {
+            bandIds.push(createBandPathObjectFromToken(token, bandIndex++, color, layer).id);
         }, this);
         
-        return tagIds;
+        return bandIds;
     },
     
-    createTokenObjectFromSegment = function(imgsrc, pageId, layer, segment, width, alternateWidthAndHeight) {
-        state.APIAreaMapper.tempIgnoreDrawingEvents = true;
+    createBands = function(pageId, top, left, height, width, bandColors, rotation, layer) {
+        var bandIds = [];
+        var bandIndex = 0;
         
-        var height = segment.length() + 14;
+        bandColors.forEach(function(color) {
+            bandIds.push(createBandPathObject(pageId, top, left, height, width, bandIndex++, color, rotation, layer).id);
+        }, this);
         
-        var obj = createObj('graphic', {
-            imgsrc: imgsrc,
-            layer: layer,
-            pageid: pageId,
-            width: alternateWidthAndHeight ? height : width,
-            top: segment.b.y + ((segment.a.y - segment.b.y) / 2),
-            left: segment.b.x + ((segment.a.x - segment.b.x) / 2),
-            height: alternateWidthAndHeight ? width : height,
-            rotation: segment.angleDegrees(segment.a) + (alternateWidthAndHeight ? 0 : 90)
-        });
-        
-        state.APIAreaMapper.tempIgnoreDrawingEvents = false;
-        
-        return obj;
+        return bandIds;
     },
     
-    createTokenObjectFromAssetAndSegment = function(assetObject, pageId, layer, segment, width, lengthExtension) {
-        state.APIAreaMapper.tempIgnoreDrawingEvents = true;
+    createBandsBySegment = function(pageId, segment, height, widthExtension, bandColors, layer) {
+        var midpoint = segment.midpoint();
+        var width = segment.length() + widthExtension;
         
-        var cropHeight = ((70 - assetObject.getProperty('cropTop') - assetObject.getProperty('cropBottom')) / 70);
-        var cropWidth = ((70 - assetObject.getProperty('cropLeft') - assetObject.getProperty('cropRight')) / 70);
-        
-        var height = (segment.length() / (assetObject.getProperty('alternate') ? cropWidth : cropHeight)) + lengthExtension;
-        width /= (assetObject.getProperty('alternate') ? cropHeight : cropWidth);
-        
-        var obj = createObj('graphic', {
-            imgsrc: assetObject.getProperty('imagesrc'),
-            layer: layer,
-            pageid: pageId,
-            width: assetObject.getProperty('alternate') ? height : width,
-            top: segment.b.y + ((segment.a.y - segment.b.y) / 2),
-            left: segment.b.x + ((segment.a.x - segment.b.x) / 2),
-            height: assetObject.getProperty('alternate') ? width : height,
-            rotation: segment.angleDegrees(segment.a) + assetObject.getProperty('rotation')
-        });
-        
-        state.APIAreaMapper.tempIgnoreDrawingEvents = false;
-        
-        return obj;
+        return createBands(
+            pageId,
+            midpoint.y - (height / 2),
+            midpoint.x - (width / 2),
+            height,
+            width,
+            bandColors,
+            segment.angleDegrees(segment.a),
+            layer);
     },
     
-    //creates a token object using a segment to define its dimensions:
-    createTokenObject = function(imgsrc, pageId, layer, segment, rotation) {
+    createTokenObjectFromImage = function(imagesrc, pageId, layer, top, left, height, width, rotation) {
         if('undefined' === typeof(rotation)) {
             rotation = 0;
         }
@@ -1579,50 +1581,64 @@ var APIAreaMapper = APIAreaMapper || (function() {
         state.APIAreaMapper.tempIgnoreDrawingEvents = true;
         
         var obj = createObj('graphic', {
-            imgsrc: imgsrc,
+            imgsrc: imagesrc,
             layer: layer,
             pageid: pageId,
-            top: segment.b.y + ((segment.a.y - segment.b.y) / 2),
-            left: segment.b.x + ((segment.a.x - segment.b.x) / 2),
-            height: segment.b.y - segment.a.y,
-            width: segment.b.x - segment.a.x,
+            top: top + (height / 2),
+            left: left + (width / 2),
+            height: height,
+            width: width,
             rotation: rotation
         });
         
         state.APIAreaMapper.tempIgnoreDrawingEvents = false;
         
         return obj;
-    };
+    },
     
-    //creates a token object using a segment to define its dimensions:
-    createTokenObjectFromAsset = function(assetObject, pageId, layer, segment, rotation) {
+    createTokenObjectFromAsset = function(assetObject, pageId, layer, top, left, height, width, rotation) {
         if('undefined' === typeof(rotation)) {
             rotation = 0;
         }
         
-        //TODO: does this cover tokens?
         state.APIAreaMapper.tempIgnoreDrawingEvents = true;
         
-        var cropHeight = ((70 - assetObject.getProperty('cropTop') - assetObject.getProperty('cropBottom')) / 70);
-        var cropWidth = ((70 - assetObject.getProperty('cropLeft') - assetObject.getProperty('cropRight')) / 70);
+        var scaledHeight = height * assetObject.getProperty('scaleVertical');
+        var scaledWidth = width * assetObject.getProperty('scaleHorizontal');
         
-        var height = (segment.b.y - segment.a.y) / (assetObject.getProperty('alternate') ? cropWidth : cropHeight);
-        var width = (segment.b.x - segment.a.x) / (assetObject.getProperty('alternate') ? cropHeight : cropWidth);
+        //the inbound height and width are reversed if the asset's alternate property is true:
+        var usedHeight = assetObject.getProperty('alternate') ? scaledWidth : scaledHeight;
+        var usedWidth = assetObject.getProperty('alternate') ? scaledHeight : scaledWidth;
         
         var obj = createObj('graphic', {
             imgsrc: assetObject.getProperty('imagesrc'),
             layer: layer,
             pageid: pageId,
-            top: segment.b.y + ((segment.a.y - segment.b.y) / 2),
-            left: segment.b.x + ((segment.a.x - segment.b.x) / 2),
-            height: assetObject.getProperty('alternate') ? width : height,
-            width: assetObject.getProperty('alternate') ? height : width,
-            rotation: rotation + assetObject.getProperty('rotation')
+            top: top + (height / 2) + assetObject.getProperty('offsetVertical'),
+            left: left + (width / 2) + assetObject.getProperty('offsetHorizontal'),
+            height: usedHeight,
+            width: usedWidth,
+            rotation: rotation + assetObject.getProperty('rotation') + (assetObject.getProperty('alternate') ? 90 : 0)
         });
         
         state.APIAreaMapper.tempIgnoreDrawingEvents = false;
         
         return obj;
+    },
+    
+    createTokenObjectFromAssetBySegment = function(assetObject, pageId, layer, segment, height, widthExtension) {
+        var midpoint = segment.midpoint();
+        var width = segment.length() + widthExtension;
+        
+        return createTokenObjectFromAsset(
+            assetObject,
+            pageId,
+            layer,
+            midpoint.y - (height / 2),
+            midpoint.x - (width / 2),
+            height,
+            width,
+            segment.angleDegrees(segment.a));
     },
     
     createTextObject = function(text, pageId, layer, top, left, height, width, rotation) {
@@ -1630,7 +1646,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
             rotation = 0;
         }
         
-        //TODO: does this cover text objects?
         state.APIAreaMapper.tempIgnoreDrawingEvents = true;
         
         var obj = createObj('text', {
@@ -1662,13 +1677,13 @@ var APIAreaMapper = APIAreaMapper || (function() {
             return;
         }
         
-        this._imagesrc = stateObject[0];
-        this._rotation = stateObject[1];
-        this._alternate = stateObject[2];
-        this._cropTop = stateObject[3];
-        this._cropLeft = stateObject[4];
-        this._cropBottom = stateObject[5];
-        this._cropRight = stateObject[6];
+        this.setProperty('imagesrc', stateObject[0]);
+        this.setProperty('rotation', stateObject[1]);
+        this.setProperty('alternate', stateObject[2]);
+        this.setProperty('scaleVertical', stateObject[3]);
+        this.setProperty('scaleHorizontal', stateObject[4]);
+        this.setProperty('offsetVertical', stateObject[5]);
+        this.setProperty('offsetHorizontal', stateObject[6]);
     }
     
     inheritPrototype(asset, typedObject);
@@ -1678,10 +1693,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'imagesrc':
             case 'rotation':
             case 'alternate':
-            case 'cropTop':
-            case 'cropLeft':
-            case 'cropBottom':
-            case 'cropRight':
+            case 'scaleVertical':
+            case 'scaleHorizontal':
+            case 'offsetVertical':
+            case 'offsetHorizontal':
                 this['_' + property] = value;
                 break;
             default:
@@ -1693,7 +1708,15 @@ var APIAreaMapper = APIAreaMapper || (function() {
     };
     
     asset.prototype.getStateObject = function() {
-        return [this._imagesrc, this._rotation, this._alternate, this._cropTop, this._cropLeft, this._cropBottom, this._cropRight];
+        return [
+                this.getProperty('imagesrc'),
+                this.getProperty('rotation'),
+                this.getProperty('alternate'),
+                this.getProperty('scaleVertical'),
+                this.getProperty('scaleHorizontal'),
+                this.getProperty('offsetVertical'),
+                this.getProperty('offsetHorizontal')
+            ];
     };
     
     
@@ -3287,18 +3310,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
         switch(floorTexture.getProperty('textureType')) {
             case 'asset':
                 var floorAsset = new asset(state.APIAreaMapper.floorAssets[floorTexture.getProperty('value')]);
-                var floorTile = createTokenObject(
-                    floorAsset.getProperty('imagesrc'), 
+                var floorTile = createTokenObjectFromAsset(
+                    floorAsset,
                     this.getProperty('pageId'), 
-                    'map', 
-                    new segment(
-                        new point(
-                            left - floorAsset.getProperty('cropLeft'), 
-                            top - floorAsset.getProperty('cropTop')), 
-                        new point(
-                            left + a.getProperty('width') + floorAsset.getProperty('cropRight'), 
-                            top + a.getProperty('height') + floorAsset.getProperty('cropBottom'))),
-                    floorAsset.getProperty('rotation'));
+                    'map',
+                    top,
+                    left,
+                    a.getProperty('height'),
+                    a.getProperty('width'));
                 this.setProperty('floorTileId', floorTile.id);
                 break;
             case 'transparent':
@@ -3315,7 +3334,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var floorplanOpIndex = g.addSimplePolygon(a.getProperty('floorplan'), top, left);
         var floorMaskOpIndex = g.invertSimplePolygon(floorplanOpIndex);
         var floorMaskRawPath = g.getRawPath('simplePolygons', floorMaskOpIndex);
-        var floorMask = createPathObject(this.getProperty('pageId'), 'map', maskColor, maskColor, floorMaskRawPath.rawPath, floorMaskRawPath.top, floorMaskRawPath.left, floorMaskRawPath.height, floorMaskRawPath.width);
+        var floorMask = createPathObject(floorMaskRawPath.rawPath, this.getProperty('pageId'), 'map', maskColor, maskColor, floorMaskRawPath.top, floorMaskRawPath.left, floorMaskRawPath.height, floorMaskRawPath.width);
         this.setProperty('floorMaskId', floorMask.id);
         
         //TODO: unique texture (just sub it in as an alternate texture to use here):
@@ -3336,12 +3355,32 @@ var APIAreaMapper = APIAreaMapper || (function() {
             //draw wall tokens:
             var ewIndex = g.addSimplePath(ew[0], top + ew[1], left + ew[2]);
             g.getProperty('simplePaths')[ewIndex].segments.forEach(function(s) {
-                this.setProperty('wallIds', createTokenObjectFromAssetAndSegment(wallAsset, this.getProperty('pageId'), 'objects', s, wallThickness, wallLengthExtension).id);
+                this.setProperty('wallIds', 
+                    createTokenObjectFromAssetBySegment(
+                            wallAsset,
+                            this.getProperty('pageId'),
+                            'objects',
+                            new segment(new point(s.a.x, s.a.y), new point(s.b.x, s.b.y)),
+                            wallThickness,
+                            wallLengthExtension
+                        ).id    
+                );
             }, this);
             
             //draw line of sight blocking wall:
-            var losWall = createPathObject(this.getProperty('pageId'), 'walls', '#ff0000', 'transparent', ew[0], top + ew[1], left + ew[2], ew[3], ew[4], 1);
-            this.setProperty('losWallIds', losWall.id);
+            this.setProperty('losWallIds',
+                createPathObject(
+                        ew[0],
+                        this.getProperty('pageId'),
+                        'walls',
+                        '#ff0000',
+                        'transparent',
+                        top + ew[1],
+                        left + ew[2],
+                        ew[3],
+                        ew[4]
+                    ).id
+            );
         }, this);
         
         //draw inner walls:
@@ -3350,12 +3389,32 @@ var APIAreaMapper = APIAreaMapper || (function() {
             //draw wall tokens:
             var iwIndex = g.addSimplePath(iw[0], top + iw[1], left + iw[2]);
             g.getProperty('simplePaths')[iwIndex].segments.forEach(function(s) {
-                this.setProperty('wallIds', createTokenObjectFromAssetAndSegment(wallAsset, this.getProperty('pageId'), 'objects', s, wallThickness, wallLengthExtension).id);
+                this.setProperty('wallIds', 
+                    createTokenObjectFromAssetBySegment(
+                            wallAsset,
+                            this.getProperty('pageId'),
+                            'objects',
+                            new segment(new point(s.a.x, s.a.y), new point(s.b.x, s.b.y)),
+                            wallThickness,
+                            wallLengthExtension
+                        ).id    
+                );
             }, this);
             
             //draw line of sight blocking wall:
-            var losWall = createPathObject(this.getProperty('pageId'), 'walls', '#ff0000', 'transparent', iw[0], top + iw[1], left + iw[2], iw[3], iw[4], 1);
-            this.setProperty('losWallIds', losWall.id);
+            this.setProperty('losWallIds',
+                createPathObject(
+                        iw[0],
+                        this.getProperty('pageId'),
+                        'walls',
+                        '#ff0000',
+                        'transparent',
+                        top + iw[1],
+                        left + iw[2],
+                        iw[3],
+                        iw[4]
+                    ).id
+            );
         }, this);
         
         //draw doors:
@@ -3461,7 +3520,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 else {
                     
                     //draw the door:
-                    doorToken = createTokenObjectFromAssetAndSegment(doorAsset, this.getProperty('pageId'), 'objects', s, (doorState.getProperty('isHidden') ? wallThickness : doorThickness), (doorState.getProperty('isHidden') ? wallLengthExtension : doorLengthExtension));
+                    doorToken = createTokenObjectFromAssetBySegment(
+                        doorAsset,
+                        this.getProperty('pageId'),
+                        'objects',
+                        s,
+                        (doorState.getProperty('isHidden') ? wallThickness : doorThickness),
+                        (doorState.getProperty('isHidden') ? wallLengthExtension : doorLengthExtension));
+                    
                     
                     //set door privs to players unless the door is hidden:
                     if(!doorState.getProperty('isHidden')) {
@@ -3472,7 +3538,17 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     var doorLosId = '';
                     if(!doorState.getProperty('isOpen')) {
                         var rp = g.getRawPath('simplePaths', dIndex);
-                        doorLosId = createPathObject(this.getProperty('pageId'), 'walls', '#ff0000', 'transparent', rp.rawPath, rp.top, rp.left, rp.height, rp.width, 1).id;
+                        doorLosId = createPathObject(
+                                rp.rawPath, 
+                                this.getProperty('pageId'), 
+                                'walls', 
+                                '#ff0000', 
+                                'transparent', 
+                                rp.top, 
+                                rp.left, 
+                                rp.height, 
+                                rp.width
+                            ).id;
                     }
                     
                     doorProperty.push(doorToken.id);
@@ -3490,8 +3566,13 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 if(doorState.getProperty('isHidden')) {
                     featureTagColors.push(hiddenTagColor);
                 }
-                var tagIds = drawFeatureTags(doorToken, featureTagColors, doorAsset);
-                
+                var tagIds = createBandsBySegment(
+                    this.getProperty('pageId'),
+                    s,
+                    (doorState.getProperty('isHidden') ? wallThickness : doorThickness),
+                    (doorState.getProperty('isHidden') ? wallLengthExtension : doorLengthExtension),
+                    featureTagColors);
+                 
                 doorProperty.push(tagIds);
                 
                 //if this is replacing an existing image, write it back into the appropriate slot:
@@ -3524,6 +3605,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         log('Unhandled textureType of ' + chestTexture.getProperty('textureType') + ' for chestTexture in areaInstance.drawObjects().');
                         break;
                 }
+                
+                var chestTop = chestState.getProperty('top') + this.getProperty('top');
+                var chestLeft = chestState.getProperty('left') + this.getProperty('left');
                 
                 //if the number of objects in the area and the instance are equal, then this is modifying an existing object:
                 var existingChest = this.getProperty('chestIds').length === a.getProperty(objectType).length;
@@ -3566,17 +3650,15 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 //create a new chest:
                 else {
                     
-                    var chestTop = chestState.getProperty('top') + this.getProperty('top');
-                    var chestLeft = chestState.getProperty('left') + this.getProperty('left');
-                    
                     //draw the chest (on the object or gm layer depending on it being hidden):
                     chestToken = createTokenObjectFromAsset(
                         chestAsset, 
                         this.getProperty('pageId'), 
                         (chestState.getProperty('isHidden') ? 'gmlayer' : 'objects'),
-                        new segment(
-                            new point(chestLeft, chestTop),
-                            new point(chestLeft + chestState.getProperty('width'), chestTop + chestState.getProperty('height'))),
+                        chestTop,
+                        chestLeft,
+                        chestState.getProperty('height'),
+                        chestState.getProperty('width'),
                         chestState.getProperty('rotation'));
                        
                     //set chest privs to players unless the door is hidden:
@@ -3598,7 +3680,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 if(chestState.getProperty('isHidden')) {
                     featureTagColors.push(hiddenTagColor);
                 }
-                var tagIds = drawFeatureTags(chestToken, featureTagColors, chestAsset);
+                var tagIds = createBands(
+                    this.getProperty('pageId'),
+                    chestTop,
+                    chestLeft,
+                    chestState.getProperty('height'),
+                    chestState.getProperty('width'),
+                    featureTagColors,
+                    chestState.getProperty('rotation'));
                 
                 chestProperty.push(tagIds);
                 
@@ -3636,35 +3725,89 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var g = new graph();
         
         //create floorPolygon:
-        var floorPolygon = createPathObject(this.getProperty('pageId'), 'map', state.APIAreaMapper.blueprintFloorPolygonColor, state.APIAreaMapper.blueprintFloorPolygonColor, a.getProperty('floorplan'), top, left, a.getProperty('height'), a.getProperty('width'));
-        this.setProperty('floorPolygonId', floorPolygon.id);
+        this.setProperty('floorPolygonId', 
+            createPathObject(
+                    a.getProperty('floorplan'),
+                    this.getProperty('pageId'),
+                    'map',
+                    state.APIAreaMapper.blueprintFloorPolygonColor,
+                    state.APIAreaMapper.blueprintFloorPolygonColor,
+                    top,
+                    left,
+                    a.getProperty('height'),
+                    a.getProperty('width')
+                ).id);
         
         //draw edge wall gaps:
         a.calculateEdgeWallGaps().forEach(function(ew) {
             var ewI = g.addSimplePathFromPoints(ew);
             var ewRaw = g.getRawPath('simplePaths', ewI);
-            var edgeWallGap = createPathObject(this.getProperty('pageId'), 'objects', state.APIAreaMapper.blueprintEdgeWallGapsPathColor, 'transparent', ewRaw.rawPath, top + ewRaw.top, left + ewRaw.left, ewRaw.height, ewRaw.width, 5);
-            this.setProperty('edgeWallGapIds', edgeWallGap.id);
+            this.setProperty('edgeWallGapIds', 
+                createPathObject(
+                        ewRaw.rawPath,
+                        this.getProperty('pageId'),
+                        'objects',
+                        state.APIAreaMapper.blueprintEdgeWallGapsPathColor,
+                        'transparent',
+                        top + ewRaw.top,
+                        left + ewRaw.left,
+                        ewRaw.height,
+                        ewRaw.width,
+                        5
+                    ).id);
         }, this);
         
         //draw blueprint walls:
         a.getProperty('innerWalls').forEach(function(iw) {
-            var wall = createPathObject(this.getProperty('pageId'), 'objects', state.APIAreaMapper.blueprintInnerWallsPathColor, 'transparent', iw[0], top + iw[1], left + iw[2], iw[3], iw[4], 2);
-            this.setProperty('blueprintWallIds', wall.id);
+            this.setProperty('blueprintWallIds', 
+                createPathObject(
+                        iw[0],
+                        this.getProperty('pageId'),
+                        'objects',
+                        state.APIAreaMapper.blueprintInnerWallsPathColor,
+                        'transparent',
+                        top + iw[1],
+                        left + iw[2],
+                        iw[3],
+                        iw[4],
+                        2
+                    ).id);
         }, this);
         
         //draw blueprint doors:
         a.getProperty('doors').forEach(function(s) {
             var dI = g.addSimplePathFromSegment(s[0], top, left);
             var rp = g.getRawPath('simplePaths', dI);
-            var door = createPathObject(this.getProperty('pageId'), 'objects', state.APIAreaMapper.blueprintDoorPathColor, 'transparent', rp.rawPath, rp.top, rp.left, rp.height, rp.width, 2);
-            this.setProperty('blueprintWallIds', door.id);
+            this.setProperty('blueprintWallIds',
+                createPathObject(
+                        rp.rawPath,
+                        this.getProperty('pageId'),
+                        'objects',
+                        state.APIAreaMapper.blueprintDoorPathColor,
+                        'transparent',
+                        rp.top,
+                        rp.left,
+                        rp.height,
+                        rp.width,
+                        2
+                    ).id);
         }, this);
         
         //draw blueprint chests:
         a.getProperty('chests').forEach(function(c) {
-            var chest = createRectanglePathObject(this.getProperty('pageId'), 'objects', state.APIAreaMapper.blueprintChestPathColor, state.APIAreaMapper.blueprintChestPathColor, c[0] + top, c[1] + left, c[2], c[3], c[4]);
-            this.setProperty('blueprintChestIds', chest.id);    
+            this.setProperty('blueprintChestIds', 
+                createRectanglePathObject(
+                        this.getProperty('pageId'),
+                        'objects',
+                        state.APIAreaMapper.blueprintChestPathColor,
+                        state.APIAreaMapper.blueprintChestPathColor,
+                        c[0] + top,
+                        c[1] + left,
+                        c[2],
+                        c[3],
+                        1,
+                        c[4]
+                    ).id);    
         }, this);
         
         this.save();
@@ -3988,7 +4131,18 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'floor':
                 
                 //create the modal frame:
-                state.APIAreaMapper.assetManagementEditModalIds.push(['path', createRectanglePathObject(pageId, 'objects', '#000000', headerBackgroundColor, modalTop, modalLeft, modalNonPairHeight, modalWidth).id]);
+                state.APIAreaMapper.assetManagementEditModalIds.push(['path', 
+                    createRectanglePathObject(
+                            pageId, 
+                            'objects', 
+                            '#000000', 
+                            headerBackgroundColor, 
+                            modalTop, 
+                            modalLeft, 
+                            modalNonPairHeight, 
+                            modalWidth,
+                            2
+                        ).id]);
        
                 //draw asset:
                 asset1 = new asset(state.APIAreaMapper.floorAssets[state.APIAreaMapper.globalAssetManagement[1]]);
@@ -3996,16 +4150,27 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         asset1,
                         pageId,
                         'objects',
-                        new segment(
-                            new point(
-                                modalLeft + ((modalWidth - assetNonStretchSize) / 2),
-                                modalTop + modalTopMargin),
-                            new point(
-                                modalLeft + modalWidth - ((modalWidth - assetNonStretchSize) / 2),
-                                modalTop + modalTopMargin + assetNonStretchSize)),
-                        0
+                        modalTop + modalTopMargin,
+                        modalLeft + ((modalWidth - assetNonStretchSize) / 2),
+                        assetNonStretchSize,
+                        assetNonStretchSize
                     );
                 state.APIAreaMapper.assetManagementEditModalIds.push(['graphic', token1.id]);
+                
+                //draw band:
+                state.APIAreaMapper.assetManagementEditModalIds.push(['path', 
+                        createBandPathObject(
+                                pageId, 
+                                modalTop + modalTopMargin,
+                                modalLeft + ((modalWidth - assetNonStretchSize) / 2),
+                                assetNonStretchSize,
+                                assetNonStretchSize, 
+                                0, 
+                                '#00ff00', 
+                                0, 
+                                'objects'
+                            ).id
+                    ]);
                 
                 //draw label:
                 state.APIAreaMapper.assetManagementEditModalIds.push(['text',
@@ -4023,7 +4188,18 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'wall':
                 
                 //create the modal frame:
-                state.APIAreaMapper.assetManagementEditModalIds.push(['path', createRectanglePathObject(pageId, 'objects', '#000000', headerBackgroundColor, modalTop, modalLeft, modalPairStretchHeight, modalWidth).id]);
+                state.APIAreaMapper.assetManagementEditModalIds.push(['path', 
+                    createRectanglePathObject(
+                            pageId, 
+                            'objects', 
+                            '#000000', 
+                            headerBackgroundColor, 
+                            modalTop, 
+                            modalLeft, 
+                            modalPairStretchHeight, 
+                            modalWidth,
+                            2
+                        ).id]);
        
                 //draw assets:
                 asset1 = new asset(state.APIAreaMapper.wallAssets[state.APIAreaMapper.globalAssetManagement[1]][0]);
@@ -4033,30 +4209,50 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         asset1,
                         pageId,
                         'objects',
-                        new segment(
-                            new point(
-                                modalLeft + (modalWidth / 2) - (assetStretchWidth + assetPairStretchSpacing),
-                                modalTop + modalTopMargin),
-                            new point(
-                                modalLeft + (modalWidth / 2) - assetPairStretchSpacing,
-                                modalTop + modalTopMargin + assetStretchHeight)),
-                        0
+                        modalTop + modalTopMargin,
+                        modalLeft + (modalWidth / 2) - assetStretchWidth - assetPairStretchSpacing,
+                        assetStretchHeight,
+                        assetStretchWidth
                     );
                 token2 = createTokenObjectFromAsset(
                         asset2,
                         pageId,
                         'objects',
-                        new segment(
-                            new point(
-                                modalLeft + (modalWidth / 2) + assetPairStretchSpacing,
-                                modalTop + modalTopMargin),
-                            new point(
-                                modalLeft + (modalWidth / 2) + assetPairStretchSpacing + assetStretchWidth,
-                                modalTop + modalTopMargin + assetStretchHeight)),
-                        0
+                        modalTop + modalTopMargin,
+                        modalLeft + (modalWidth / 2) + assetPairStretchSpacing,
+                        assetStretchHeight,
+                        assetStretchWidth
                     );
                 state.APIAreaMapper.assetManagementEditModalIds.push(['graphic', token1.id]);
                 state.APIAreaMapper.assetManagementEditModalIds.push(['graphic', token2.id]);
+                
+                //draw bands:
+                state.APIAreaMapper.assetManagementEditModalIds.push(['path', 
+                        createBandPathObject(
+                                pageId, 
+                                modalTop + modalTopMargin,
+                                modalLeft + (modalWidth / 2) - assetStretchWidth - assetPairStretchSpacing,
+                                assetStretchHeight,
+                                assetStretchWidth, 
+                                0, 
+                                '#00ff00', 
+                                0, 
+                                'objects'
+                            ).id
+                    ]);
+                state.APIAreaMapper.assetManagementEditModalIds.push(['path', 
+                        createBandPathObject(
+                                pageId, 
+                                modalTop + modalTopMargin,
+                                modalLeft + (modalWidth / 2) + assetPairStretchSpacing,
+                                assetStretchHeight,
+                                assetStretchWidth, 
+                                0, 
+                                '#00ff00', 
+                                0, 
+                                'objects'
+                            ).id
+                    ]);
                 
                 //draw labels:
                 state.APIAreaMapper.assetManagementEditModalIds.push(['text',
@@ -4085,7 +4281,18 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'door':
                 
                 //create the modal frame:
-                state.APIAreaMapper.assetManagementEditModalIds.push(['path', createRectanglePathObject(pageId, 'objects', '#000000', headerBackgroundColor, modalTop, modalLeft, modalPairStretchHeight, modalWidth).id]);
+                state.APIAreaMapper.assetManagementEditModalIds.push(['path', 
+                    createRectanglePathObject(
+                            pageId, 
+                            'objects', 
+                            '#000000', 
+                            headerBackgroundColor, 
+                            modalTop, 
+                            modalLeft, 
+                            modalPairStretchHeight, 
+                            modalWidth,
+                            2
+                        ).id]);
        
                 //draw assets:
                 asset1 = new asset(state.APIAreaMapper.doorAssets[state.APIAreaMapper.globalAssetManagement[1]][0]);
@@ -4094,30 +4301,50 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         asset1,
                         pageId,
                         'objects',
-                        new segment(
-                            new point(
-                                modalLeft + (modalWidth / 2) - (assetStretchWidth + assetPairStretchSpacing),
-                                modalTop + modalTopMargin),
-                            new point(
-                                modalLeft + (modalWidth / 2) - assetPairStretchSpacing,
-                                modalTop + modalTopMargin + assetStretchHeight)),
-                        90
+                        modalTop + modalTopMargin,
+                        modalLeft + (modalWidth / 2) - assetStretchWidth - assetPairStretchSpacing,
+                        assetStretchHeight,
+                        assetStretchWidth
                     );
                 token2 = createTokenObjectFromAsset(
                         asset2,
                         pageId,
                         'objects',
-                        new segment(
-                            new point(
-                                modalLeft + (modalWidth / 2) + assetPairStretchSpacing,
-                                modalTop + modalTopMargin),
-                            new point(
-                                modalLeft + (modalWidth / 2) + assetPairStretchSpacing + assetStretchWidth,
-                                modalTop + modalTopMargin + assetStretchHeight)),
-                        90
+                        modalTop + modalTopMargin,
+                        modalLeft + (modalWidth / 2) + assetPairStretchSpacing,
+                        assetStretchHeight,
+                        assetStretchWidth
                     );
                 state.APIAreaMapper.assetManagementEditModalIds.push(['graphic', token1.id]);
                 state.APIAreaMapper.assetManagementEditModalIds.push(['graphic', token2.id]);
+                
+                //draw bands:
+                state.APIAreaMapper.assetManagementEditModalIds.push(['path', 
+                        createBandPathObject(
+                                pageId, 
+                                modalTop + modalTopMargin,
+                                modalLeft + (modalWidth / 2) - assetStretchWidth - assetPairStretchSpacing,
+                                assetStretchHeight,
+                                assetStretchWidth, 
+                                0, 
+                                '#00ff00', 
+                                0, 
+                                'objects'
+                            ).id
+                    ]);
+                state.APIAreaMapper.assetManagementEditModalIds.push(['path', 
+                        createBandPathObject(
+                                pageId, 
+                                modalTop + modalTopMargin,
+                                modalLeft + (modalWidth / 2) + assetPairStretchSpacing,
+                                assetStretchHeight,
+                                assetStretchWidth, 
+                                0, 
+                                '#00ff00', 
+                                0, 
+                                'objects'
+                            ).id
+                    ]);
                 
                 //draw labels:
                 state.APIAreaMapper.assetManagementEditModalIds.push(['text',
@@ -4146,8 +4373,19 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'chest':
                 
                 //create the modal frame:
-                state.APIAreaMapper.assetManagementEditModalIds.push(['path', createRectanglePathObject(pageId, 'objects', '#000000', headerBackgroundColor, modalTop, modalLeft, modalPairNonStretchHeight, modalWidth).id]);
-       
+                state.APIAreaMapper.assetManagementEditModalIds.push(['path', 
+                    createRectanglePathObject(
+                            pageId, 
+                            'objects', 
+                            '#000000', 
+                            headerBackgroundColor, 
+                            modalTop, 
+                            modalLeft, 
+                            modalPairNonStretchHeight, 
+                            modalWidth,
+                            2
+                        ).id]);
+                
                 //draw assets:
                 asset1 = new asset(state.APIAreaMapper.chestAssets[state.APIAreaMapper.globalAssetManagement[1]][0]);
                 asset2 = new asset(state.APIAreaMapper.chestAssets[state.APIAreaMapper.globalAssetManagement[1]][1]);
@@ -4155,30 +4393,50 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         asset1,
                         pageId,
                         'objects',
-                        new segment(
-                            new point(
-                                modalLeft + (modalWidth / 2) - (assetPairNonStretchSize + assetPairNonStretchSpacing),
-                                modalTop + modalTopMargin),
-                            new point(
-                                modalLeft + (modalWidth / 2) - assetPairNonStretchSpacing,
-                                modalTop + modalTopMargin + assetPairNonStretchSize)),
-                        0
+                        modalTop + modalTopMargin,
+                        modalLeft + (modalWidth / 2) - assetPairNonStretchSize - assetPairNonStretchSpacing,
+                        assetPairNonStretchSize,
+                        assetPairNonStretchSize
                     );
                 token2 = createTokenObjectFromAsset(
                         asset2,
                         pageId,
                         'objects',
-                        new segment(
-                            new point(
-                                modalLeft + (modalWidth / 2) + assetPairNonStretchSpacing,
-                                modalTop + modalTopMargin),
-                            new point(
-                                modalLeft + (modalWidth / 2) + assetPairNonStretchSpacing + assetPairNonStretchSize,
-                                modalTop + modalTopMargin + assetPairNonStretchSize)),
-                        0
+                        modalTop + modalTopMargin,
+                        modalLeft + (modalWidth / 2) + assetPairNonStretchSpacing,
+                        assetPairNonStretchSize,
+                        assetPairNonStretchSize
                     );
                 state.APIAreaMapper.assetManagementEditModalIds.push(['graphic', token1.id]);
                 state.APIAreaMapper.assetManagementEditModalIds.push(['graphic', token2.id]);
+                
+                //draw bands:
+                state.APIAreaMapper.assetManagementEditModalIds.push(['path', 
+                        createBandPathObject(
+                                pageId, 
+                                modalTop + modalTopMargin,
+                                modalLeft + (modalWidth / 2) - assetPairNonStretchSize - assetPairNonStretchSpacing,
+                                assetPairNonStretchSize,
+                                assetPairNonStretchSize, 
+                                0, 
+                                '#00ff00', 
+                                0, 
+                                'objects'
+                            ).id
+                    ]);
+                state.APIAreaMapper.assetManagementEditModalIds.push(['path', 
+                        createBandPathObject(
+                                pageId, 
+                                modalTop + modalTopMargin,
+                                modalLeft + (modalWidth / 2) + assetPairNonStretchSpacing,
+                                assetPairNonStretchSize,
+                                assetPairNonStretchSize, 
+                                0, 
+                                '#00ff00', 
+                                0, 
+                                'objects'
+                            ).id
+                    ]);
                 
                 //draw labels:
                 state.APIAreaMapper.assetManagementEditModalIds.push(['text',
@@ -4207,14 +4465,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
             default:
                 log('Unhandled asset classification of ' + state.APIAreaMapper.globalAssetManagement[0] + ' in drawAssetManagementEditModal().');
                 return;
-        }
-        
-        //draw feature tags:
-        if(token1) {
-            state.APIAreaMapper.assetManagementEditModalIds.push(['path', drawFeatureTag(token1, 0, '#00ff00', asset1).id]);
-        }
-        if(token2) {
-            state.APIAreaMapper.assetManagementEditModalIds.push(['path', drawFeatureTag(token2, 0, '#00ff00', asset2).id]);
         }
     },
     
@@ -4295,37 +4545,50 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return followUpAction;
     },
     
-    editGlobalAssetUpdateSetProperty = function(property, value, isReplacement) {
+    //editGlobalAssetUpdateSetProperty = function(property, value, isReplacement) {
+    editGlobalAssetUpdateSetProperty = function(property, value, updateType) {
         var assetClassification = state.APIAreaMapper.globalAssetManagement[0];
         var assetIndex = state.APIAreaMapper.globalAssetManagement[1];
         
-        var setPropertyToValue = function(assetObject, property, value, isReplacement) {
-            if(value == 'toggle') {
-                assetObject.setProperty(property, (assetObject.getProperty(property) + 1) % 2);
-            } else {
-                assetObject.setProperty(property, isReplacement ? value : assetObject.getProperty(property) + value);
+        var setPropertyToValue = function(assetObject, property, value, updateType) {
+            switch(updateType) {
+                case 'toggle':
+                    assetObject.setProperty(property, (assetObject.getProperty(property) + 1) % 2);
+                    break;
+                case 'add':
+                    assetObject.setProperty(property, assetObject.getProperty(property) + value);
+                    break;
+                case 'multiply':
+                    assetObject.setProperty(property, assetObject.getProperty(property) * value);
+                    break;
+                case 'replace':
+                    assetObject.setProperty(property, value);
+                    break;
+                default:
+                    log('Unhandled updateType of ' + updateType + ' in editGlobalAssetUpdateSetProperty().');
+                    return;
             }
         };
         
         switch(assetClassification) {
             case 'floor':
                 var assetObject = new asset(state.APIAreaMapper.floorAssets[assetIndex]);
-                setPropertyToValue(assetObject, property, value, isReplacement);
+                setPropertyToValue(assetObject, property, value, updateType);
                 state.APIAreaMapper.floorAssets[assetIndex] = assetObject.getStateObject();
                 break;
             case 'wall':
                 var assetObject = new asset(state.APIAreaMapper.wallAssets[assetIndex][state.APIAreaMapper.globalAssetEdit[0]]);
-                setPropertyToValue(assetObject, property, value, isReplacement);
+                setPropertyToValue(assetObject, property, value, updateType);
                 state.APIAreaMapper.wallAssets[assetIndex][state.APIAreaMapper.globalAssetEdit[0]] = assetObject.getStateObject();
                 break;
             case 'door':
                 var assetObject = new asset(state.APIAreaMapper.doorAssets[assetIndex][state.APIAreaMapper.globalAssetEdit[0]]);
-                setPropertyToValue(assetObject, property, value, isReplacement);
+                setPropertyToValue(assetObject, property, value, updateType);
                 state.APIAreaMapper.doorAssets[assetIndex][state.APIAreaMapper.globalAssetEdit[0]] = assetObject.getStateObject();
                 break;
             case 'chest':
                 var assetObject = new asset(state.APIAreaMapper.chestAssets[assetIndex][state.APIAreaMapper.globalAssetEdit[0]]);
-                setPropertyToValue(assetObject, property, value, isReplacement);
+                setPropertyToValue(assetObject, property, value, updateType);
                 state.APIAreaMapper.chestAssets[assetIndex][state.APIAreaMapper.globalAssetEdit[0]] = assetObject.getStateObject();
                 break;
             default:
@@ -4355,7 +4618,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 break;
         }
         
-        editGlobalAssetUpdateSetProperty('rotation', (direction == 'cw' ? rotationAmount : 0 - rotationAmount), false);
+        editGlobalAssetUpdateSetProperty('rotation', (direction == 'cw' ? rotationAmount : 0 - rotationAmount), 'add');
         
         return followUpAction;
     },
@@ -4364,7 +4627,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var followUpAction = [];
         followUpAction.refresh = true;
          
-        editGlobalAssetUpdateSetProperty('alternate', 'toggle', true);
+        editGlobalAssetUpdateSetProperty('alternate', null, 'toggle');
         
         return followUpAction;
     },
@@ -4400,51 +4663,56 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return followUpAction;
     },
     
-    handleGlobalAssetEditCropChange = function(side, direction, amount) {
+    handleGlobalAssetEditScaleChange = function(axis, action, amount) {
         var followUpAction = [];
         followUpAction.refresh = true;
        
-        var property,
-            addPositive,
-            amountValue;
+        var amountValue;
         
-        switch(side) {
-            case 'top':
-                property = 'cropTop';
-                addPositive = direction == 'down';
+        var property = axis == 'vertical' ? 'scaleVertical' : 'scaleHorizontal';
+        var isIncreasing = (action == 'increase');
+        
+        switch(amount) {
+            case 'lots':
+                amountValue = 1.05;
                 break;
-            case 'bottom':
-                property = 'cropBottom';
-                addPositive = direction == 'up';
-                break;
-            case 'left':
-                property = 'cropLeft';
-                addPositive = direction == 'right';
-                break;
-            case 'right':
-                property = 'cropRight';
-                addPositive = direction == 'left';
+            case 'tad':
+                amountValue = 1.01;
                 break;
             default:
-                log('Unhandled side of ' + side + ' in handleGlobalAssetEditCropChange().');
+                log('Unhandled amount of ' + amount + ' in handleGlobalAssetEditScaleChange().');
                 followUpAction.message = 'There was a problem; see the log for details.';
                 return followUpAction;
         }
         
+        editGlobalAssetUpdateSetProperty(property, isIncreasing ? amountValue : 1 / amountValue, 'multiply');
+        
+        return followUpAction;
+    },
+    
+    handleGlobalAssetEditOffsetChange = function(axis, action, amount) {
+        var followUpAction = [];
+        followUpAction.refresh = true;
+       
+        var amountValue;
+        
+        var property = axis == 'vertical' ? 'offsetVertical' : 'offsetHorizontal';
+        var isIncreasing = (action == 'increase');
+        
         switch(amount) {
             case 'lots':
-                amountValue = 7;
+                amountValue = 5;
                 break;
             case 'tad':
                 amountValue = 1;
                 break;
             default:
-                log('Unhandled amount of ' + amount + ' in handleGlobalAssetEditCropChange().');
+                log('Unhandled amount of ' + amount + ' in handleGlobalAssetEditOffsetChange().');
                 followUpAction.message = 'There was a problem; see the log for details.';
                 return followUpAction;
         }
         
-        editGlobalAssetUpdateSetProperty(property, addPositive ? amountValue : 0 - amountValue, false);
+        editGlobalAssetUpdateSetProperty(property, isIncreasing ? amountValue : 0 - amountValue, 'add');
         
         return followUpAction;
     },
@@ -5142,6 +5410,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         var activeAsest = state.APIAreaMapper.globalAssetEdit[0] ? asset2 : asset1;
         
+        //TODO: reset button? - would need to be on an individual asset, not the pair
+        
         var text = null;
         var links = [['navigation', 'done', 'globalAssets', false, false]];
         switch(assetClassification) {
@@ -5183,32 +5453,32 @@ var APIAreaMapper = APIAreaMapper || (function() {
         html += uiSection('Rotation', text, links);
         
         text = null;
-        links = [['navigation', 'up lots', 'globalAssetEditCrop top up lots', false, false],
-                    ['navigation', 'up', 'globalAssetEditCrop top up tad', false, false],
-                    ['navigation', 'down', 'globalAssetEditCrop top down tad', false, false],
-                    ['navigation', 'down lots', 'globalAssetEditCrop top down lots', false, false]];
-        html += uiSection('Top Cropping', text, links);
+        links = [['navigation', 'increase lots', 'globalAssetEditScale vertical increase lots', false, false],
+                    ['navigation', 'increase', 'globalAssetEditScale vertical increase tad', false, false],
+                    ['navigation', 'decrease', 'globalAssetEditScale vertical decrease tad', false, false],
+                    ['navigation', 'decrease lots', 'globalAssetEditScale vertical decrease lots', false, false]];
+        html += uiSection('Vertical Scale', text, links);
         
         text = null;
-        links = [['navigation', 'up lots', 'globalAssetEditCrop bottom up lots', false, false],
-                    ['navigation', 'up', 'globalAssetEditCrop bottom up tad', false, false],
-                    ['navigation', 'down', 'globalAssetEditCrop bottom down tad', false, false],
-                    ['navigation', 'down lots', 'globalAssetEditCrop bottom down lots', false, false]];
-        html += uiSection('Bottom Cropping', text, links);
+        links = [['navigation', 'increase lots', 'globalAssetEditScale horizontal increase lots', false, false],
+                    ['navigation', 'increase', 'globalAssetEditScale horizontal increase tad', false, false],
+                    ['navigation', 'decrease', 'globalAssetEditScale horizontal decrease tad', false, false],
+                    ['navigation', 'decrease lots', 'globalAssetEditScale horizontal decrease lots', false, false]];
+        html += uiSection('Horizontal Scale', text, links);
         
         text = null;
-        links = [['navigation', 'left lots', 'globalAssetEditCrop left left lots', false, false],
-                    ['navigation', 'left', 'globalAssetEditCrop left left tad', false, false],
-                    ['navigation', 'right', 'globalAssetEditCrop left right tad', false, false],
-                    ['navigation', 'right lots', 'globalAssetEditCrop left right lots', false, false]];
-        html += uiSection('Left Cropping', text, links);
+        links = [['navigation', 'increase lots', 'globalAssetEditOffset vertical increase lots', false, false],
+                    ['navigation', 'increase', 'globalAssetEditOffset vertical increase tad', false, false],
+                    ['navigation', 'decrease', 'globalAssetEditOffset vertical decrease tad', false, false],
+                    ['navigation', 'decrease lots', 'globalAssetEditOffset vertical decrease lots', false, false]];
+        html += uiSection('Vertical Position', text, links);
         
         text = null;
-        links = [['navigation', 'left lots', 'globalAssetEditCrop right left lots', false, false],
-                    ['navigation', 'left', 'globalAssetEditCrop right left tad', false, false],
-                    ['navigation', 'right', 'globalAssetEditCrop right right tad', false, false],
-                    ['navigation', 'right lots', 'globalAssetEditCrop right right lots', false, false]];
-        html += uiSection('Right Cropping', text, links);
+        links = [['navigation', 'increase lots', 'globalAssetEditOffset horizontal increase lots', false, false],
+                    ['navigation', 'increase', 'globalAssetEditOffset horizontal increase tad', false, false],
+                    ['navigation', 'decrease', 'globalAssetEditOffset horizontal decrease tad', false, false],
+                    ['navigation', 'decrease lots', 'globalAssetEditOffset horizontal decrease lots', false, false]];
+        html += uiSection('Horizontal Position', text, links);
         
         sendStandardInterface(who, 'Edit Global Asset', html);
     },
@@ -5432,8 +5702,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     followUpAction = handleGlobalAssetEditSwapAssets();
                     followUpAction.ignoreSelection = true;
                     break;
-                case 'globalAssetEditCrop':
-                    followUpAction = handleGlobalAssetEditCropChange(chatCommand[2], chatCommand[3], chatCommand[4]);
+                case 'globalAssetEditScale':
+                    followUpAction = handleGlobalAssetEditScaleChange(chatCommand[2], chatCommand[3], chatCommand[4]);
+                    followUpAction.ignoreSelection = true;
+                    break;
+                case 'globalAssetEditOffset':
+                    followUpAction = handleGlobalAssetEditOffsetChange(chatCommand[2], chatCommand[3], chatCommand[4]);
                     followUpAction.ignoreSelection = true;
                     break;
                 case 'mainMenu':
