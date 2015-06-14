@@ -1439,37 +1439,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return "[[\"M\",0,0],[\"L\",0," + height + "],[\"L\"," + width + "," + height + "],[\"L\"," + width + ",0],[\"L\",0,0]]";
     },
     
-    //TODO: delete:
-    createPathObject = function(pageId, layer, strokeColor, fillColor, path, top, left, height, width, strokeWidth, rotation) {
-        state.APIAreaMapper.tempIgnoreDrawingEvents = true;
-        
-        if('undefined' === typeof(strokeWidth)) {
-            strokeWidth = 1;
-        }
-        
-        if('undefined' === typeof(rotation)) {
-            rotation = 0;
-        }
-        
-        var obj = createObj('path', {
-                layer: layer,
-                pageid: pageId,
-                top: top + (height / 2),
-                left: left + (width / 2),
-                height: height,
-                width: width,
-                stroke: strokeColor,
-                stroke_width: strokeWidth,
-                fill: fillColor,
-                _path: path,
-                rotation: rotation
-            });
-        
-        state.APIAreaMapper.tempIgnoreDrawingEvents = false;
-        
-        return obj;
-    },
-    
     createPathObject_new = function(path, pageId, layer, strokeColor, fillColor, top, left, height, width, strokeWidth, rotation) {
         if('undefined' === typeof(strokeWidth)) {
             strokeWidth = 1;
@@ -1500,22 +1469,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return obj;
     }, 
     
-    //TODO: delete:
-    createRectanglePathObject = function(pageId, layer, strokeColor, fillColor, top, left, height, width, rotation) {
-        return createPathObject(
-            pageId,
-            layer,
-            strokeColor,
-            fillColor,
-            getRectanglePath(height, width),
-            top,
-            left,
-            height,
-            width,
-            1,
-            rotation);
-    },
-    
     createRectanglePathObject_new = function(pageId, layer, strokeColor, fillColor, top, left, height, width, strokeWidth, rotation) {
         return createPathObject_new(
             getRectanglePath(height, width),
@@ -1529,35 +1482,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
             width,
             strokeWidth,
             rotation);
-    },
-    
-    //TODO: delete:
-    drawFeatureTag = function(graphic, tagBand, color, assetObject) {
-        var tagStrokeWidth = 4;
-        
-        var cropWidth = 1;
-        var cropHeight = 1;
-        
-        if('undefined' !== typeof(assetObject)) {
-            cropHeight = ((70 - assetObject.getProperty('cropTop') - assetObject.getProperty('cropBottom')) / 70);
-            cropWidth = ((70 - assetObject.getProperty('cropLeft') - assetObject.getProperty('cropRight')) / 70);
-        }
-        
-        var height = (graphic.get('height') * cropHeight) + (2 * (tagBand * tagStrokeWidth));
-        var width = (graphic.get('width') * cropWidth) + (2 * (tagBand * tagStrokeWidth));
-        
-        return createPathObject(
-            graphic.get('_pageid'),
-            'gmlayer',
-            color,
-            'transparent',
-            getRectanglePath(height, width),
-            graphic.get('top') - (height / 2),
-            graphic.get('left') - (width / 2),
-            height,
-            width,
-            tagStrokeWidth,
-            graphic.get('rotation'));
     },
     
     createBandPathObjectFromToken_new = function(token, bandIndex, color, layer) {
@@ -1612,19 +1536,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
             rotation);
     },
     
-    //TODO: delete:
-    //receives a graphic and an array of tag colors, and returns an array of new feature tag IDs:
-    drawFeatureTags = function(graphic, featureTagColors, assetObject) {
-        var tagIds = [];
-        var tagBand = 0;
-        
-        featureTagColors.forEach(function(color) {
-            tagIds.push(drawFeatureTag(graphic, tagBand++, color, assetObject).id);
-        }, this);
-        
-        return tagIds;
-    },
-    
     createBandsFromToken_new = function(token, bandColors, layer) {
         var bandIds = [];
         var bandIndex = 0;
@@ -1660,79 +1571,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
             bandColors,
             segment.angleDegrees(segment.a),
             layer);
-    },
-    
-    //TODO: delete:
-    createTokenObjectFromSegment = function(imgsrc, pageId, layer, segment, width, alternateWidthAndHeight) {
-        state.APIAreaMapper.tempIgnoreDrawingEvents = true;
-        
-        var height = segment.length() + 14;
-        
-        var obj = createObj('graphic', {
-            imgsrc: imgsrc,
-            layer: layer,
-            pageid: pageId,
-            width: alternateWidthAndHeight ? height : width,
-            top: segment.b.y + ((segment.a.y - segment.b.y) / 2),
-            left: segment.b.x + ((segment.a.x - segment.b.x) / 2),
-            height: alternateWidthAndHeight ? width : height,
-            rotation: segment.angleDegrees(segment.a) + (alternateWidthAndHeight ? 0 : 90)
-        });
-        
-        state.APIAreaMapper.tempIgnoreDrawingEvents = false;
-        
-        return obj;
-    },
-    
-    //TODO: delete:
-    createTokenObjectFromAssetAndSegment = function(assetObject, pageId, layer, segment, width, lengthExtension) {
-        state.APIAreaMapper.tempIgnoreDrawingEvents = true;
-        
-        var cropHeight = ((70 - assetObject.getProperty('cropTop') - assetObject.getProperty('cropBottom')) / 70);
-        var cropWidth = ((70 - assetObject.getProperty('cropLeft') - assetObject.getProperty('cropRight')) / 70);
-        
-        var height = (segment.length() / (assetObject.getProperty('alternate') ? cropWidth : cropHeight)) + lengthExtension;
-        width /= (assetObject.getProperty('alternate') ? cropHeight : cropWidth);
-        
-        var obj = createObj('graphic', {
-            imgsrc: assetObject.getProperty('imagesrc'),
-            layer: layer,
-            pageid: pageId,
-            width: assetObject.getProperty('alternate') ? height : width,
-            top: segment.b.y + ((segment.a.y - segment.b.y) / 2),
-            left: segment.b.x + ((segment.a.x - segment.b.x) / 2),
-            height: assetObject.getProperty('alternate') ? width : height,
-            rotation: segment.angleDegrees(segment.a) + assetObject.getProperty('rotation')
-        });
-        
-        state.APIAreaMapper.tempIgnoreDrawingEvents = false;
-        
-        return obj;
-    },
-    
-    //TODO: delete:
-    //creates a token object using a segment to define its dimensions:
-    createTokenObject = function(imgsrc, pageId, layer, segment, rotation) {
-        if('undefined' === typeof(rotation)) {
-            rotation = 0;
-        }
-        
-        state.APIAreaMapper.tempIgnoreDrawingEvents = true;
-        
-        var obj = createObj('graphic', {
-            imgsrc: imgsrc,
-            layer: layer,
-            pageid: pageId,
-            top: segment.b.y + ((segment.a.y - segment.b.y) / 2),
-            left: segment.b.x + ((segment.a.x - segment.b.x) / 2),
-            height: segment.b.y - segment.a.y,
-            width: segment.b.x - segment.a.x,
-            rotation: rotation
-        });
-        
-        state.APIAreaMapper.tempIgnoreDrawingEvents = false;
-        
-        return obj;
     },
     
     createTokenObjectFromImage_new = function(imagesrc, pageId, layer, top, left, height, width, rotation) {
@@ -1803,37 +1641,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
             segment.angleDegrees(segment.a));
     },
     
-    //creates a token object using a segment to define its dimensions:
-    createTokenObjectFromAsset = function(assetObject, pageId, layer, segment, rotation) {
-        if('undefined' === typeof(rotation)) {
-            rotation = 0;
-        }
-        
-        state.APIAreaMapper.tempIgnoreDrawingEvents = true;
-        
-        var cropHeight = ((70 - assetObject.getProperty('cropTop') - assetObject.getProperty('cropBottom')) / 70);
-        var cropWidth = ((70 - assetObject.getProperty('cropLeft') - assetObject.getProperty('cropRight')) / 70);
-        
-        var height = (segment.b.y - segment.a.y) / (assetObject.getProperty('alternate') ? cropWidth : cropHeight);
-        var width = (segment.b.x - segment.a.x) / (assetObject.getProperty('alternate') ? cropHeight : cropWidth);
-        
-        var obj = createObj('graphic', {
-            imgsrc: assetObject.getProperty('imagesrc'),
-            layer: layer,
-            pageid: pageId,
-            top: segment.b.y + ((segment.a.y - segment.b.y) / 2),
-            left: segment.b.x + ((segment.a.x - segment.b.x) / 2),
-            height: assetObject.getProperty('alternate') ? width : height,
-            width: assetObject.getProperty('alternate') ? height : width,
-            rotation: rotation + assetObject.getProperty('rotation')
-        });
-        
-        state.APIAreaMapper.tempIgnoreDrawingEvents = false;
-        
-        return obj;
-    },
-    
-    //createTextObject_new (same as below):
     createTextObject = function(text, pageId, layer, top, left, height, width, rotation) {
         if('undefined' === typeof(rotation)) {
             rotation = 0;
@@ -3582,7 +3389,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
             //draw wall tokens:
             var iwIndex = g.addSimplePath(iw[0], top + iw[1], left + iw[2]);
             g.getProperty('simplePaths')[iwIndex].segments.forEach(function(s) {
-                //this.setProperty('wallIds', createTokenObjectFromAssetAndSegment(wallAsset, this.getProperty('pageId'), 'objects', s, wallThickness, wallLengthExtension).id);
                 this.setProperty('wallIds', 
                     createTokenObjectFromAssetBySegment_new(
                             wallAsset,
@@ -4325,7 +4131,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'floor':
                 
                 //create the modal frame:
-                state.APIAreaMapper.assetManagementEditModalIds.push(['path', createRectanglePathObject(pageId, 'objects', '#000000', headerBackgroundColor, modalTop, modalLeft, modalNonPairHeight, modalWidth).id]);
+                state.APIAreaMapper.assetManagementEditModalIds.push(['path', createRectanglePathObject_new(pageId, 'objects', '#000000', headerBackgroundColor, modalTop, modalLeft, modalNonPairHeight, modalWidth).id]);
        
                 //draw asset:
                 asset1 = new asset(state.APIAreaMapper.floorAssets[state.APIAreaMapper.globalAssetManagement[1]]);
@@ -4371,7 +4177,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'wall':
                 
                 //create the modal frame:
-                state.APIAreaMapper.assetManagementEditModalIds.push(['path', createRectanglePathObject(pageId, 'objects', '#000000', headerBackgroundColor, modalTop, modalLeft, modalPairStretchHeight, modalWidth).id]);
+                state.APIAreaMapper.assetManagementEditModalIds.push(['path', createRectanglePathObject_new(pageId, 'objects', '#000000', headerBackgroundColor, modalTop, modalLeft, modalPairStretchHeight, modalWidth).id]);
        
                 //draw assets:
                 asset1 = new asset(state.APIAreaMapper.wallAssets[state.APIAreaMapper.globalAssetManagement[1]][0]);
@@ -4453,7 +4259,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'door':
                 
                 //create the modal frame:
-                state.APIAreaMapper.assetManagementEditModalIds.push(['path', createRectanglePathObject(pageId, 'objects', '#000000', headerBackgroundColor, modalTop, modalLeft, modalPairStretchHeight, modalWidth).id]);
+                state.APIAreaMapper.assetManagementEditModalIds.push(['path', createRectanglePathObject_new(pageId, 'objects', '#000000', headerBackgroundColor, modalTop, modalLeft, modalPairStretchHeight, modalWidth).id]);
        
                 //draw assets:
                 asset1 = new asset(state.APIAreaMapper.doorAssets[state.APIAreaMapper.globalAssetManagement[1]][0]);
@@ -4534,7 +4340,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'chest':
                 
                 //create the modal frame:
-                state.APIAreaMapper.assetManagementEditModalIds.push(['path', createRectanglePathObject(pageId, 'objects', '#000000', headerBackgroundColor, modalTop, modalLeft, modalPairNonStretchHeight, modalWidth).id]);
+                state.APIAreaMapper.assetManagementEditModalIds.push(['path', createRectanglePathObject_new(pageId, 'objects', '#000000', headerBackgroundColor, modalTop, modalLeft, modalPairNonStretchHeight, modalWidth).id]);
                 
                 //draw assets:
                 asset1 = new asset(state.APIAreaMapper.chestAssets[state.APIAreaMapper.globalAssetManagement[1]][0]);
