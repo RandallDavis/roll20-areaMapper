@@ -4140,7 +4140,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                             modalTop, 
                             modalLeft, 
                             modalNonPairHeight, 
-                            modalWidth
+                            modalWidth,
+                            2
                         ).id]);
        
                 //draw asset:
@@ -4196,7 +4197,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                             modalTop, 
                             modalLeft, 
                             modalPairStretchHeight, 
-                            modalWidth
+                            modalWidth,
+                            2
                         ).id]);
        
                 //draw assets:
@@ -4288,7 +4290,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                             modalTop, 
                             modalLeft, 
                             modalPairStretchHeight, 
-                            modalWidth
+                            modalWidth,
+                            2
                         ).id]);
        
                 //draw assets:
@@ -4379,7 +4382,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                             modalTop, 
                             modalLeft, 
                             modalPairNonStretchHeight, 
-                            modalWidth
+                            modalWidth,
+                            2
                         ).id]);
                 
                 //draw assets:
