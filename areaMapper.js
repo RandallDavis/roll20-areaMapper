@@ -6,8 +6,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.139,
-        schemaVersion = 0.044,
+    var version = 0.140,
+        schemaVersion = 0.045,
         buttonBackgroundColor = '#CC1869',
         buttonGreyedColor = '#8D94A9',
         buttonHighlightLinkColor = '#D6F510',
@@ -25,9 +25,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
         openDoorAlertPic = 'https://s3.amazonaws.com/files.d20.io/images/8543205/QBOWp1MHHlJCrPWn9kcVqQ/thumb.png?1427665124',
         padlockAlertPic = 'https://s3.amazonaws.com/files.d20.io/images/8546285/bdyuCfZSGRXr3qrVkcPkAg/thumb.png?1427673372',
         skullAlertPic = 'https://s3.amazonaws.com/files.d20.io/images/8779089/aM1ujMQboacuc2fEMFk7Eg/thumb.png?1428784948',
-        wallThickness = 18,
-        wallLengthExtension = 14,
-        doorThickness = 13,
+        wallThickness = 14,
+        wallLengthExtension = 12,
+        doorThickness = 20,
         doorLengthExtension = -26,
         
     checkInstall = function() {
@@ -55,18 +55,18 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         ['https://s3.amazonaws.com/files.d20.io/images/2830294/BaNT6qoN5O0WRiY3TS0azA/thumb.png?1390392180',0,0,1,1,0,0]
                     ],
                 wallAssets: [
-                        [['https://s3.amazonaws.com/files.d20.io/images/9585786/x1-hhxavuLoUjMsgA5vYdA/thumb.png?1432007204',90,0,1,1,0,0],
-                            ['https://s3.amazonaws.com/files.d20.io/images/7068/thumb.png?1336366825',0,1,1,1,0,0]],
-                        [['https://s3.amazonaws.com/files.d20.io/images/452469/9KJ1s2PJhuMbDICeYETXZQ/thumb.png?1355660278',0,1,1,1,0,0],
-                            ['https://s3.amazonaws.com/files.d20.io/images/7068/thumb.png?1336366825',0,1,1,1,0,0]]
+                        [['https://s3.amazonaws.com/files.d20.io/images/9585786/x1-hhxavuLoUjMsgA5vYdA/thumb.png?1432007204',0,1,1,1,0,0],
+                            ['https://s3.amazonaws.com/files.d20.io/images/7068/thumb.png?1336366825',0,0,1.2399379256250003,1.3534965970312505,0,-4]],
+                        [['https://s3.amazonaws.com/files.d20.io/images/452469/9KJ1s2PJhuMbDICeYETXZQ/thumb.png?1355660278',0,0,3.386354940899389,1.0605,0,5],
+                            ['https://s3.amazonaws.com/files.d20.io/images/7068/thumb.png?1336366825',0,0,1.2399379256250003,1.3534965970312505,0,-4]]
                     ],
                 doorAssets: [
-                        [['https://s3.amazonaws.com/files.d20.io/images/6951/thumb.png?1336359665',0,1,1,1,0,0],
-                            ['https://s3.amazonaws.com/files.d20.io/images/7068/thumb.png?1336366825',0,1,1,1,0,0]]
+                        [['https://s3.amazonaws.com/files.d20.io/images/6951/thumb.png?1336359665',0,0,1.2775092847093634,1.3807018786315788,0,-2],
+                            ['https://s3.amazonaws.com/files.d20.io/images/7068/thumb.png?1336366825',0,0,1.2399379256250003,1.3534965970312505,0,-4]]
                     ],
                 chestAssets: [
-                        [['https://s3.amazonaws.com/files.d20.io/images/7962/thumb.png?1336489213',0,0,1,1,0,0],
-                            ['https://s3.amazonaws.com/files.d20.io/images/2839308/_RR8niUb3sTQgLSoxDhM4g/thumb.png?1390469385',0,0,1,1,0,0]]
+                        [['https://s3.amazonaws.com/files.d20.io/images/7962/thumb.png?1336489213',0,0,1.1025,0.9523809523809523,0,-2],
+                            ['https://s3.amazonaws.com/files.d20.io/images/2839308/_RR8niUb3sTQgLSoxDhM4g/thumb.png?1390469385',0,0,1,1.0396039603960396,0,-1]]
                     ]
             };
         } 
