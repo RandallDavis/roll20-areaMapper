@@ -6,7 +6,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.138,
+    var version = 0.139,
         schemaVersion = 0.044,
         buttonBackgroundColor = '#CC1869',
         buttonGreyedColor = '#8D94A9',
@@ -1424,7 +1424,17 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     /* roll20 object management - begin */
     
-    var deleteObject = function(type, id) {
+    //find imgsrc that is legal for object creation:
+    var getCleanImgsrc = function (imgsrc) {
+        var parts = imgsrc.match(/(.*\/images\/.*)(thumb|max|med)(.*)$/);
+        
+        if(parts) {
+          return parts[1] + 'thumb' + parts[3];
+        }
+        return null;
+    },
+    
+    deleteObject = function(type, id) {
         state.APIAreaMapper.tempIgnoreDrawingEvents = true;
         
         var obj = getObj(type, id);
@@ -1673,8 +1683,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this._type.push('asset');
         
         if('undefined' === typeof(stateObject)) {
-            log('asset() called without a stateObject.');
-            return;
+            stateObject = ['',0,0,1,1,0,0];
         }
         
         this.setProperty('imagesrc', stateObject[0]);
@@ -4510,6 +4519,115 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return followUpAction;
     },
     
+    handleGlobalAssetCreate = function(selected) {
+        var followUpAction = [];
+        followUpAction.refresh = true;
+        
+        if(!state.APIAreaMapper.globalAssetManagement) {
+            followUpAction.message = 'A classification must be active.';
+            return followUpAction;
+        }
+        
+        if(!(selected && selected.length)) {
+            followUpAction.message = 'Image(s) must be selected to turn into assets.';
+            return followUpAction;
+        }
+        
+        switch(state.APIAreaMapper.globalAssetManagement[0]) {
+            case 'floor':
+                if(selected.length !== 1) {
+                    followUpAction.message = 'Exactly one image should be selected to turn into a floor asset.';
+                    return followUpAction;
+                }
+                
+                var token1 = getObj('graphic', selected[0]._id);
+                
+                if(!token1) {
+                    followUpAction.message = 'No selected image was found. Exactly one image should be selected to turn into a floor asset.';
+                    return followUpAction;
+                }
+                
+                var asset1 = new asset();
+                asset1.setProperty('imagesrc', getCleanImgsrc(token1.get('imgsrc')));
+                
+                state.APIAreaMapper.floorAssets.push(asset1.getStateObject());
+                state.APIAreaMapper.globalAssetManagement[1] = state.APIAreaMapper.floorAssets.length - 1;
+                break;
+            case 'wall':
+                if(selected.length !== 2) {
+                    followUpAction.message = 'Exactly two images should be selected to turn into wall assets. One for a wall / closed hidden door, and another for an open hidden door.';
+                    return followUpAction;
+                }
+                
+                var token1 = getObj('graphic', selected[0]._id);
+                var token2 = getObj('graphic', selected[1]._id);
+                
+                if(!token1 || !token2) {
+                    followUpAction.message = 'Failure to find exactly two selected images. Two images should be selected to turn into wall assets. One for a wall / closed hidden door, and another for an open hidden door.';
+                    return followUpAction;
+                }
+                
+                var asset1 = new asset();
+                asset1.setProperty('imagesrc', getCleanImgsrc(token1.get('imgsrc')));
+                var asset2 = new asset();
+                asset2.setProperty('imagesrc', getCleanImgsrc(token2.get('imgsrc')));
+                
+                state.APIAreaMapper.wallAssets.push([asset1.getStateObject(), asset2.getStateObject()]);
+                state.APIAreaMapper.globalAssetManagement[1] = state.APIAreaMapper.wallAssets.length - 1;
+                break;
+            case 'door':
+                if(selected.length !== 2) {
+                    followUpAction.message = 'Exactly two images should be selected to turn into door assets. One for a closed door and another for an open door.';
+                    return followUpAction;
+                }
+                
+                var token1 = getObj('graphic', selected[0]._id);
+                var token2 = getObj('graphic', selected[1]._id);
+                
+                if(!token1 || !token2) {
+                    followUpAction.message = 'Failure to find exactly two selected images. Two images should be selected to turn into door assets. One for a closed door and another for an open door.';
+                    return followUpAction;
+                }
+                
+                var asset1 = new asset();
+                asset1.setProperty('imagesrc', getCleanImgsrc(token1.get('imgsrc')));
+                var asset2 = new asset();
+                asset2.setProperty('imagesrc', getCleanImgsrc(token2.get('imgsrc')));
+                
+                state.APIAreaMapper.doorAssets.push([asset1.getStateObject(), asset2.getStateObject()]);
+                state.APIAreaMapper.globalAssetManagement[1] = state.APIAreaMapper.doorAssets.length - 1;
+                break;
+            case 'chest':
+                if(selected.length !== 2) {
+                    followUpAction.message = 'Exactly two images should be selected to turn into chest assets. One for a closed chest and another for an open chest.';
+                    return followUpAction;
+                }
+                
+                var token1 = getObj('graphic', selected[0]._id);
+                var token2 = getObj('graphic', selected[1]._id);
+                
+                if(!token1 || !token2) {
+                    followUpAction.message = 'Failure to find exactly two selected images. Two images should be selected to turn into chest assets. One for a closed chest and another for an open chest.';
+                    return followUpAction;
+                }
+                
+                var asset1 = new asset();
+                asset1.setProperty('imagesrc', getCleanImgsrc(token1.get('imgsrc')));
+                var asset2 = new asset();
+                asset2.setProperty('imagesrc', getCleanImgsrc(token2.get('imgsrc')));
+                
+                state.APIAreaMapper.chestAssets.push([asset1.getStateObject(), asset2.getStateObject()]);
+                state.APIAreaMapper.globalAssetManagement[1] = state.APIAreaMapper.chestAssets.length - 1;
+                break;
+            default:
+                log('Unhandled asset classification of ' + state.APIAreaMapper.globalAssetManagement[0] + ' in handleGlobalAssetCreate().');
+                followUpAction.message = 'There was a problem; see the log for details.';
+                return followUpAction;
+        }
+        
+        return followUpAction;
+    },
+    
     handleGlobalAssetCycle = function() {
         var followUpAction = [];
         followUpAction.refresh = true;
@@ -5334,7 +5452,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 activeClassification == 'floor' ? 'The floor asset can be seen on the top left corner of the player page.' : null, 
                 [
                         ['active', 'active', 'globalAssetActivateClassification floor', false, activeClassification == 'floor'],
-                        ['navigation', 'create (TBA)', 'globalAssetCreate floor', true || activeClassification != 'floor', false],
+                        ['navigation', 'create', 'globalAssetCreate', activeClassification != 'floor', false],
                         ['navigation', 'cycle', 'globalAssetCycle', activeClassification != 'floor', false],
                         ['navigation', 'edit', 'globalAssetEdit', activeClassification != 'floor', false],
                         ['navigation', 'delete (TBA)', 'globalAssetDelete floor', true || activeClassification != 'floor', false]
@@ -5343,7 +5461,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 activeClassification == 'wall' ? 'The wall assets can be seen on the top left corner of the player page.' : null, 
                 [
                         ['active', 'active', 'globalAssetActivateClassification wall', false, activeClassification == 'wall'],
-                        ['navigation', 'create (TBA)', 'globalAssetCreate wall', true || activeClassification != 'wall', false],
+                        ['navigation', 'create', 'globalAssetCreate', activeClassification != 'wall', false],
                         ['navigation', 'cycle', 'globalAssetCycle', activeClassification != 'wall', false],
                         ['navigation', 'edit', 'globalAssetEdit', activeClassification != 'wall', false],
                         ['navigation', 'delete (TBA)', 'globalAssetDelete wall', true || activeClassification != 'wall', false]
@@ -5352,7 +5470,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 activeClassification == 'door' ? 'The door assets can be seen on the top left corner of the player page.' : null, 
                 [
                         ['active', 'active', 'globalAssetActivateClassification door', false, activeClassification == 'door'],
-                        ['navigation', 'create (TBA)', 'globalAssetCreate door', true || activeClassification != 'door', false],
+                        ['navigation', 'create', 'globalAssetCreate',activeClassification != 'door', false],
                         ['navigation', 'cycle', 'globalAssetCycle', activeClassification != 'door', false],
                         ['navigation', 'edit', 'globalAssetEdit', activeClassification != 'door', false],
                         ['navigation', 'delete (TBA)', 'globalAssetDelete door', true || activeClassification != 'door', false]
@@ -5361,7 +5479,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 activeClassification == 'chest' ? 'The chest assets can be seen on the top left corner of the player page.' : null, 
                 [
                         ['active', 'active', 'globalAssetActivateClassification chest', false, activeClassification == 'chest'],
-                        ['navigation', 'create (TBA)', 'globalAssetCreate chest', true || activeClassification != 'chest', false],
+                        ['navigation', 'create', 'globalAssetCreate', activeClassification != 'chest', false],
                         ['navigation', 'cycle', 'globalAssetCycle', activeClassification != 'chest', false],
                         ['navigation', 'edit', 'globalAssetEdit', activeClassification != 'chest', false],
                         ['navigation', 'delete (TBA)', 'globalAssetDelete chest', true || activeClassification != 'chest', false]
@@ -5672,6 +5790,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 case 'globalAssetActivateClassification':
                     state.APIAreaMapper.uiWindow = 'globalAssets';
                     followUpAction = toggleGlobalAssetClassification(chatCommand[2]);
+                    followUpAction.ignoreSelection = true;
+                    break;
+                case 'globalAssetCreate':
+                    followUpAction = handleGlobalAssetCreate(msg.selected);
                     followUpAction.ignoreSelection = true;
                     break;
                 case 'globalAssetCycle':
