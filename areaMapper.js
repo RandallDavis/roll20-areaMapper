@@ -1594,6 +1594,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         var bandStrokeWidth = 4;
         
+        top -= (bandIndex * bandStrokeWidth);
+        left -= (bandIndex * bandStrokeWidth);
         height += (2 * (bandIndex * bandStrokeWidth));
         width += (2 * (bandIndex * bandStrokeWidth));
         
@@ -1643,6 +1645,21 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }, this);
         
         return bandIds;
+    },
+    
+    createBandsBySegment_new = function(pageId, segment, height, widthExtension, bandColors, layer) {
+        var midpoint = segment.midpoint();
+        var width = segment.length() + widthExtension;
+        
+        return createBands_new(
+            pageId,
+            midpoint.y - (height / 2),
+            midpoint.x - (width / 2),
+            height,
+            width,
+            bandColors,
+            segment.angleDegrees(segment.a),
+            layer);
     },
     
     //TODO: delete:
@@ -3743,7 +3760,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 if(doorState.getProperty('isHidden')) {
                     featureTagColors.push(hiddenTagColor);
                 }
-                var tagIds = drawFeatureTags(doorToken, featureTagColors, doorAsset);
+                var tagIds = createBandsBySegment_new(
+                    this.getProperty('pageId'),
+                    s,
+                    (doorState.getProperty('isHidden') ? wallThickness : doorThickness),
+                    (doorState.getProperty('isHidden') ? wallLengthExtension : doorLengthExtension),
+                    featureTagColors);
                  
                 doorProperty.push(tagIds);
                 
@@ -3777,6 +3799,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         log('Unhandled textureType of ' + chestTexture.getProperty('textureType') + ' for chestTexture in areaInstance.drawObjects().');
                         break;
                 }
+                
+                var chestTop = chestState.getProperty('top') + this.getProperty('top');
+                var chestLeft = chestState.getProperty('left') + this.getProperty('left');
                 
                 //if the number of objects in the area and the instance are equal, then this is modifying an existing object:
                 var existingChest = this.getProperty('chestIds').length === a.getProperty(objectType).length;
@@ -3819,9 +3844,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 //create a new chest:
                 else {
                     
-                    var chestTop = chestState.getProperty('top') + this.getProperty('top');
-                    var chestLeft = chestState.getProperty('left') + this.getProperty('left');
-                    
                     //draw the chest (on the object or gm layer depending on it being hidden):
                     chestToken = createTokenObjectFromAsset_new(
                         chestAsset, 
@@ -3852,7 +3874,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 if(chestState.getProperty('isHidden')) {
                     featureTagColors.push(hiddenTagColor);
                 }
-                var tagIds = drawFeatureTags(chestToken, featureTagColors, chestAsset);
+                var tagIds = createBands_new(
+                    this.getProperty('pageId'),
+                    chestTop,
+                    chestLeft,
+                    chestState.getProperty('height'),
+                    chestState.getProperty('width'),
+                    featureTagColors,
+                    chestState.getProperty('rotation'));
                 
                 chestProperty.push(tagIds);
                 
