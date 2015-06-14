@@ -1634,7 +1634,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return bandIds;
     },
     
-    createBands_new = function(pageId, top, left, height, width, bandColors, rotatation, layer) {
+    createBands_new = function(pageId, top, left, height, width, bandColors, rotation, layer) {
         var bandIds = [];
         var bandIndex = 0;
         
@@ -1718,16 +1718,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return obj;
     },
     
-    /*
-    //createTokenObjectFromAssetAndSegment = function(assetObject, pageId, layer, segment, width, lengthExtension) {
-    */
-    
     createTokenObjectFromImage_new = function(imagesrc, pageId, layer, top, left, height, width, rotation) {
         if('undefined' === typeof(rotation)) {
             rotation = 0;
         }
         
-        //TODO: does this cover tokens?
         state.APIAreaMapper.tempIgnoreDrawingEvents = true;
         
         var obj = createObj('graphic', {
@@ -1751,7 +1746,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
             rotation = 0;
         }
         
-        //TODO: does this cover tokens?
         state.APIAreaMapper.tempIgnoreDrawingEvents = true;
         
         var scaledHeight = height * assetObject.getProperty('scaleVertical');
@@ -1777,13 +1771,27 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return obj;
     },
     
+    createTokenObjectFromAssetBySegment_new = function(assetObject, pageId, layer, segment, height, widthExtension) {
+        var midpoint = segment.midpoint();
+        var width = segment.length() + widthExtension;
+        
+        return createTokenObjectFromAsset_new(
+            assetObject,
+            pageId,
+            layer,
+            midpoint.y - (height / 2),
+            midpoint.x - (width / 2),
+            height,
+            width,
+            segment.angleDegrees(segment.a));
+    },
+    
     //creates a token object using a segment to define its dimensions:
     createTokenObjectFromAsset = function(assetObject, pageId, layer, segment, rotation) {
         if('undefined' === typeof(rotation)) {
             rotation = 0;
         }
         
-        //TODO: does this cover tokens?
         state.APIAreaMapper.tempIgnoreDrawingEvents = true;
         
         var cropHeight = ((70 - assetObject.getProperty('cropTop') - assetObject.getProperty('cropBottom')) / 70);
@@ -1814,7 +1822,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
             rotation = 0;
         }
         
-        //TODO: does this cover text objects?
         state.APIAreaMapper.tempIgnoreDrawingEvents = true;
         
         var obj = createObj('text', {
@@ -3479,18 +3486,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
         switch(floorTexture.getProperty('textureType')) {
             case 'asset':
                 var floorAsset = new asset(state.APIAreaMapper.floorAssets[floorTexture.getProperty('value')]);
-                var floorTile = createTokenObject(
-                    floorAsset.getProperty('imagesrc'), 
+                var floorTile = createTokenObjectFromAsset_new(
+                    floorAsset,
                     this.getProperty('pageId'), 
-                    'map', 
-                    new segment(
-                        new point(
-                            left - floorAsset.getProperty('cropLeft'), 
-                            top - floorAsset.getProperty('cropTop')), 
-                        new point(
-                            left + a.getProperty('width') + floorAsset.getProperty('cropRight'), 
-                            top + a.getProperty('height') + floorAsset.getProperty('cropBottom'))),
-                    floorAsset.getProperty('rotation'));
+                    'map',
+                    top,
+                    left,
+                    a.getProperty('height'),
+                    a.getProperty('width'));
                 this.setProperty('floorTileId', floorTile.id);
                 break;
             case 'transparent':
@@ -3507,7 +3510,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var floorplanOpIndex = g.addSimplePolygon(a.getProperty('floorplan'), top, left);
         var floorMaskOpIndex = g.invertSimplePolygon(floorplanOpIndex);
         var floorMaskRawPath = g.getRawPath('simplePolygons', floorMaskOpIndex);
-        var floorMask = createPathObject(this.getProperty('pageId'), 'map', maskColor, maskColor, floorMaskRawPath.rawPath, floorMaskRawPath.top, floorMaskRawPath.left, floorMaskRawPath.height, floorMaskRawPath.width);
+        var floorMask = createPathObject_new(floorMaskRawPath.rawPath, this.getProperty('pageId'), 'map', maskColor, maskColor, floorMaskRawPath.top, floorMaskRawPath.left, floorMaskRawPath.height, floorMaskRawPath.width);
         this.setProperty('floorMaskId', floorMask.id);
         
         //TODO: unique texture (just sub it in as an alternate texture to use here):
@@ -3528,12 +3531,32 @@ var APIAreaMapper = APIAreaMapper || (function() {
             //draw wall tokens:
             var ewIndex = g.addSimplePath(ew[0], top + ew[1], left + ew[2]);
             g.getProperty('simplePaths')[ewIndex].segments.forEach(function(s) {
-                this.setProperty('wallIds', createTokenObjectFromAssetAndSegment(wallAsset, this.getProperty('pageId'), 'objects', s, wallThickness, wallLengthExtension).id);
+                this.setProperty('wallIds', 
+                    createTokenObjectFromAssetBySegment_new(
+                            wallAsset,
+                            this.getProperty('pageId'),
+                            'objects',
+                            new segment(new point(s.a.x, s.a.y), new point(s.b.x, s.b.y)),
+                            wallThickness,
+                            wallLengthExtension
+                        ).id    
+                );
             }, this);
             
             //draw line of sight blocking wall:
-            var losWall = createPathObject(this.getProperty('pageId'), 'walls', '#ff0000', 'transparent', ew[0], top + ew[1], left + ew[2], ew[3], ew[4], 1);
-            this.setProperty('losWallIds', losWall.id);
+            this.setProperty('losWallIds',
+                createPathObject_new(
+                        ew[0],
+                        this.getProperty('pageId'),
+                        'walls',
+                        '#ff0000',
+                        'transparent',
+                        top + ew[1],
+                        left + ew[2],
+                        ew[3],
+                        ew[4]
+                    ).id
+            );
         }, this);
         
         //draw inner walls:
@@ -3542,12 +3565,33 @@ var APIAreaMapper = APIAreaMapper || (function() {
             //draw wall tokens:
             var iwIndex = g.addSimplePath(iw[0], top + iw[1], left + iw[2]);
             g.getProperty('simplePaths')[iwIndex].segments.forEach(function(s) {
-                this.setProperty('wallIds', createTokenObjectFromAssetAndSegment(wallAsset, this.getProperty('pageId'), 'objects', s, wallThickness, wallLengthExtension).id);
+                //this.setProperty('wallIds', createTokenObjectFromAssetAndSegment(wallAsset, this.getProperty('pageId'), 'objects', s, wallThickness, wallLengthExtension).id);
+                this.setProperty('wallIds', 
+                    createTokenObjectFromAssetBySegment_new(
+                            wallAsset,
+                            this.getProperty('pageId'),
+                            'objects',
+                            new segment(new point(s.a.x, s.a.y), new point(s.b.x, s.b.y)),
+                            wallThickness,
+                            wallLengthExtension
+                        ).id    
+                );
             }, this);
             
             //draw line of sight blocking wall:
-            var losWall = createPathObject(this.getProperty('pageId'), 'walls', '#ff0000', 'transparent', iw[0], top + iw[1], left + iw[2], iw[3], iw[4], 1);
-            this.setProperty('losWallIds', losWall.id);
+            this.setProperty('losWallIds',
+                createPathObject_new(
+                        iw[0],
+                        this.getProperty('pageId'),
+                        'walls',
+                        '#ff0000',
+                        'transparent',
+                        top + iw[1],
+                        left + iw[2],
+                        iw[3],
+                        iw[4]
+                    ).id
+            );
         }, this);
         
         //draw doors:
@@ -3653,7 +3697,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 else {
                     
                     //draw the door:
-                    doorToken = createTokenObjectFromAssetAndSegment(doorAsset, this.getProperty('pageId'), 'objects', s, (doorState.getProperty('isHidden') ? wallThickness : doorThickness), (doorState.getProperty('isHidden') ? wallLengthExtension : doorLengthExtension));
+                    doorToken = createTokenObjectFromAssetBySegment_new(
+                        doorAsset,
+                        this.getProperty('pageId'),
+                        'objects',
+                        s,
+                        (doorState.getProperty('isHidden') ? wallThickness : doorThickness),
+                        (doorState.getProperty('isHidden') ? wallLengthExtension : doorLengthExtension));
+                    
                     
                     //set door privs to players unless the door is hidden:
                     if(!doorState.getProperty('isHidden')) {
@@ -3664,7 +3715,17 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     var doorLosId = '';
                     if(!doorState.getProperty('isOpen')) {
                         var rp = g.getRawPath('simplePaths', dIndex);
-                        doorLosId = createPathObject(this.getProperty('pageId'), 'walls', '#ff0000', 'transparent', rp.rawPath, rp.top, rp.left, rp.height, rp.width, 1).id;
+                        doorLosId = createPathObject_new(
+                                rp.rawPath, 
+                                this.getProperty('pageId'), 
+                                'walls', 
+                                '#ff0000', 
+                                'transparent', 
+                                rp.top, 
+                                rp.left, 
+                                rp.height, 
+                                rp.width
+                            ).id;
                     }
                     
                     doorProperty.push(doorToken.id);
@@ -3683,7 +3744,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     featureTagColors.push(hiddenTagColor);
                 }
                 var tagIds = drawFeatureTags(doorToken, featureTagColors, doorAsset);
-                
+                 
                 doorProperty.push(tagIds);
                 
                 //if this is replacing an existing image, write it back into the appropriate slot:
@@ -3762,13 +3823,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     var chestLeft = chestState.getProperty('left') + this.getProperty('left');
                     
                     //draw the chest (on the object or gm layer depending on it being hidden):
-                    chestToken = createTokenObjectFromAsset(
+                    chestToken = createTokenObjectFromAsset_new(
                         chestAsset, 
                         this.getProperty('pageId'), 
                         (chestState.getProperty('isHidden') ? 'gmlayer' : 'objects'),
-                        new segment(
-                            new point(chestLeft, chestTop),
-                            new point(chestLeft + chestState.getProperty('width'), chestTop + chestState.getProperty('height'))),
+                        chestTop,
+                        chestLeft,
+                        chestState.getProperty('height'),
+                        chestState.getProperty('width'),
                         chestState.getProperty('rotation'));
                        
                     //set chest privs to players unless the door is hidden:
@@ -3828,35 +3890,89 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var g = new graph();
         
         //create floorPolygon:
-        var floorPolygon = createPathObject(this.getProperty('pageId'), 'map', state.APIAreaMapper.blueprintFloorPolygonColor, state.APIAreaMapper.blueprintFloorPolygonColor, a.getProperty('floorplan'), top, left, a.getProperty('height'), a.getProperty('width'));
-        this.setProperty('floorPolygonId', floorPolygon.id);
+        this.setProperty('floorPolygonId', 
+            createPathObject_new(
+                    a.getProperty('floorplan'),
+                    this.getProperty('pageId'),
+                    'map',
+                    state.APIAreaMapper.blueprintFloorPolygonColor,
+                    state.APIAreaMapper.blueprintFloorPolygonColor,
+                    top,
+                    left,
+                    a.getProperty('height'),
+                    a.getProperty('width')
+                ).id);
         
         //draw edge wall gaps:
         a.calculateEdgeWallGaps().forEach(function(ew) {
             var ewI = g.addSimplePathFromPoints(ew);
             var ewRaw = g.getRawPath('simplePaths', ewI);
-            var edgeWallGap = createPathObject(this.getProperty('pageId'), 'objects', state.APIAreaMapper.blueprintEdgeWallGapsPathColor, 'transparent', ewRaw.rawPath, top + ewRaw.top, left + ewRaw.left, ewRaw.height, ewRaw.width, 5);
-            this.setProperty('edgeWallGapIds', edgeWallGap.id);
+            this.setProperty('edgeWallGapIds', 
+                createPathObject_new(
+                        ewRaw.rawPath,
+                        this.getProperty('pageId'),
+                        'objects',
+                        state.APIAreaMapper.blueprintEdgeWallGapsPathColor,
+                        'transparent',
+                        top + ewRaw.top,
+                        left + ewRaw.left,
+                        ewRaw.height,
+                        ewRaw.width,
+                        5
+                    ).id);
         }, this);
         
         //draw blueprint walls:
         a.getProperty('innerWalls').forEach(function(iw) {
-            var wall = createPathObject(this.getProperty('pageId'), 'objects', state.APIAreaMapper.blueprintInnerWallsPathColor, 'transparent', iw[0], top + iw[1], left + iw[2], iw[3], iw[4], 2);
-            this.setProperty('blueprintWallIds', wall.id);
+            this.setProperty('blueprintWallIds', 
+                createPathObject_new(
+                        iw[0],
+                        this.getProperty('pageId'),
+                        'objects',
+                        state.APIAreaMapper.blueprintInnerWallsPathColor,
+                        'transparent',
+                        top + iw[1],
+                        left + iw[2],
+                        iw[3],
+                        iw[4],
+                        2
+                    ).id);
         }, this);
         
         //draw blueprint doors:
         a.getProperty('doors').forEach(function(s) {
             var dI = g.addSimplePathFromSegment(s[0], top, left);
             var rp = g.getRawPath('simplePaths', dI);
-            var door = createPathObject(this.getProperty('pageId'), 'objects', state.APIAreaMapper.blueprintDoorPathColor, 'transparent', rp.rawPath, rp.top, rp.left, rp.height, rp.width, 2);
-            this.setProperty('blueprintWallIds', door.id);
+            this.setProperty('blueprintWallIds',
+                createPathObject_new(
+                        rp.rawPath,
+                        this.getProperty('pageId'),
+                        'objects',
+                        state.APIAreaMapper.blueprintDoorPathColor,
+                        'transparent',
+                        rp.top,
+                        rp.left,
+                        rp.height,
+                        rp.width,
+                        2
+                    ).id);
         }, this);
         
         //draw blueprint chests:
         a.getProperty('chests').forEach(function(c) {
-            var chest = createRectanglePathObject(this.getProperty('pageId'), 'objects', state.APIAreaMapper.blueprintChestPathColor, state.APIAreaMapper.blueprintChestPathColor, c[0] + top, c[1] + left, c[2], c[3], c[4]);
-            this.setProperty('blueprintChestIds', chest.id);    
+            this.setProperty('blueprintChestIds', 
+                createRectanglePathObject_new(
+                        this.getProperty('pageId'),
+                        'objects',
+                        state.APIAreaMapper.blueprintChestPathColor,
+                        state.APIAreaMapper.blueprintChestPathColor,
+                        c[0] + top,
+                        c[1] + left,
+                        c[2],
+                        c[3],
+                        1,
+                        c[4]
+                    ).id);    
         }, this);
         
         this.save();
