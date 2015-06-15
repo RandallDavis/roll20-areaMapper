@@ -55,7 +55,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         ['https://s3.amazonaws.com/files.d20.io/images/2830294/BaNT6qoN5O0WRiY3TS0azA/thumb.png?1390392180',0,0,1,1,0,0]
                     ],
                 wallAssets: [
-                        [['https://s3.amazonaws.com/files.d20.io/images/9585786/x1-hhxavuLoUjMsgA5vYdA/thumb.png?1432007204',0,1,1,1,0,0],
+                        [['https://s3.amazonaws.com/files.d20.io/images/9585786/x1-hhxavuLoUjMsgA5vYdA/thumb.png?1432007204',0,1,0.8360173141910751,0.9705901479276444,0,0],
                             ['https://s3.amazonaws.com/files.d20.io/images/7068/thumb.png?1336366825',0,0,1.2399379256250003,1.3534965970312505,0,-4]],
                         [['https://s3.amazonaws.com/files.d20.io/images/452469/9KJ1s2PJhuMbDICeYETXZQ/thumb.png?1355660278',0,0,3.386354940899389,1.0605,0,5],
                             ['https://s3.amazonaws.com/files.d20.io/images/7068/thumb.png?1336366825',0,0,1.2399379256250003,1.3534965970312505,0,-4]]
