@@ -1640,12 +1640,20 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var midpoint = segment.midpoint();
         var width = segment.length() + widthExtension;
         
+        //apply asset's horizontal offset to midpoint:
+        midpoint.x += (assetObject.getProperty('offsetHorizontal') * Math.cos(segment.angle(segment.a).radians));
+        midpoint.y += (assetObject.getProperty('offsetHorizontal') * Math.sin(segment.angle(segment.a).radians));
+        
+        //apply asset's vertical offset to midpoint:
+        midpoint.x += (assetObject.getProperty('offsetVertical') * Math.cos(segment.angle(segment.a).radians - (Math.PI / 2)));
+        midpoint.y += (assetObject.getProperty('offsetVertical') * Math.sin(segment.angle(segment.a).radians - (Math.PI / 2)));
+        
         return createTokenObjectFromAsset(
             assetObject,
             pageId,
             layer,
-            midpoint.y - (height / 2) - assetObject.getProperty('offsetVertical'),
-            midpoint.x - (width / 2) - assetObject.getProperty('offsetHorizontal'),
+            midpoint.y - (height / 2) - assetObject.getProperty('offsetVertical'), //remove misadjustments to top that createTokenObjectFromAsset() makes
+            midpoint.x - (width / 2) - assetObject.getProperty('offsetHorizontal'), //remove misadjustments to left that createTokenObjectFromAsset() makes
             height,
             width,
             segment.angleDegrees(segment.a));
