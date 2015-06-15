@@ -4527,6 +4527,104 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return followUpAction;
     },
     
+    createAssetFromSelection = function(selected, classificationType) {
+        var returnObject = [],
+            asset1,
+            asset2;
+        
+        if(!(selected && selected.length)) {
+            returnObject.message = 'Image(s) must be selected to turn into assets.';
+            return returnObject;
+        }
+        
+        switch(classificationType) {
+            case 'floor':
+                if(selected.length !== 1) {
+                    returnObject.message = 'Exactly one image should be selected to turn into a floor asset.';
+                    return returnObject;
+                }
+                
+                var token1 = getObj('graphic', selected[0]._id);
+                
+                if(!token1) {
+                    returnObject.message = 'No selected image was found. Exactly one image should be selected to turn into a floor asset.';
+                    return returnObject;
+                }
+                
+                asset1 = new asset();
+                asset1.setProperty('imagesrc', getCleanImgsrc(token1.get('imgsrc')));
+                break;
+            case 'wall':
+                if(selected.length !== 2) {
+                    returnObject.message = 'Exactly two images should be selected to turn into wall assets. One for a wall / closed hidden door, and another for an open hidden door.';
+                    return returnObject;
+                }
+                
+                var token1 = getObj('graphic', selected[0]._id);
+                var token2 = getObj('graphic', selected[1]._id);
+                
+                if(!token1 || !token2) {
+                    returnObject.message = 'Failure to find exactly two selected images. Two images should be selected to turn into wall assets. One for a wall / closed hidden door, and another for an open hidden door.';
+                    return returnObject;
+                }
+                
+                var asset1 = new asset();
+                asset1.setProperty('imagesrc', getCleanImgsrc(token1.get('imgsrc')));
+                var asset2 = new asset();
+                asset2.setProperty('imagesrc', getCleanImgsrc(token2.get('imgsrc')));
+                break;
+            case 'door':
+                if(selected.length !== 2) {
+                    returnObject.message = 'Exactly two images should be selected to turn into door assets. One for a closed door and another for an open door.';
+                    return returnObject;
+                }
+                
+                var token1 = getObj('graphic', selected[0]._id);
+                var token2 = getObj('graphic', selected[1]._id);
+                
+                if(!token1 || !token2) {
+                    returnObject.message = 'Failure to find exactly two selected images. Two images should be selected to turn into door assets. One for a closed door and another for an open door.';
+                    return returnObject;
+                }
+                
+                var asset1 = new asset();
+                asset1.setProperty('imagesrc', getCleanImgsrc(token1.get('imgsrc')));
+                var asset2 = new asset();
+                asset2.setProperty('imagesrc', getCleanImgsrc(token2.get('imgsrc')));
+                break;
+            case 'chest':
+                if(selected.length !== 2) {
+                    returnObject.message = 'Exactly two images should be selected to turn into chest assets. One for a closed chest and another for an open chest.';
+                    return returnObject;
+                }
+                
+                var token1 = getObj('graphic', selected[0]._id);
+                var token2 = getObj('graphic', selected[1]._id);
+                
+                if(!token1 || !token2) {
+                    returnObject.message = 'Failure to find exactly two selected images. Two images should be selected to turn into chest assets. One for a closed chest and another for an open chest.';
+                    return returnObject;
+                }
+                
+                var asset1 = new asset();
+                asset1.setProperty('imagesrc', getCleanImgsrc(token1.get('imgsrc')));
+                var asset2 = new asset();
+                asset2.setProperty('imagesrc', getCleanImgsrc(token2.get('imgsrc')));
+                break;
+            default:
+                log('Unhandled asset classification of ' + classification + ' in createAssetFromSelection().');
+                returnObject.message = 'There was a problem; see the log for details.';
+                return returnObject;
+        }
+        
+        returnObject.assetState1 = asset1.getStateObject();
+        if(asset2) {
+            returnObject.assetState2 = asset2.getStateObject();
+        }
+                
+        return returnObject;
+    },
+    
     handleGlobalAssetCreate = function(selected) {
         var followUpAction = [];
         followUpAction.refresh = true;
@@ -4536,101 +4634,33 @@ var APIAreaMapper = APIAreaMapper || (function() {
             return followUpAction;
         }
         
-        if(!(selected && selected.length)) {
-            followUpAction.message = 'Image(s) must be selected to turn into assets.';
-            return followUpAction;
-        }
+        var assetCreationReturn = createAssetFromSelection(selected, state.APIAreaMapper.globalAssetManagement[0]);
         
-        switch(state.APIAreaMapper.globalAssetManagement[0]) {
-            case 'floor':
-                if(selected.length !== 1) {
-                    followUpAction.message = 'Exactly one image should be selected to turn into a floor asset.';
+        if(assetCreationReturn.message) {
+            followUpAction.message = assetCreationReturn.message;
+        } else {
+            switch(state.APIAreaMapper.globalAssetManagement[0]) {
+                case 'floor':
+                    state.APIAreaMapper.floorAssets.push(assetCreationReturn.assetState1);
+                    state.APIAreaMapper.globalAssetManagement[1] = state.APIAreaMapper.floorAssets.length - 1;
+                    break;
+                case 'wall':
+                    state.APIAreaMapper.wallAssets.push([assetCreationReturn.assetState1, assetCreationReturn.assetState2]);
+                    state.APIAreaMapper.globalAssetManagement[1] = state.APIAreaMapper.wallAssets.length - 1;
+                    break;
+                case 'door':
+                    state.APIAreaMapper.doorAssets.push([assetCreationReturn.assetState1, assetCreationReturn.assetState2]);
+                    state.APIAreaMapper.globalAssetManagement[1] = state.APIAreaMapper.doorAssets.length - 1;
+                    break;
+                case 'chest':
+                    state.APIAreaMapper.chestAssets.push([assetCreationReturn.assetState1, assetCreationReturn.assetState2]);
+                    state.APIAreaMapper.globalAssetManagement[1] = state.APIAreaMapper.chestAssets.length - 1;
+                    break;
+                default:
+                    log('Unhandled asset classification of ' + state.APIAreaMapper.globalAssetManagement[0] + ' in handleGlobalAssetCreate().');
+                    followUpAction.message = 'There was a problem; see the log for details.';
                     return followUpAction;
-                }
-                
-                var token1 = getObj('graphic', selected[0]._id);
-                
-                if(!token1) {
-                    followUpAction.message = 'No selected image was found. Exactly one image should be selected to turn into a floor asset.';
-                    return followUpAction;
-                }
-                
-                var asset1 = new asset();
-                asset1.setProperty('imagesrc', getCleanImgsrc(token1.get('imgsrc')));
-                
-                state.APIAreaMapper.floorAssets.push(asset1.getStateObject());
-                state.APIAreaMapper.globalAssetManagement[1] = state.APIAreaMapper.floorAssets.length - 1;
-                break;
-            case 'wall':
-                if(selected.length !== 2) {
-                    followUpAction.message = 'Exactly two images should be selected to turn into wall assets. One for a wall / closed hidden door, and another for an open hidden door.';
-                    return followUpAction;
-                }
-                
-                var token1 = getObj('graphic', selected[0]._id);
-                var token2 = getObj('graphic', selected[1]._id);
-                
-                if(!token1 || !token2) {
-                    followUpAction.message = 'Failure to find exactly two selected images. Two images should be selected to turn into wall assets. One for a wall / closed hidden door, and another for an open hidden door.';
-                    return followUpAction;
-                }
-                
-                var asset1 = new asset();
-                asset1.setProperty('imagesrc', getCleanImgsrc(token1.get('imgsrc')));
-                var asset2 = new asset();
-                asset2.setProperty('imagesrc', getCleanImgsrc(token2.get('imgsrc')));
-                
-                state.APIAreaMapper.wallAssets.push([asset1.getStateObject(), asset2.getStateObject()]);
-                state.APIAreaMapper.globalAssetManagement[1] = state.APIAreaMapper.wallAssets.length - 1;
-                break;
-            case 'door':
-                if(selected.length !== 2) {
-                    followUpAction.message = 'Exactly two images should be selected to turn into door assets. One for a closed door and another for an open door.';
-                    return followUpAction;
-                }
-                
-                var token1 = getObj('graphic', selected[0]._id);
-                var token2 = getObj('graphic', selected[1]._id);
-                
-                if(!token1 || !token2) {
-                    followUpAction.message = 'Failure to find exactly two selected images. Two images should be selected to turn into door assets. One for a closed door and another for an open door.';
-                    return followUpAction;
-                }
-                
-                var asset1 = new asset();
-                asset1.setProperty('imagesrc', getCleanImgsrc(token1.get('imgsrc')));
-                var asset2 = new asset();
-                asset2.setProperty('imagesrc', getCleanImgsrc(token2.get('imgsrc')));
-                
-                state.APIAreaMapper.doorAssets.push([asset1.getStateObject(), asset2.getStateObject()]);
-                state.APIAreaMapper.globalAssetManagement[1] = state.APIAreaMapper.doorAssets.length - 1;
-                break;
-            case 'chest':
-                if(selected.length !== 2) {
-                    followUpAction.message = 'Exactly two images should be selected to turn into chest assets. One for a closed chest and another for an open chest.';
-                    return followUpAction;
-                }
-                
-                var token1 = getObj('graphic', selected[0]._id);
-                var token2 = getObj('graphic', selected[1]._id);
-                
-                if(!token1 || !token2) {
-                    followUpAction.message = 'Failure to find exactly two selected images. Two images should be selected to turn into chest assets. One for a closed chest and another for an open chest.';
-                    return followUpAction;
-                }
-                
-                var asset1 = new asset();
-                asset1.setProperty('imagesrc', getCleanImgsrc(token1.get('imgsrc')));
-                var asset2 = new asset();
-                asset2.setProperty('imagesrc', getCleanImgsrc(token2.get('imgsrc')));
-                
-                state.APIAreaMapper.chestAssets.push([asset1.getStateObject(), asset2.getStateObject()]);
-                state.APIAreaMapper.globalAssetManagement[1] = state.APIAreaMapper.chestAssets.length - 1;
-                break;
-            default:
-                log('Unhandled asset classification of ' + state.APIAreaMapper.globalAssetManagement[0] + ' in handleGlobalAssetCreate().');
-                followUpAction.message = 'There was a problem; see the log for details.';
-                return followUpAction;
+            }
         }
         
         return followUpAction;
@@ -4995,12 +5025,24 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return followUpAction;
     },
     
+    handleAssetUnique = function(objectType) {
+        var followUpAction = [];
+        followUpAction.refresh = true;
+        
+        var a = new area(state.APIAreaMapper.activeArea);
+        
+        //TODO
+        
+        
+        return followUpAction;
+    };
+    
     /* business logic bridge - end */
     
     /* user interface core - begin */
     
     //character converter, credits to Aaron from https://github.com/shdwjk/Roll20API/blob/master/APIHeartBeat/APIHeartBeat.js
-    ch = function(c) {
+    var ch = function(c) {
         var entities = {
             '<' : 'lt',
             '>' : 'gt',
@@ -5309,19 +5351,19 @@ var APIAreaMapper = APIAreaMapper || (function() {
             uiSection('Floor', null, [
                     ['navigation', 'cycle asset', 'assetStandard floor', false, false],
                     ['navigation', 'transparent', 'assetTransparent floor', false, false],
-                    ['navigation', 'unique asset (TBA)', 'assetUnique floor', true, false]
+                    ['navigation', 'unique asset', 'assetUnique floor', false, false]
                 ])
             +uiSection('Walls', null, [
                     ['navigation', 'cycle asset', 'assetStandard walls', false, false],
-                    ['navigation', 'unique asset (TBA)', 'assetUnique walls', true, false]
+                    ['navigation', 'unique asset', 'assetUnique walls', false, false]
                 ])
             +uiSection('Doors', null, [
                     ['navigation', 'cycle asset', 'assetStandard doors', false, false],
-                    ['navigation', 'unique asset (TBA)', 'assetUnique doors', true, false]
+                    ['navigation', 'unique asset', 'assetUnique doors', false, false]
                 ])
             +uiSection('Chests', null, [
                     ['navigation', 'cycle asset', 'assetStandard chests', false, false],
-                    ['navigation', 'unique asset (TBA)', 'assetUnique chests', true, false]
+                    ['navigation', 'unique asset', 'assetUnique chests', false, false]
                 ])
         );
     },
@@ -5919,6 +5961,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     break;
                 case 'assetTransparent':
                     followUpAction = handleAssetTransparent(chatCommand[2]);
+                    followUpAction.ignoreSelection = true;
+                    break;
+                case 'assetUnique':
+                    followUpAction = handleAssetUnique(chatCommand[2]);
                     followUpAction.ignoreSelection = true;
                     break;
                 case 'interactiveObjectOpen':
