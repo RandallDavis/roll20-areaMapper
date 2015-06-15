@@ -1644,8 +1644,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
             assetObject,
             pageId,
             layer,
-            midpoint.y - (height / 2),
-            midpoint.x - (width / 2),
+            midpoint.y - (height / 2) - assetObject.getProperty('offsetVertical'),
+            midpoint.x - (width / 2) - assetObject.getProperty('offsetHorizontal'),
             height,
             width,
             segment.angleDegrees(segment.a));
