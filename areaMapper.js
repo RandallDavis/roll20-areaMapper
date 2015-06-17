@@ -5107,6 +5107,22 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return followUpAction;
     },
     
+    handleManageAssetEditToggleActiveAsset = function() {
+        var followUpAction = [];
+        followUpAction.refresh = true;
+        
+        if(!state.APIAreaMapper.assetManagement) {
+            followUpAction.message = 'A classification must be active.';
+            return followUpAction;
+        }
+        
+        var assetManagementStateObject = new assetManagementState(state.APIAreaMapper.assetManagement);
+        assetManagementStateObject.setProperty('pairIndex', (assetManagementStateObject.getProperty('pairIndex') + 1) % 2);
+        state.APIAreaMapper.assetManagement = assetManagementStateObject.getStateObject();
+        
+        return followUpAction;
+    },
+    
     editGlobalAssetUpdateSetProperty = function(property, value, updateType) {
         var assetClassification = state.APIAreaMapper.globalAssetManagement[0];
         var assetIndex = state.APIAreaMapper.globalAssetManagement[1];
@@ -6041,13 +6057,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }
         
         var assetManagementStateObject = new assetManagementState(state.APIAreaMapper.assetManagement);
-        
         var textureObject = new texture(assetManagementStateObject.getProperty('texture'));
         
         var asset1,
             asset2;
-        
-        //TODO: handle different types of textures:
         
         //get asset(s):
         switch(textureObject.getProperty('textureType')) {
@@ -6106,8 +6119,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'wall':
             case 'door':
             case 'chest':
-                //TODO
-                links.push(['active', 'left asset', 'globalAssetEditToggleActiveAsset', false, !assetManagementStateObject.getProperty('pairIndex')]);
+                links.push(['active', 'left asset', 'manageAssetEditToggleActiveAsset', false, !assetManagementStateObject.getProperty('pairIndex')]);
                 //TODO
                 links.push(['navigation', 'swap assets', 'globalAssetEditSwapAssets', false, false]);
                 break;
@@ -6394,6 +6406,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     followUpAction.refresh = true;
                     followUpAction.ignoreSelection = true;
                     break;
+                case 'manageAssetEditToggleActiveAsset':
+                    followUpAction = handleManageAssetEditToggleActiveAsset();
+                    followUpAction.ignoreSelection = true;
+                    break;
                 //TODO: remove:
                 case 'globalAssets':
                     state.APIAreaMapper.uiWindow = 'globalAssets';
@@ -6432,6 +6448,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     followUpAction = toggleGlobalAssetEditAlternateStretch();
                     followUpAction.ignoreSelection = true;
                     break;
+                //TODO: remove:
                 case 'globalAssetEditToggleActiveAsset':
                     state.APIAreaMapper.globalAssetEdit[0] = (state.APIAreaMapper.globalAssetEdit[0] + 1) % 2;
                     followUpAction.refresh = true;
