@@ -5233,11 +5233,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return followUpAction;
     },
     
-    toggleGlobalAssetEditAlternateStretch = function() {
+    toggleManageAssetEditAlternateStretch = function() {
         var followUpAction = [];
         followUpAction.refresh = true;
          
-        editGlobalAssetUpdateSetProperty('alternate', null, 'toggle');
+        manageAssetEditSetProperty('alternate', null, 'toggle');
         
         return followUpAction;
     },
@@ -5311,7 +5311,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return followUpAction;
     },
     
-    handleGlobalAssetEditScaleChange = function(axis, action, amount) {
+    handleManageAssetEditScaleChange = function(axis, action, amount) {
         var followUpAction = [];
         followUpAction.refresh = true;
        
@@ -5328,17 +5328,17 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 amountValue = 1.01;
                 break;
             default:
-                log('Unhandled amount of ' + amount + ' in handleGlobalAssetEditScaleChange().');
+                log('Unhandled amount of ' + amount + ' in handleManageAssetEditScaleChange().');
                 followUpAction.message = 'There was a problem; see the log for details.';
                 return followUpAction;
         }
         
-        editGlobalAssetUpdateSetProperty(property, isIncreasing ? amountValue : 1 / amountValue, 'multiply');
+        manageAssetEditSetProperty(property, isIncreasing ? amountValue : 1 / amountValue, 'multiply');
         
         return followUpAction;
     },
     
-    handleGlobalAssetEditOffsetChange = function(axis, action, amount) {
+    handleManageAssetEditOffsetChange = function(axis, action, amount) {
         var followUpAction = [];
         followUpAction.refresh = true;
        
@@ -5355,12 +5355,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 amountValue = 1;
                 break;
             default:
-                log('Unhandled amount of ' + amount + ' in handleGlobalAssetEditOffsetChange().');
+                log('Unhandled amount of ' + amount + ' in handleManageAssetEditOffsetChange().');
                 followUpAction.message = 'There was a problem; see the log for details.';
                 return followUpAction;
         }
         
-        editGlobalAssetUpdateSetProperty(property, isIncreasing ? amountValue : 0 - amountValue, 'add');
+        manageAssetEditSetProperty(property, isIncreasing ? amountValue : 0 - amountValue, 'add');
         
         return followUpAction;
     },
@@ -6184,6 +6184,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         //TODO: display text about fitting the asset properly in the green rectangle
         
+        //TODO: for unique assets, an command to make it global
+        
         var text = null;
         var links = [['navigation', 'done', 'manageAssets ' + assetManagementStateObject.getProperty('scope'), false, false]];
         switch(assetManagementStateObject.getProperty('classification')) {
@@ -6213,10 +6215,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 break;
             case 'wall':
             case 'door':
-                //TODO
-                links.push(['active', 'alternate stretch', 'globalAssetEditAlternateStretch', false, activeAsest.getProperty('alternate')]);
-                //TODO: is this text useful?
-                text = 'Assets should be horizontal.';
+                links.push(['active', 'alternate stretch', 'manageAssetEditAlternateStretch', false, activeAsest.getProperty('alternate')]);
                 break;
             case 'chest':
                 break;
@@ -6227,37 +6226,47 @@ var APIAreaMapper = APIAreaMapper || (function() {
         html += uiSection('Rotation', text, links);
         
         text = null;
-        //TODO
-        links = [['navigation', 'increase lots', 'globalAssetEditScale vertical increase lots', false, false],
-                    ['navigation', 'increase', 'globalAssetEditScale vertical increase tad', false, false],
-                    ['navigation', 'decrease', 'globalAssetEditScale vertical decrease tad', false, false],
-                    ['navigation', 'decrease lots', 'globalAssetEditScale vertical decrease lots', false, false]];
+        links = [['navigation', 'increase lots', 'manageAssetEditScale vertical increase lots', false, false],
+                    ['navigation', 'increase', 'manageAssetEditScale vertical increase tad', false, false],
+                    ['navigation', 'decrease', 'manageAssetEditScale vertical decrease tad', false, false],
+                    ['navigation', 'decrease lots', 'manageAssetEditScale vertical decrease lots', false, false]];
         html += uiSection('Vertical Scale', text, links);
         
         text = null;
-        links = [['navigation', 'increase lots', 'globalAssetEditScale horizontal increase lots', false, false],
-                    ['navigation', 'increase', 'globalAssetEditScale horizontal increase tad', false, false],
-                    ['navigation', 'decrease', 'globalAssetEditScale horizontal decrease tad', false, false],
-                    ['navigation', 'decrease lots', 'globalAssetEditScale horizontal decrease lots', false, false]];
+        links = [['navigation', 'increase lots', 'manageAssetEditScale horizontal increase lots', false, false],
+                    ['navigation', 'increase', 'manageAssetEditScale horizontal increase tad', false, false],
+                    ['navigation', 'decrease', 'manageAssetEditScale horizontal decrease tad', false, false],
+                    ['navigation', 'decrease lots', 'manageAssetEditScale horizontal decrease lots', false, false]];
         html += uiSection('Horizontal Scale', text, links);
         
         text = null;
-        //TODO
-        links = [['navigation', 'increase lots', 'globalAssetEditOffset vertical increase lots', false, false],
-                    ['navigation', 'increase', 'globalAssetEditOffset vertical increase tad', false, false],
-                    ['navigation', 'decrease', 'globalAssetEditOffset vertical decrease tad', false, false],
-                    ['navigation', 'decrease lots', 'globalAssetEditOffset vertical decrease lots', false, false]];
+        links = [['navigation', 'increase lots', 'manageAssetEditOffset vertical increase lots', false, false],
+                    ['navigation', 'increase', 'manageAssetEditOffset vertical increase tad', false, false],
+                    ['navigation', 'decrease', 'manageAssetEditOffset vertical decrease tad', false, false],
+                    ['navigation', 'decrease lots', 'manageAssetEditOffset vertical decrease lots', false, false]];
         html += uiSection('Vertical Position', text, links);
         
         text = null;
-        links = [['navigation', 'increase lots', 'globalAssetEditOffset horizontal increase lots', false, false],
-                    ['navigation', 'increase', 'globalAssetEditOffset horizontal increase tad', false, false],
-                    ['navigation', 'decrease', 'globalAssetEditOffset horizontal decrease tad', false, false],
-                    ['navigation', 'decrease lots', 'globalAssetEditOffset horizontal decrease lots', false, false]];
+        links = [['navigation', 'increase lots', 'manageAssetEditOffset horizontal increase lots', false, false],
+                    ['navigation', 'increase', 'manageAssetEditOffset horizontal increase tad', false, false],
+                    ['navigation', 'decrease', 'manageAssetEditOffset horizontal decrease tad', false, false],
+                    ['navigation', 'decrease lots', 'manageAssetEditOffset horizontal decrease lots', false, false]];
         html += uiSection('Horizontal Position', text, links);
         
-        //TODO: scoped title:
-        sendStandardInterface(who, 'Edit Global Asset', html);
+        var uiTitle;
+        switch(assetManagementStateObject.getProperty('scope')) {
+            case 'global':
+                uiTitle = 'Edit Global Asset';
+                break;
+            case 'area':
+                uiTitle = 'Edit Area Asset';
+                break;
+            default:
+                log('Unhandled scope of ' + assetManagementStateObject.getProperty('scope') + ' in interfaceManageAssetEdit().');
+                return;
+        }
+        
+        sendStandardInterface(who, uiTitle, html);
     },
     
     interfaceHelp = function(who, topic) {
@@ -6515,8 +6524,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     followUpAction = handleManageAssetEditRotate(chatCommand[2], chatCommand[3]);
                     followUpAction.ignoreSelection = true;
                     break;
-                case 'globalAssetEditAlternateStretch':
-                    followUpAction = toggleGlobalAssetEditAlternateStretch();
+                case 'manageAssetEditAlternateStretch':
+                    followUpAction = toggleManageAssetEditAlternateStretch();
                     followUpAction.ignoreSelection = true;
                     break;
                 //TODO: remove:
@@ -6529,12 +6538,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     followUpAction = handleManageAssetEditSwapAssets();
                     followUpAction.ignoreSelection = true;
                     break;
-                case 'globalAssetEditScale':
-                    followUpAction = handleGlobalAssetEditScaleChange(chatCommand[2], chatCommand[3], chatCommand[4]);
+                case 'manageAssetEditScale':
+                    followUpAction = handleManageAssetEditScaleChange(chatCommand[2], chatCommand[3], chatCommand[4]);
                     followUpAction.ignoreSelection = true;
                     break;
-                case 'globalAssetEditOffset':
-                    followUpAction = handleGlobalAssetEditOffsetChange(chatCommand[2], chatCommand[3], chatCommand[4]);
+                case 'manageAssetEditOffset':
+                    followUpAction = handleManageAssetEditOffsetChange(chatCommand[2], chatCommand[3], chatCommand[4]);
                     followUpAction.ignoreSelection = true;
                     break;
                 case 'mainMenu':
