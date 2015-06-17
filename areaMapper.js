@@ -3050,11 +3050,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this.draw();
     };
     
-    area.prototype.useUniqueAsset = function(objectType, assetState) {
-        var textureObject = new texture();
-        textureObject.setProperty('textureType', 'unique');
-        textureObject.setProperty('value', assetState);
-        
+    area.prototype.useUniqueAsset = function(objectType, textureObject) {
         switch(objectType) {
             case 'floor':
                 this.setProperty('floorTexture', textureObject.getStateObject());
@@ -4866,6 +4862,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return followUpAction;
     },
     
+    //TODO: remove:
     handleGlobalAssetCreate = function(selected) {
         var followUpAction = [];
         followUpAction.refresh = true;
@@ -4904,6 +4901,87 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 followUpAction.message = 'There was a problem; see the log for details.';
                 return followUpAction;
         }
+        
+        return followUpAction;
+    },
+    
+    handleManageAssetCreate = function(selected) {
+        var followUpAction = [];
+        followUpAction.refresh = true;
+        
+        if(!state.APIAreaMapper.assetManagement) {
+            followUpAction.message = 'A classification must be active.';
+            return followUpAction;
+        }
+        
+        var assetManagementStateObject = new assetManagementState(state.APIAreaMapper.assetManagement);
+        
+        if(!assetManagementStateObject.getProperty('classification')) {
+            followUpAction.message = 'A classification must be active.';
+            return followUpAction;
+        }
+        
+        var assetCreationReturn = createAssetFromSelection(selected, assetManagementStateObject.getProperty('classification'));
+        
+        if(assetCreationReturn.message) {
+            followUpAction.message = assetCreationReturn.message;
+            return followUpAction;
+        }
+        
+        switch(assetManagementStateObject.getProperty('scope')) {
+            case 'global':
+                var textureObject = new texture();
+                
+                //if the scope is global, do global asset creation:
+                switch(assetManagementStateObject.getProperty('classification')) {
+                    case 'floor':
+                        state.APIAreaMapper.floorAssets.push(assetCreationReturn.assetState1);
+                        textureObject.setProperty('value', state.APIAreaMapper.floorAssets.length - 1);
+                        break;
+                    case 'wall':
+                        state.APIAreaMapper.wallAssets.push([assetCreationReturn.assetState1, assetCreationReturn.assetState2]);
+                        textureObject.setProperty('value', state.APIAreaMapper.wallAssets.length - 1);
+                        break;
+                    case 'door':
+                        state.APIAreaMapper.doorAssets.push([assetCreationReturn.assetState1, assetCreationReturn.assetState2]);
+                        textureObject.setProperty('value', state.APIAreaMapper.doorAssets.length - 1);
+                        break;
+                    case 'chest':
+                        state.APIAreaMapper.chestAssets.push([assetCreationReturn.assetState1, assetCreationReturn.assetState2]);
+                        textureObject.setProperty('value', state.APIAreaMapper.chestAssets.length - 1);
+                        break;
+                    default:
+                        log('Unhandled asset classification of ' + assetManagementStateObject.getProperty('classification') + ' in handleManageAssetCreate().');
+                        followUpAction.message = 'There was a problem; see the log for details.';
+                        return followUpAction;
+                }
+                
+                assetManagementStateObject.setProperty('texture', textureObject.getStateObject());
+                break;
+            case 'area':
+        
+                //if the scope is area, do unique asset creation:
+                
+                var textureObject = new texture();
+                textureObject.setProperty('textureType', 'unique');
+                textureObject.setProperty('value', 
+                    (assetCreationReturn.assetState2
+                        ? [assetCreationReturn.assetState1, assetCreationReturn.assetState2]
+                        : assetCreationReturn.assetState1));
+                        
+                assetManagementStateObject.setProperty('texture', textureObject.getStateObject());
+                
+                var a = new area(state.APIAreaMapper.activeArea);
+                a.useUniqueAsset(assetManagementStateObject.getProperty('classification'), textureObject);
+        
+                break;
+            default:
+                log('Unhandled scope of ' + assetManagementStateObject.getProperty('scope') + ' in handleManageAssetCreate().');
+                followUpAction.message = 'There was a problem; see the log for details.';
+                return followUpAction;
+        }
+        
+        state.APIAreaMapper.assetManagement = assetManagementStateObject.getStateObject();
         
         return followUpAction;
     },
@@ -4954,6 +5032,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }
         
         var assetManagementStateObject = new assetManagementState(state.APIAreaMapper.assetManagement);
+        
+        if(!assetManagementStateObject.getProperty('classification')) {
+            followUpAction.message = 'A classification must be active.';
+            return followUpAction;
+        }
         
         var textureObject = new texture(assetManagementStateObject.getProperty('texture'));
         
@@ -5345,6 +5428,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return followUpAction;
     },
     
+    //TODO: remove:
     handleAssetUnique = function(selected, objectType) {
         var followUpAction = [];
         followUpAction.refresh = true;
@@ -5880,9 +5964,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         /*
         global:
         - create (global scope)
-        - cycle (for edits)
         area:
-        - cycle (for edits / changing area settings)
         - transparent (situationally)
         - create unique (area scope)
         */
@@ -5915,7 +5997,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 activeClassification == 'floor' ? 'The floor asset can be seen on the top left corner of the player page.' : null, 
                 [
                         ['active', 'active', 'manageAssetActivateClassification floor', false, activeClassification == 'floor'],
-                        //['navigation', 'create', 'globalAssetCreate', activeClassification != 'floor', false],
+                        ['navigation', assetManagementStateObject.getProperty('scope') == 'global' ? 'create' : 'create unique', 'manageAssetCreate', activeClassification != 'floor', false],
                         ['navigation', 'cycle', 'manageAssetCycle', activeClassification != 'floor', false],
                         //['navigation', 'edit', 'globalAssetEdit', activeClassification != 'floor', false],
                         //['navigation', 'delete (TBA)', 'globalAssetDelete floor', true || activeClassification != 'floor', false]
@@ -5924,7 +6006,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 activeClassification == 'wall' ? 'The wall assets can be seen on the top left corner of the player page.' : null, 
                 [
                         ['active', 'active', 'manageAssetActivateClassification wall', false, activeClassification == 'wall'],
-                        //['navigation', 'create', 'globalAssetCreate', activeClassification != 'wall', false],
+                        ['navigation', assetManagementStateObject.getProperty('scope') == 'global' ? 'create' : 'create unique', 'manageAssetCreate', activeClassification != 'wall', false],
                         ['navigation', 'cycle', 'manageAssetCycle', activeClassification != 'wall', false],
                         //['navigation', 'edit', 'globalAssetEdit', activeClassification != 'wall', false],
                         //['navigation', 'delete (TBA)', 'globalAssetDelete wall', true || activeClassification != 'wall', false]
@@ -5933,7 +6015,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 activeClassification == 'door' ? 'The door assets can be seen on the top left corner of the player page.' : null, 
                 [
                         ['active', 'active', 'manageAssetActivateClassification door', false, activeClassification == 'door'],
-                        //['navigation', 'create', 'globalAssetCreate',activeClassification != 'door', false],
+                        ['navigation', assetManagementStateObject.getProperty('scope') == 'global' ? 'create' : 'create unique', 'manageAssetCreate',activeClassification != 'door', false],
                         ['navigation', 'cycle', 'manageAssetCycle', activeClassification != 'door', false],
                         //['navigation', 'edit', 'globalAssetEdit', activeClassification != 'door', false],
                         //['navigation', 'delete (TBA)', 'globalAssetDelete door', true || activeClassification != 'door', false]
@@ -5942,7 +6024,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 activeClassification == 'chest' ? 'The chest assets can be seen on the top left corner of the player page.' : null, 
                 [
                         ['active', 'active', 'manageAssetActivateClassification chest', false, activeClassification == 'chest'],
-                        //['navigation', 'create', 'globalAssetCreate', activeClassification != 'chest', false],
+                        ['navigation', assetManagementStateObject.getProperty('scope') == 'global' ? 'create' : 'create unique', 'manageAssetCreate', activeClassification != 'chest', false],
                         ['navigation', 'cycle', 'manageAssetCycle', activeClassification != 'chest', false],
                         //['navigation', 'edit', 'globalAssetEdit', activeClassification != 'chest', false],
                         //['navigation', 'delete (TBA)', 'globalAssetDelete chest', true || activeClassification != 'chest', false]
@@ -6261,6 +6343,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     followUpAction = toggleManageAssetClassification(chatCommand[2]);
                     followUpAction.ignoreSelection = true;
                     break;
+                case 'manageAssetCreate':
+                    followUpAction = handleManageAssetCreate(msg.selected);
+                    followUpAction.ignoreSelection = true;
+                    break;
                 case 'manageAssetCycle':
                     followUpAction = handleManageAssetCycle();
                     followUpAction.ignoreSelection = true;
@@ -6277,6 +6363,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     followUpAction = toggleGlobalAssetClassification(chatCommand[2]);
                     followUpAction.ignoreSelection = true;
                     break;
+                //TODO: remove:
                 case 'globalAssetCreate':
                     followUpAction = handleGlobalAssetCreate(msg.selected);
                     followUpAction.ignoreSelection = true;
