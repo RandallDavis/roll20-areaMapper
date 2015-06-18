@@ -4273,18 +4273,20 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         log('Unhandled textureType of ' + textureObject.getProperty('textureType') + ' in drawAssetManagementModal().');
                         return;
                 }
-                        
+                
                 //draw asset:
-                state.APIAreaMapper.assetManagementModalIds.push(['graphic', 
-                    createTokenObjectFromAsset(
-                            asset1,
-                            pageId,
-                            'objects',
-                            modalTop + modalTopMargin,
-                            modalLeft + ((modalWidth - assetNonStretchSize) / 2),
-                            assetNonStretchSize,
-                            assetNonStretchSize
-                        ).id]);
+                if(asset1) {
+                    state.APIAreaMapper.assetManagementModalIds.push(['graphic', 
+                        createTokenObjectFromAsset(
+                                asset1,
+                                pageId,
+                                'objects',
+                                modalTop + modalTopMargin,
+                                modalLeft + ((modalWidth - assetNonStretchSize) / 2),
+                                assetNonStretchSize,
+                                assetNonStretchSize
+                            ).id]);
+                }
                 
                 //draw band:
                 state.APIAreaMapper.assetManagementModalIds.push(['path', 
@@ -5105,6 +5107,35 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return followUpAction;
     },
     
+    handleManageAssetTransparent = function(objectType) {
+        var followUpAction = [];
+        followUpAction.refresh = true;
+        
+        if(!state.APIAreaMapper.assetManagement) {
+            followUpAction.message = 'A classification must be active.';
+            return followUpAction;
+        }
+        
+        var assetManagementStateObject = new assetManagementState(state.APIAreaMapper.assetManagement);
+        
+        if(!assetManagementStateObject.getProperty('classification')) {
+            followUpAction.message = 'A classification must be active.';
+            return followUpAction;
+        }
+        
+        //update the asset management state:
+        var textureObject = new texture();
+        textureObject.setProperty('textureType', 'transparent');
+        assetManagementStateObject.setProperty('texture', textureObject.getStateObject());
+        state.APIAreaMapper.assetManagement = assetManagementStateObject.getStateObject();
+        
+        //update the active area:
+        var a = new area(state.APIAreaMapper.activeArea);
+        a.useTransparentAsset(objectType);
+        
+        return followUpAction;
+    },
+    
     handleManageAssetEditToggleActiveAsset = function() {
         var followUpAction = [];
         followUpAction.refresh = true;
@@ -5497,22 +5528,13 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return followUpAction;
     },
     
+    //TODO: remove:
     handleAssetStandard = function(objectType) {
         var followUpAction = [];
         followUpAction.refresh = true;
         
         var a = new area(state.APIAreaMapper.activeArea);
         a.cycleStandardAsset(objectType);
-        
-        return followUpAction;
-    },
-    
-    handleAssetTransparent = function(objectType) {
-        var followUpAction = [];
-        followUpAction.refresh = true;
-        
-        var a = new area(state.APIAreaMapper.activeArea);
-        a.useTransparentAsset(objectType);
         
         return followUpAction;
     },
@@ -6081,16 +6103,22 @@ var APIAreaMapper = APIAreaMapper || (function() {
         //note: this may be null:
         var activeClassification = assetManagementStateObject.getProperty('classification');
         
+        var floorCommands = [
+                ['active', 'active', 'manageAssetActivateClassification floor', false, activeClassification == 'floor'],
+                ['navigation', assetManagementStateObject.getProperty('scope') == 'global' ? 'create' : 'create unique', 'manageAssetCreate', activeClassification != 'floor', false],
+                ['navigation', 'cycle', 'manageAssetCycle', activeClassification != 'floor', false],
+            ];
+            
+            if(assetManagementStateObject.getProperty('scope') == 'area') {
+                floorCommands.push(['navigation', 'transparent', 'manageAssetTransparent floor', activeClassification != 'floor', false]);
+            }
+            
+            floorCommands.push(['navigation', 'edit', 'manageAssetEdit', activeClassification != 'floor', false]);
+            
+            //['navigation', 'delete (TBA)', 'globalAssetDelete floor', true || activeClassification != 'floor', false]
+            
         sendStandardInterface(who, uiTitle,
-            uiSection('Floors', 
-                activeClassification == 'floor' ? 'The floor asset can be seen on the top left corner of the player page.' : null, 
-                [
-                        ['active', 'active', 'manageAssetActivateClassification floor', false, activeClassification == 'floor'],
-                        ['navigation', assetManagementStateObject.getProperty('scope') == 'global' ? 'create' : 'create unique', 'manageAssetCreate', activeClassification != 'floor', false],
-                        ['navigation', 'cycle', 'manageAssetCycle', activeClassification != 'floor', false],
-                        ['navigation', 'edit', 'manageAssetEdit', activeClassification != 'floor', false],
-                        //['navigation', 'delete (TBA)', 'globalAssetDelete floor', true || activeClassification != 'floor', false]
-                    ])
+            uiSection('Floors', activeClassification == 'floor' ? 'The floor asset can be seen on the top left corner of the player page.' : null, floorCommands)
             +uiSection('Walls', 
                 activeClassification == 'wall' ? 'The wall assets can be seen on the top left corner of the player page.' : null, 
                 [
@@ -6179,8 +6207,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }
         
         var activeAsest = assetManagementStateObject.getProperty('pairIndex') ? asset2 : asset1;
-        
-        //TODO: reset button? - would need to be on an individual asset, not the pair
         
         //TODO: display text about fitting the asset properly in the green rectangle
         
@@ -6614,19 +6640,22 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     followUpAction = toggleBlueprintMode();
                     followUpAction.ignoreSelection = true;
                     break;
+                //TODO: remove:
                 case 'areaAssets':
                     state.APIAreaMapper.uiWindow = 'areaAssets';
                     followUpAction.refresh = true;
                     followUpAction.ignoreSelection = true;
                     break;
+                //TODO: remove:
                 case 'assetStandard':
                     followUpAction = handleAssetStandard(chatCommand[2]);
                     followUpAction.ignoreSelection = true;
                     break;
-                case 'assetTransparent':
-                    followUpAction = handleAssetTransparent(chatCommand[2]);
+                case 'manageAssetTransparent':
+                    followUpAction = handleManageAssetTransparent(chatCommand[2]);
                     followUpAction.ignoreSelection = true;
                     break;
+                //TODO: remove:
                 case 'assetUnique':
                     followUpAction = handleAssetUnique(msg.selected, chatCommand[2]);
                     followUpAction.ignoreSelection = true;
