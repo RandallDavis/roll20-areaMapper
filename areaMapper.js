@@ -6,7 +6,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.140,
+    var version = 0.141,
         schemaVersion = 0.045,
         buttonBackgroundColor = '#CC1869',
         buttonGreyedColor = '#8D94A9',
@@ -5877,36 +5877,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
         );
     },
     
-    //TODO: delete:
-    interfaceAreaAssets = function(who) {
-        sendStandardInterface(who, 'Manage Area Assets',
-            uiSection('Floor', null, [
-                    ['navigation', 'cycle asset', 'assetStandard floor', false, false],
-                    ['navigation', 'transparent', 'assetTransparent floor', false, false],
-                    ['navigation', 'unique asset', 'assetUnique floor', false, false],
-                    
-                    //TODO: should be greyed if the current asset is transparent
-                    //TODO: the flow of this should probably be that the existing UX for global edits, but coming back to this window
-                    ['navigation', 'edit', '???', false, false]
-                ])
-            +uiSection('Walls', null, [
-                    ['navigation', 'cycle asset', 'assetStandard walls', false, false],
-                    ['navigation', 'unique asset', 'assetUnique wall', false, false],
-                    ['navigation', 'edit (TBA)', '???', true, false]
-                ])
-            +uiSection('Doors', null, [
-                    ['navigation', 'cycle asset', 'assetStandard doors', false, false],
-                    ['navigation', 'unique asset', 'assetUnique door', false, false],
-                    ['navigation', 'edit (TBA)', '???', true, false]
-                ])
-            +uiSection('Chests', null, [
-                    ['navigation', 'cycle asset', 'assetStandard chests', false, false],
-                    ['navigation', 'unique asset', 'assetUnique chest', false, false],
-                    ['navigation', 'edit (TBA)', '???', true, false]
-                ])
-        );
-    },
-    
     interfaceAreaList = function(who) {
         var displayFolder = state.APIAreaMapper.uiWindow.split(' ')[1];
         
@@ -6027,65 +5997,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         );
     },
     
-    //TODO: delete:
-    interfaceGlobalAssets = function(who) {
-        var activeClassification;
-        var assetIndex = 0;
-        
-        if(state.APIAreaMapper.globalAssetManagement) {
-            activeClassification = state.APIAreaMapper.globalAssetManagement[0];
-            assetIndex = state.APIAreaMapper.globalAssetManagement[1];
-        }
-        
-        sendStandardInterface(who, 'Global Assets',
-            uiSection('Floors', 
-                activeClassification == 'floor' ? 'The floor asset can be seen on the top left corner of the player page.' : null, 
-                [
-                        ['active', 'active', 'globalAssetActivateClassification floor', false, activeClassification == 'floor'],
-                        ['navigation', 'create', 'globalAssetCreate', activeClassification != 'floor', false],
-                        ['navigation', 'cycle', 'globalAssetCycle', activeClassification != 'floor', false],
-                        ['navigation', 'edit', 'globalAssetEdit', activeClassification != 'floor', false],
-                        ['navigation', 'delete (TBA)', 'globalAssetDelete floor', true || activeClassification != 'floor', false]
-                    ])
-            +uiSection('Walls', 
-                activeClassification == 'wall' ? 'The wall assets can be seen on the top left corner of the player page.' : null, 
-                [
-                        ['active', 'active', 'globalAssetActivateClassification wall', false, activeClassification == 'wall'],
-                        ['navigation', 'create', 'globalAssetCreate', activeClassification != 'wall', false],
-                        ['navigation', 'cycle', 'globalAssetCycle', activeClassification != 'wall', false],
-                        ['navigation', 'edit', 'globalAssetEdit', activeClassification != 'wall', false],
-                        ['navigation', 'delete (TBA)', 'globalAssetDelete wall', true || activeClassification != 'wall', false]
-                    ])
-            +uiSection('Doors', 
-                activeClassification == 'door' ? 'The door assets can be seen on the top left corner of the player page.' : null, 
-                [
-                        ['active', 'active', 'globalAssetActivateClassification door', false, activeClassification == 'door'],
-                        ['navigation', 'create', 'globalAssetCreate',activeClassification != 'door', false],
-                        ['navigation', 'cycle', 'globalAssetCycle', activeClassification != 'door', false],
-                        ['navigation', 'edit', 'globalAssetEdit', activeClassification != 'door', false],
-                        ['navigation', 'delete (TBA)', 'globalAssetDelete door', true || activeClassification != 'door', false]
-                    ])
-            +uiSection('Chests', 
-                activeClassification == 'chest' ? 'The chest assets can be seen on the top left corner of the player page.' : null, 
-                [
-                        ['active', 'active', 'globalAssetActivateClassification chest', false, activeClassification == 'chest'],
-                        ['navigation', 'create', 'globalAssetCreate', activeClassification != 'chest', false],
-                        ['navigation', 'cycle', 'globalAssetCycle', activeClassification != 'chest', false],
-                        ['navigation', 'edit', 'globalAssetEdit', activeClassification != 'chest', false],
-                        ['navigation', 'delete (TBA)', 'globalAssetDelete chest', true || activeClassification != 'chest', false]
-                    ])
-        );
-    },
-    
     interfaceManageAssets = function(who) {
-        /*
-        global:
-        - create (global scope)
-        area:
-        - transparent (situationally)
-        - create unique (area scope)
-        */
-        
         if(!state.APIAreaMapper.assetManagement) {
             log('interfaceManageAssets() called with no state.APIAreaMapper.assetManagement.');
             return;
