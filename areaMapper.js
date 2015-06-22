@@ -84,11 +84,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
         delete state.APIAreaMapper.uiWindow;
         delete state.APIAreaMapper.falseSelection;
         delete state.APIAreaMapper.chestReposition;
-        
-        //TODO: remove:
-        delete state.APIAreaMapper.globalAssetManagement;
-        delete state.APIAreaMapper.globalAssetEdit;
-        
         delete state.APIAreaMapper.assetManagement;
         
         //reset the handout:
@@ -1779,15 +1774,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     
     var assetManagementState = function(stateObject) {
-        //TODO: remove:
-        /*
-        state.APIAreaMapper.assetManagement:
-        - assetScope (global, area)
-        - assetClassification (floor, walls, doors, chests)
-        - assetType (standard, areaUnique, transparent)
-        - assetPairIndex (0, 1)
-        */
-        
         typedObject.call(this);
         this._type.push('assetManagementState');
         
@@ -2984,7 +2970,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     
                     this.setProperty('floorTexture', textureObject.getStateObject());
                     break;
-                case 'walls':
+                case 'wall':
                     var textureObject = new texture(this.getProperty('wallTexture'));
                     
                     //if the texture is already a standard asset, cycle to the next one:
@@ -2999,7 +2985,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     
                     this.setProperty('wallTexture', textureObject.getStateObject());
                     break;
-                case 'doors':
+                case 'door':
                     var textureObject = new texture(this.getProperty('doorTexture'));
                     
                     //if the texture is already a standard asset pair, cycle to the next one:
@@ -3014,7 +3000,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     
                     this.setProperty('doorTexture', textureObject.getStateObject());
                     break;
-                case 'chests':
+                case 'chest':
                     var textureObject = new texture(this.getProperty('chestTexture'));
                     
                     //if the texture is already a standard asset pair, cycle to the next one:
@@ -3042,13 +3028,13 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 case 'floor':
                     this.setProperty('floorTexture', textureObject.getStateObject());
                     break;
-                case 'walls':
+                case 'wall':
                     this.setProperty('wallTexture', textureObject.getStateObject());
                     break;
-                case 'doors':
+                case 'door':
                     this.setProperty('doorTexture', textureObject.getStateObject());
                     break;
-                case 'chests':
+                case 'chest':
                     this.setProperty('chestTexture', textureObject.getStateObject());
                     break;
                 default:
@@ -4697,20 +4683,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return followUpAction;
     },
     
-    //TODO: remove:
-    toggleGlobalAssetClassification = function(classification) {
-        if(state.APIAreaMapper.globalAssetManagement && state.APIAreaMapper.globalAssetManagement[0] == classification) {
-            delete state.APIAreaMapper.globalAssetManagement;
-        } else {
-            state.APIAreaMapper.globalAssetManagement = [classification, 0];
-        }
-        
-        var followUpAction = [];
-        followUpAction.refresh = true;
-        
-        return followUpAction;
-    },
-    
     toggleManageAssetClassification = function(classification) {
         var followUpAction = [];
         followUpAction.refresh = true;
@@ -4892,49 +4864,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return followUpAction;
     },
     
-    //TODO: remove:
-    handleGlobalAssetCreate = function(selected) {
-        var followUpAction = [];
-        followUpAction.refresh = true;
-        
-        if(!state.APIAreaMapper.globalAssetManagement) {
-            followUpAction.message = 'A classification must be active.';
-            return followUpAction;
-        }
-        
-        var assetCreationReturn = createAssetFromSelection(selected, state.APIAreaMapper.globalAssetManagement[0]);
-        
-        if(assetCreationReturn.message) {
-            followUpAction.message = assetCreationReturn.message;
-            return followUpAction;
-        }
-        
-        switch(state.APIAreaMapper.globalAssetManagement[0]) {
-            case 'floor':
-                state.APIAreaMapper.floorAssets.push(assetCreationReturn.assetState1);
-                state.APIAreaMapper.globalAssetManagement[1] = state.APIAreaMapper.floorAssets.length - 1;
-                break;
-            case 'wall':
-                state.APIAreaMapper.wallAssets.push([assetCreationReturn.assetState1, assetCreationReturn.assetState2]);
-                state.APIAreaMapper.globalAssetManagement[1] = state.APIAreaMapper.wallAssets.length - 1;
-                break;
-            case 'door':
-                state.APIAreaMapper.doorAssets.push([assetCreationReturn.assetState1, assetCreationReturn.assetState2]);
-                state.APIAreaMapper.globalAssetManagement[1] = state.APIAreaMapper.doorAssets.length - 1;
-                break;
-            case 'chest':
-                state.APIAreaMapper.chestAssets.push([assetCreationReturn.assetState1, assetCreationReturn.assetState2]);
-                state.APIAreaMapper.globalAssetManagement[1] = state.APIAreaMapper.chestAssets.length - 1;
-                break;
-            default:
-                log('Unhandled asset classification of ' + state.APIAreaMapper.globalAssetManagement[0] + ' in handleGlobalAssetCreate().');
-                followUpAction.message = 'There was a problem; see the log for details.';
-                return followUpAction;
-        }
-        
-        return followUpAction;
-    },
-    
     manageAsestCreateGlobal = function(assetStateObject) {
         if(!state.APIAreaMapper.assetManagement) {
             followUpAction.message = 'A classification must be active.';
@@ -5025,7 +4954,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         switch(assetManagementStateObject.getProperty('classification')) {
             case 'floor':
-                assetStateObject = [assetCreationReturn.assetState1];
+                assetStateObject = assetCreationReturn.assetState1;
                 break;
             case 'wall':
             case 'door':
@@ -5070,42 +4999,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 followUpAction.message = 'There was a problem; see the log for details.';
                 return followUpAction;
         }
-        
-        return followUpAction;
-    },
-    
-    //TODO: remove:
-    handleGlobalAssetCycle = function() {
-        var followUpAction = [];
-        followUpAction.refresh = true;
-        
-        if(!state.APIAreaMapper.globalAssetManagement) {
-            followUpAction.message = 'A classification must be active.';
-            return followUpAction;
-        }
-        
-        var assetLength;
-        
-        switch(state.APIAreaMapper.globalAssetManagement[0]) {
-            case 'floor':
-                assetLength = state.APIAreaMapper.floorAssets.length;
-                break;
-            case 'wall':
-                assetLength = state.APIAreaMapper.wallAssets.length;
-                break;
-            case 'door':
-                assetLength = state.APIAreaMapper.doorAssets.length;
-                break;
-            case 'chest':
-                assetLength = state.APIAreaMapper.chestAssets.length;
-                break;
-            default:
-                log('Unhandled asset classification of ' + state.APIAreaMapper.globalAssetManagement[0] + ' in handleGlobalAssetCycle().');
-                followUpAction.message = 'There was a problem; see the log for details.';
-                return followUpAction;
-        }
-        
-        state.APIAreaMapper.globalAssetManagement[1] = (state.APIAreaMapper.globalAssetManagement[1] + 1) % assetLength;
         
         return followUpAction;
     },
@@ -5162,10 +5055,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             
             //cycle the active area's global asset:
             var a = new area(state.APIAreaMapper.activeArea);
-            a.useGlobalAsset(assetManagementStateObject.getProperty('classification'));
-            
-            a.save();
-            a.draw();
+            a.useGlobalAsset(assetManagementStateObject.getProperty('classification'), textureObject.getProperty('value'));
         }
         
         //update the texture settings that are being edited:
@@ -5310,6 +5200,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var followUpAction = [];
         followUpAction.refresh = true;
         
+        if(!state.APIAreaMapper.assetManagement) {
+            log('handleManageAssetEditRotate() called without state.APIAreaMapper.assetManagement.');
+            followUpAction.message = 'There was a problem; see the log for details.';
+            return followUpAction;
+        }
+        
         var rotationAmount = 0;
         
         switch(amount) {
@@ -5330,14 +5226,34 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         manageAssetEditSetProperty('rotation', (direction == 'cw' ? rotationAmount : 0 - rotationAmount), 'add');
         
+        //redraw the area if necessary: 
+        var assetManagementStateObject = new assetManagementState(state.APIAreaMapper.assetManagement);
+        if(assetManagementStateObject.getProperty('scope') == 'area') {
+            var a = new area(state.APIAreaMapper.activeArea);
+            a.draw();
+        }
+        
         return followUpAction;
     },
     
     toggleManageAssetEditAlternateStretch = function() {
         var followUpAction = [];
         followUpAction.refresh = true;
+        
+        if(!state.APIAreaMapper.assetManagement) {
+            log('toggleManageAssetEditAlternateStretch() called without state.APIAreaMapper.assetManagement.');
+            followUpAction.message = 'There was a problem; see the log for details.';
+            return followUpAction;
+        }
          
         manageAssetEditSetProperty('alternate', null, 'toggle');
+        
+        //redraw the area if necessary: 
+        var assetManagementStateObject = new assetManagementState(state.APIAreaMapper.assetManagement);
+        if(assetManagementStateObject.getProperty('scope') == 'area') {
+            var a = new area(state.APIAreaMapper.activeArea);
+            a.draw();
+        }
         
         return followUpAction;
     },
@@ -5443,6 +5359,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
     handleManageAssetEditScaleChange = function(axis, action, amount) {
         var followUpAction = [];
         followUpAction.refresh = true;
+        
+        if(!state.APIAreaMapper.assetManagement) {
+            log('handleManageAssetEditScaleChange() called without state.APIAreaMapper.assetManagement.');
+            followUpAction.message = 'There was a problem; see the log for details.';
+            return followUpAction;
+        }
        
         var amountValue;
         
@@ -5464,12 +5386,25 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         manageAssetEditSetProperty(property, isIncreasing ? amountValue : 1 / amountValue, 'multiply');
         
+        //redraw the area if necessary: 
+        var assetManagementStateObject = new assetManagementState(state.APIAreaMapper.assetManagement);
+        if(assetManagementStateObject.getProperty('scope') == 'area') {
+            var a = new area(state.APIAreaMapper.activeArea);
+            a.draw();
+        }
+        
         return followUpAction;
     },
     
     handleManageAssetEditOffsetChange = function(axis, action, amount) {
         var followUpAction = [];
         followUpAction.refresh = true;
+        
+        if(!state.APIAreaMapper.assetManagement) {
+            log('handleManageAssetEditOffsetChange() called without state.APIAreaMapper.assetManagement.');
+            followUpAction.message = 'There was a problem; see the log for details.';
+            return followUpAction;
+        }
        
         var amountValue;
         
@@ -5490,6 +5425,13 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }
         
         manageAssetEditSetProperty(property, isIncreasing ? amountValue : 0 - amountValue, 'add');
+        
+        //redraw the area if necessary: 
+        var assetManagementStateObject = new assetManagementState(state.APIAreaMapper.assetManagement);
+        if(assetManagementStateObject.getProperty('scope') == 'area') {
+            var a = new area(state.APIAreaMapper.activeArea);
+            a.draw();
+        }
         
         return followUpAction;
     },
@@ -5621,40 +5563,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
             state.APIAreaMapper.uiWindow = 'area#' + state.APIAreaMapper.activeArea;
             followUpAction.refresh = true;
             followUpAction.ignoreSelection = true;
-        }
-        
-        return followUpAction;
-    },
-    
-    //TODO: remove:
-    handleAssetStandard = function(objectType) {
-        var followUpAction = [];
-        followUpAction.refresh = true;
-        
-        var a = new area(state.APIAreaMapper.activeArea);
-        a.useGlobalAsset(objectType);
-        
-        return followUpAction;
-    },
-    
-    //TODO: remove:
-    handleAssetUnique = function(selected, objectType) {
-        var followUpAction = [];
-        followUpAction.refresh = true;
-        
-        var assetCreationReturn = createAssetFromSelection(selected, objectType);
-        
-        if(assetCreationReturn.message) {
-            followUpAction.message = assetCreationReturn.message;
-            return followUpAction;
-        }
-        
-        var a = new area(state.APIAreaMapper.activeArea);
-        
-        if(assetCreationReturn.assetState2) {
-            a.useUniqueAsset(objectType, [assetCreationReturn.assetState1, assetCreationReturn.assetState2]);
-        } else {
-            a.useUniqueAsset(objectType, assetCreationReturn.assetState1);
         }
         
         return followUpAction;
@@ -6485,11 +6393,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 return;
             }
             
-            if(state.APIAreaMapper.uiWindow.indexOf('areaAssets') === 0) {
-                interfaceAreaAssets(who);
-                return;
-            }
-            
             if(state.APIAreaMapper.uiWindow.indexOf('settings') === 0) {
                 interfaceSettings(who);
                 return;
@@ -6501,23 +6404,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 return;
             }
             
-            //TODO: remove:
-            if(state.APIAreaMapper.uiWindow.indexOf('globalAssets') === 0) {
-                drawAssetManagementEditModal();
-                interfaceGlobalAssets(who);
-                return;
-            }
-            
             if(state.APIAreaMapper.uiWindow.indexOf('manageAssetEdit') === 0) {
                 drawAssetManagementModal(true);
                 interfaceManageAssetEdit(who);
-                return;
-            }
-            
-            //TODO: remove:
-            if(state.APIAreaMapper.uiWindow.indexOf('globalAssetEdit') === 0) {
-                drawAssetManagementEditModal(true);
-                interfaceGlobalAssetEdit(who);
                 return;
             }
             
@@ -6614,48 +6503,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     followUpAction = handleManageAssetEditToggleActiveAsset();
                     followUpAction.ignoreSelection = true;
                     break;
-                //TODO: remove:
-                case 'globalAssets':
-                    state.APIAreaMapper.uiWindow = 'globalAssets';
-                    followUpAction.refresh = true;
-                    followUpAction.ignoreSelection = true;
-                    break;
-                //TODO: remove:
-                case 'globalAssetActivateClassification':
-                    state.APIAreaMapper.uiWindow = 'globalAssets';
-                    followUpAction = toggleGlobalAssetClassification(chatCommand[2]);
-                    followUpAction.ignoreSelection = true;
-                    break;
-                //TODO: remove:
-                case 'globalAssetCreate':
-                    followUpAction = handleGlobalAssetCreate(msg.selected);
-                    followUpAction.ignoreSelection = true;
-                    break;
-                //TODO: remove:
-                case 'globalAssetCycle':
-                    followUpAction = handleGlobalAssetCycle();
-                    followUpAction.ignoreSelection = true;
-                    break;
-                //TODO: remove:
-                case 'globalAssetEdit':
-                    state.APIAreaMapper.uiWindow = 'globalAssetEdit';
-                    state.APIAreaMapper.globalAssetEdit = [];
-                    state.APIAreaMapper.globalAssetEdit.push(0);
-                    followUpAction.refresh = true;
-                    followUpAction.ignoreSelection = true;
-                    break;
                 case 'manageAssetEditRotate':
                     followUpAction = handleManageAssetEditRotate(chatCommand[2], chatCommand[3]);
                     followUpAction.ignoreSelection = true;
                     break;
                 case 'manageAssetEditAlternateStretch':
                     followUpAction = toggleManageAssetEditAlternateStretch();
-                    followUpAction.ignoreSelection = true;
-                    break;
-                //TODO: remove:
-                case 'globalAssetEditToggleActiveAsset':
-                    state.APIAreaMapper.globalAssetEdit[0] = (state.APIAreaMapper.globalAssetEdit[0] + 1) % 2;
-                    followUpAction.refresh = true;
                     followUpAction.ignoreSelection = true;
                     break;
                 case 'manageAssetEditSwapAssets':
@@ -6742,24 +6595,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     followUpAction = toggleBlueprintMode();
                     followUpAction.ignoreSelection = true;
                     break;
-                //TODO: remove:
-                case 'areaAssets':
-                    state.APIAreaMapper.uiWindow = 'areaAssets';
-                    followUpAction.refresh = true;
-                    followUpAction.ignoreSelection = true;
-                    break;
-                //TODO: remove:
-                case 'assetStandard':
-                    followUpAction = handleAssetStandard(chatCommand[2]);
-                    followUpAction.ignoreSelection = true;
-                    break;
                 case 'manageAssetTransparent':
                     followUpAction = handleManageAssetTransparent(chatCommand[2]);
-                    followUpAction.ignoreSelection = true;
-                    break;
-                //TODO: remove:
-                case 'assetUnique':
-                    followUpAction = handleAssetUnique(msg.selected, chatCommand[2]);
                     followUpAction.ignoreSelection = true;
                     break;
                 case 'interactiveObjectOpen':
