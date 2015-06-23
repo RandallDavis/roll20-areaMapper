@@ -6,7 +6,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.141,
+    var version = 0.142,
         schemaVersion = 0.045,
         buttonBackgroundColor = '#CC1869',
         buttonGreyedColor = '#8D94A9',
@@ -4220,8 +4220,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
     var drawAssetManagementModal = function(highlightEditedAsset) {
         hideAssetManagementModal();
         
-        //TODO: highlight edited asset as a rectangle sized based on the modal (possibly its right or left half if there's an asset pair) with a bit of margin so that you can see the modal framed around it
-        
         if(!state.APIAreaMapper.assetManagement) {
             log('drawAssetManagementModal() called without state.APIAreaMapper.assetManagement.');
             return;
@@ -4234,6 +4232,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             modalPairNonStretchHeight = 160,
             modalWidth = 500,
             modalTopMargin = 40,
+            highlightEditedAssetMargin = 5,
             assetNonStretchSize = 150,
             assetPairNonStretchSize = 100,
             assetPairNonStretchSpacing = 50,
@@ -4269,6 +4268,22 @@ var APIAreaMapper = APIAreaMapper || (function() {
                             modalWidth,
                             2
                         ).id]);
+                        
+                //highlight the active asset:
+                if(highlightEditedAsset) {
+                    state.APIAreaMapper.assetManagementModalIds.push(['path', 
+                        createRectanglePathObject(
+                                pageId, 
+                                'objects', 
+                                '#ff0000', 
+                                'transparent', 
+                                modalTop + highlightEditedAssetMargin, 
+                                modalLeft + highlightEditedAssetMargin, 
+                                modalNonPairHeight - (2 * highlightEditedAssetMargin), 
+                                modalWidth - (2 * highlightEditedAssetMargin),
+                                2
+                            ).id]);
+                }
                         
                 //note: if there is a classification, there must be a texture:
                 var asset1;
@@ -4343,6 +4358,22 @@ var APIAreaMapper = APIAreaMapper || (function() {
                             modalWidth,
                             2
                         ).id]);
+                    
+                //highlight the active asset:
+                if(highlightEditedAsset) {
+                    state.APIAreaMapper.assetManagementModalIds.push(['path', 
+                        createRectanglePathObject(
+                                pageId, 
+                                'objects', 
+                                '#ff0000', 
+                                'transparent', 
+                                modalTop + highlightEditedAssetMargin, 
+                                modalLeft + highlightEditedAssetMargin + (assetManagementStateObject.getProperty('pairIndex') ? (modalWidth / 2) : 0), 
+                                modalPairStretchHeight - (2 * highlightEditedAssetMargin), 
+                                (modalWidth / 2) - (2 * highlightEditedAssetMargin),
+                                2
+                            ).id]);
+                }
        
                 //note: if there is a classification, there must be a texture:
                 var asset1,
@@ -4451,6 +4482,22 @@ var APIAreaMapper = APIAreaMapper || (function() {
                             2
                         ).id]);
                         
+                //highlight the active asset:
+                if(highlightEditedAsset) {
+                    state.APIAreaMapper.assetManagementModalIds.push(['path', 
+                        createRectanglePathObject(
+                                pageId, 
+                                'objects', 
+                                '#ff0000', 
+                                'transparent', 
+                                modalTop + highlightEditedAssetMargin, 
+                                modalLeft + highlightEditedAssetMargin + (assetManagementStateObject.getProperty('pairIndex') ? (modalWidth / 2) : 0), 
+                                modalPairStretchHeight - (2 * highlightEditedAssetMargin), 
+                                (modalWidth / 2) - (2 * highlightEditedAssetMargin),
+                                2
+                            ).id]);
+                }
+                        
                 //note: if there is a classification, there must be a texture:
                 var asset1,
                     asset2;
@@ -4557,6 +4604,22 @@ var APIAreaMapper = APIAreaMapper || (function() {
                             modalWidth,
                             2
                         ).id]);
+                        
+                //highlight the active asset:
+                if(highlightEditedAsset) {
+                    state.APIAreaMapper.assetManagementModalIds.push(['path', 
+                        createRectanglePathObject(
+                                pageId, 
+                                'objects', 
+                                '#ff0000', 
+                                'transparent', 
+                                modalTop + highlightEditedAssetMargin, 
+                                modalLeft + highlightEditedAssetMargin + (assetManagementStateObject.getProperty('pairIndex') ? (modalWidth / 2) : 0), 
+                                modalPairNonStretchHeight - (2 * highlightEditedAssetMargin), 
+                                (modalWidth / 2) - (2 * highlightEditedAssetMargin),
+                                2
+                            ).id]);
+                }
                         
                 //note: if there is a classification, there must be a texture:
                 var asset1,
