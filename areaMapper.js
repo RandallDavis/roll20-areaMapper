@@ -6,7 +6,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.143,
+    var version = 0.144,
         schemaVersion = 0.045,
         buttonBackgroundColor = '#CC1869',
         buttonGreyedColor = '#8D94A9',
@@ -2086,6 +2086,26 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var followUpAction = [];
         followUpAction.refresh = true;
         return followUpAction;
+    };
+    
+    area.prototype.delete = function() {
+        
+        //clear out the active area state if it matches this area:
+        if(state.APIAreaMapper.activeArea && state.APIAreaMapper.activeArea == this.getProperty('id')) {
+            delete state.APIAreaMapper.activeArea;
+        }
+        
+        //delete all instances:
+        this.hide();
+        
+        //delete the area from state:
+        for(var i = 0; i < state.APIAreaMapper.areas.length; i++) {
+            state.APIAreaMapper.areas[i].forEach(function(prop) {
+                if(prop[0] == 'id' && prop[1] == this.getProperty('id')) {
+                    state.APIAreaMapper.areas.splice(i, 1);
+                }
+            }, this);
+        }
     };
     
     //undraws and destroys all instances:
@@ -5726,6 +5746,17 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return followUpAction;
     },
     
+    handleAreaDelete = function(areaId) {
+        var followUpAction = [];
+        followUpAction.refresh = true;
+        
+        var a = new area(areaId);
+        
+        a.delete();
+        
+        return followUpAction;
+    },
+    
     handleAreaRedraw = function() {
         var followUpAction = [];
         followUpAction.refresh = true;
@@ -6051,6 +6082,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     ['active', 'draw instance', 'areaInstanceCreate', isArchived || (state.APIAreaMapper.activeArea != areaId), (state.APIAreaMapper.recordAreaMode == 'areaInstanceCreate')],
                     ['navigation', 'hide', 'areaHide ' + areaId, !hasInstances, false],
                     ['active', 'archive', 'areaArchive ' + areaId, false, isArchived],
+                    ['navigation', 'delete', 'areaDelete ' + areaId, !isArchived, false],
                     ['active', 'blueprint mode', 'blueprint', !hasInstances || (state.APIAreaMapper.activeArea != areaId), state.APIAreaMapper.blueprintMode],
                     ['navigation', 'redraw', 'redraw', !hasInstances || (state.APIAreaMapper.activeArea != areaId), false]
                 ])
@@ -6767,6 +6799,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     break;
                 case 'areaArchive':
                     followUpAction = handleAreaArchive(chatCommand[2]);
+                    break;
+                case 'areaDelete':
+                    state.APIAreaMapper.uiWindow = 'listAreas drawn';
+                    followUpAction = handleAreaDelete(chatCommand[2]);
                     break;
                 case 'areaCreate':
                 case 'areaAppend':
