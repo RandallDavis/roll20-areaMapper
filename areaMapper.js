@@ -5752,7 +5752,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         var a = new area(areaId);
         
-        //TODO: implement:
         a.delete();
         
         return followUpAction;
