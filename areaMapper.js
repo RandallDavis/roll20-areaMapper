@@ -5066,6 +5066,102 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return followUpAction;
     },
     
+    handleManageAssetGlobalDelete = function() {
+        var followUpAction = [];
+        followUpAction.refresh = true;
+        
+        if(!state.APIAreaMapper.assetManagement) {
+            followUpAction.message = 'A classification must be active.';
+            return followUpAction;
+        }
+        
+        var assetManagementStateObject = new assetManagementState(state.APIAreaMapper.assetManagement);
+        
+        if(!assetManagementStateObject.getProperty('classification')) {
+            followUpAction.message = 'A classification must be active.';
+            return followUpAction;
+        }
+        
+        var textureObject = new texture(assetManagementStateObject.getProperty('texture'));
+        
+        //it's expected to only reach this method if the asset management state is a global asset:
+        if(textureObject.getProperty('textureType') != 'asset') {
+            log('handleManageAssetGlobalDelete() called with a asset management state textureType of ' + textureObject.getProperty('textureType') + ' instead of "asset".');
+            followUpAction.message = 'There was a problem; see the log for details.';
+            return followUpAction;
+        }
+        
+        var manageAssetsDeleteByClassification = function(classification, areaTextureProperty, assetsList, textureObject, followUpAction) {
+            if(assetsList.length <= 1) {
+                followUpAction.message = 'Deleting this asset would leave none of its type.';
+                return null;
+            }
+            
+            //delete the asset:
+            assetsList.splice(textureObject.getProperty('value'), 1);
+            
+            //update textures in all areas:
+            state.APIAreaMapper.areas.forEach(function(areaState) {
+                areaState.forEach(function(prop) {
+                    if(prop[0] == 'id') {
+                        var a = new area(prop[1]);
+                        var areaTexture = new texture(a.getProperty(areaTextureProperty));
+                        
+                        if(areaTexture.getProperty('textureType') == 'asset') {
+                            if(areaTexture.getProperty('value') == textureObject.getProperty('value')) {
+                                
+                                //the used asset was deleted; use the first asset instead:
+                                a.useGlobalAsset(classification, 0);
+                            } else if(areaTexture.getProperty('value') > textureObject.getProperty('value')) {
+                                
+                                //the used asset's index changed - fix the area's reference:
+                                a.useGlobalAsset(classification, areaTexture.getProperty('value') - 1);
+                            }
+                        }
+                    }
+                }, this);
+            }, this);
+            
+            return new texture();
+        };
+        
+        var newTextureObject;
+        switch(assetManagementStateObject.getProperty('classification')) {
+            case 'floor':
+                newTextureObject = manageAssetsDeleteByClassification(assetManagementStateObject.getProperty('classification'), 'floorTexture', state.APIAreaMapper.floorAssets, textureObject, followUpAction);
+                break;
+            case 'wall':
+                newTextureObject = manageAssetsDeleteByClassification(assetManagementStateObject.getProperty('classification'), 'wallTexture', state.APIAreaMapper.wallAssets, textureObject, followUpAction);
+                break;
+            case 'door':
+                newTextureObject = manageAssetsDeleteByClassification(assetManagementStateObject.getProperty('classification'), 'doorTexture', state.APIAreaMapper.doorAssets, textureObject, followUpAction);
+                break;
+            case 'chest':
+                newTextureObject = manageAssetsDeleteByClassification(assetManagementStateObject.getProperty('classification'), 'chestTexture', state.APIAreaMapper.chestAssets, textureObject, followUpAction);
+                break;
+            default:
+                log('Unhandled classification of ' + assetManagementStateObject.getProperty('classification') + ' in handleManageAssetGlobalDelete().');
+                followUpAction.message = 'There was a problem; see the log for details.';
+                return followUpAction;
+        }
+        
+        //if there were changes to the asset list, handle the final steps:
+        if(newTextureObject) {
+            
+            //update the asset management state:
+            assetManagementStateObject.setProperty('texture', newTextureObject.getStateObject());
+            state.APIAreaMapper.assetManagement = assetManagementStateObject.getStateObject();
+            
+            //redraw the active area (if there is one) in case it changed:
+            if(state.APIAreaMapper.activeArea) {
+                var a = new area(state.APIAreaMapper.activeArea);
+                a.draw();
+            }
+        }
+        
+        return followUpAction;
+    },
+    
     handleManageAssetTransparent = function(objectType) {
         var followUpAction = [];
         followUpAction.refresh = true;
@@ -6005,13 +6101,15 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         var assetManagementStateObject = new assetManagementState(state.APIAreaMapper.assetManagement);
         
-        var uiTitle;
+        var uiTitle,
+            a;
         switch(assetManagementStateObject.getProperty('scope')) {
             case 'global':
                 uiTitle = 'Manage Global Assets';
                 break;
             case 'area':
                 uiTitle = 'Manage Area Assets';
+                var a = new area(state.APIAreaMapper.activeArea);
                 break;
             default:
                 log('Unhandled scope of ' + assetManagementStateObject.getProperty('scope') + ' in interfaceManageAssets().');
@@ -6021,50 +6119,149 @@ var APIAreaMapper = APIAreaMapper || (function() {
         //note: this may be null:
         var activeClassification = assetManagementStateObject.getProperty('classification');
         
+        
         var floorCommands = [
                 ['active', 'active', 'manageAssetActivateClassification floor', false, activeClassification == 'floor'],
                 ['navigation', assetManagementStateObject.getProperty('scope') == 'global' ? 'create' : 'create unique', 'manageAssetCreate', activeClassification != 'floor', false],
                 ['navigation', 'cycle', 'manageAssetCycle', activeClassification != 'floor', false],
             ];
             
-            if(assetManagementStateObject.getProperty('scope') == 'area') {
-                floorCommands.push(['navigation', 'transparent', 'manageAssetTransparent floor', activeClassification != 'floor', false]);
-            }
+        if(assetManagementStateObject.getProperty('scope') == 'area') {
+            floorCommands.push(['navigation', 'transparent', 'manageAssetTransparent floor', activeClassification != 'floor', false]);
+        }
+        
+        floorCommands.push(['navigation', 'edit', 'manageAssetEdit', activeClassification != 'floor', false]);
+        
+        switch(assetManagementStateObject.getProperty('scope')) {
+            case 'global':
+                floorCommands.push(['navigation', 'delete', 'manageAssetDelete', activeClassification != 'floor', false]);
+                break;
+            case 'area':
+                var areaTextureObject = new texture(a.getProperty('floorTexture'));
+                
+                switch(areaTextureObject.getProperty('textureType')) {
+                    case 'asset':
+                        floorCommands.push(['navigation', 'delete', 'manageAssetDelete', activeClassification != 'floor', false]);
+                        break;
+                    case 'unique':
+                        
+                        //orphaning a unique asset effectively deletes it:
+                        floorCommands.push(['navigation', 'delete', 'manageAssetCycle', activeClassification != 'floor', false]);
+                        break;
+                    default:
+                        break;
+                }
+                break;
+            default:
+                log('Unhandled scope of ' + assetManagementStateObject.getProperty('scope') + ' in interfaceManageAssets().');
+                return;
+        }
             
-            floorCommands.push(['navigation', 'edit', 'manageAssetEdit', activeClassification != 'floor', false]);
             
-            //TODO: make deletion of unique assets just do a cycle (which is easier than explaining the fact that you just need to orphan a unqiue asset to delete it):
-            floorCommands.push(['navigation', 'delete (TBA)', 'globalAssetDelete floor', true || activeClassification != 'floor', false]);
+        var wallCommands = [
+                ['active', 'active', 'manageAssetActivateClassification wall', false, activeClassification == 'wall'],
+                ['navigation', assetManagementStateObject.getProperty('scope') == 'global' ? 'create' : 'create unique', 'manageAssetCreate', activeClassification != 'wall', false],
+                ['navigation', 'cycle', 'manageAssetCycle', activeClassification != 'wall', false],
+                ['navigation', 'edit', 'manageAssetEdit', activeClassification != 'wall', false],
+            ];
+            
+        switch(assetManagementStateObject.getProperty('scope')) {
+            case 'global':
+                wallCommands.push(['navigation', 'delete', 'manageAssetDelete', activeClassification != 'wall', false]);
+                break;
+            case 'area':
+                var areaTextureObject = new texture(a.getProperty('wallTexture'));
+                
+                switch(areaTextureObject.getProperty('textureType')) {
+                    case 'asset':
+                        wallCommands.push(['navigation', 'delete', 'manageAssetDelete', activeClassification != 'wall', false]);
+                        break;
+                    case 'unique':
+                        
+                        //orphaning a unique asset effectively deletes it:
+                        wallCommands.push(['navigation', 'delete', 'manageAssetCycle', activeClassification != 'wall', false]);
+                        break;
+                    default:
+                        break;
+                }
+                break;
+            default:
+                log('Unhandled scope of ' + assetManagementStateObject.getProperty('scope') + ' in interfaceManageAssets().');
+                return;
+        }
+        
+        
+        var doorCommands = [
+                ['active', 'active', 'manageAssetActivateClassification door', false, activeClassification == 'door'],
+                ['navigation', assetManagementStateObject.getProperty('scope') == 'global' ? 'create' : 'create unique', 'manageAssetCreate',activeClassification != 'door', false],
+                ['navigation', 'cycle', 'manageAssetCycle', activeClassification != 'door', false],
+                ['navigation', 'edit', 'manageAssetEdit', activeClassification != 'door', false],
+            ];
+        
+        switch(assetManagementStateObject.getProperty('scope')) {
+            case 'global':
+                doorCommands.push(['navigation', 'delete', 'manageAssetDelete', activeClassification != 'door', false]);
+                break;
+            case 'area':
+                var areaTextureObject = new texture(a.getProperty('wallTexture'));
+                
+                switch(areaTextureObject.getProperty('textureType')) {
+                    case 'asset':
+                        doorCommands.push(['navigation', 'delete', 'manageAssetDelete', activeClassification != 'door', false]);
+                        break;
+                    case 'unique':
+                        
+                        //orphaning a unique asset effectively deletes it:
+                        doorCommands.push(['navigation', 'delete', 'manageAssetCycle', activeClassification != 'door', false]);
+                        break;
+                    default:
+                        break;
+                }
+                break;
+            default:
+                log('Unhandled scope of ' + assetManagementStateObject.getProperty('scope') + ' in interfaceManageAssets().');
+                return;
+        }
+            
+        
+        var chestCommands = [
+                ['active', 'active', 'manageAssetActivateClassification chest', false, activeClassification == 'chest'],
+                ['navigation', assetManagementStateObject.getProperty('scope') == 'global' ? 'create' : 'create unique', 'manageAssetCreate', activeClassification != 'chest', false],
+                ['navigation', 'cycle', 'manageAssetCycle', activeClassification != 'chest', false],
+                ['navigation', 'edit', 'manageAssetEdit', activeClassification != 'chest', false],
+            ];
+            
+        switch(assetManagementStateObject.getProperty('scope')) {
+            case 'global':
+                chestCommands.push(['navigation', 'delete', 'manageAssetDelete', activeClassification != 'chest', false]);
+                break;
+            case 'area':
+                var areaTextureObject = new texture(a.getProperty('wallTexture'));
+                
+                switch(areaTextureObject.getProperty('textureType')) {
+                    case 'asset':
+                        chestCommands.push(['navigation', 'delete', 'manageAssetDelete', activeClassification != 'chest', false]);
+                        break;
+                    case 'unique':
+                        
+                        //orphaning a unique asset effectively deletes it:
+                        chestCommands.push(['navigation', 'delete', 'manageAssetCycle', activeClassification != 'chest', false]);
+                        break;
+                    default:
+                        break;
+                }
+                break;
+            default:
+                log('Unhandled scope of ' + assetManagementStateObject.getProperty('scope') + ' in interfaceManageAssets().');
+                return;
+        }
+            
             
         sendStandardInterface(who, uiTitle,
             uiSection('Floors', activeClassification == 'floor' ? 'The floor asset can be seen on the top left corner of the player page.' : null, floorCommands)
-            +uiSection('Walls', 
-                activeClassification == 'wall' ? 'The wall assets can be seen on the top left corner of the player page.' : null, 
-                [
-                        ['active', 'active', 'manageAssetActivateClassification wall', false, activeClassification == 'wall'],
-                        ['navigation', assetManagementStateObject.getProperty('scope') == 'global' ? 'create' : 'create unique', 'manageAssetCreate', activeClassification != 'wall', false],
-                        ['navigation', 'cycle', 'manageAssetCycle', activeClassification != 'wall', false],
-                        ['navigation', 'edit', 'manageAssetEdit', activeClassification != 'wall', false],
-                        ['navigation', 'delete (TBA)', 'globalAssetDelete wall', true || activeClassification != 'wall', false]
-                    ])
-            +uiSection('Doors', 
-                activeClassification == 'door' ? 'The door assets can be seen on the top left corner of the player page.' : null, 
-                [
-                        ['active', 'active', 'manageAssetActivateClassification door', false, activeClassification == 'door'],
-                        ['navigation', assetManagementStateObject.getProperty('scope') == 'global' ? 'create' : 'create unique', 'manageAssetCreate',activeClassification != 'door', false],
-                        ['navigation', 'cycle', 'manageAssetCycle', activeClassification != 'door', false],
-                        ['navigation', 'edit', 'manageAssetEdit', activeClassification != 'door', false],
-                        ['navigation', 'delete (TBA)', 'globalAssetDelete door', true || activeClassification != 'door', false]
-                    ])
-            +uiSection('Chests', 
-                activeClassification == 'chest' ? 'The chest assets can be seen on the top left corner of the player page.' : null, 
-                [
-                        ['active', 'active', 'manageAssetActivateClassification chest', false, activeClassification == 'chest'],
-                        ['navigation', assetManagementStateObject.getProperty('scope') == 'global' ? 'create' : 'create unique', 'manageAssetCreate', activeClassification != 'chest', false],
-                        ['navigation', 'cycle', 'manageAssetCycle', activeClassification != 'chest', false],
-                        ['navigation', 'edit', 'manageAssetEdit', activeClassification != 'chest', false],
-                        ['navigation', 'delete (TBA)', 'globalAssetDelete chest', true || activeClassification != 'chest', false]
-                    ])
+            +uiSection('Walls', activeClassification == 'wall' ? 'The wall assets can be seen on the top left corner of the player page.' : null, wallCommands)
+            +uiSection('Doors', activeClassification == 'door' ? 'The door assets can be seen on the top left corner of the player page.' : null, doorCommands)
+            +uiSection('Chests', activeClassification == 'chest' ? 'The chest assets can be seen on the top left corner of the player page.' : null, chestCommands)
         );
     },
     
@@ -6409,6 +6606,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 case 'manageAssetEdit':
                     state.APIAreaMapper.uiWindow = 'manageAssetEdit';
                     followUpAction.refresh = true;
+                    followUpAction.ignoreSelection = true;
+                    break;
+                case 'manageAssetDelete':
+                    followUpAction = handleManageAssetGlobalDelete();
                     followUpAction.ignoreSelection = true;
                     break;
                 case 'manageAssetEditToggleActiveAsset':
