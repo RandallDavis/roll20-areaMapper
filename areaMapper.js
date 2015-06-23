@@ -6,7 +6,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.142,
+    var version = 0.143,
         schemaVersion = 0.045,
         buttonBackgroundColor = '#CC1869',
         buttonGreyedColor = '#8D94A9',
@@ -1090,7 +1090,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return cp.convertToSimplePolygon(controlPointIndex, controlAngle, false);
     };
     
-    simplePolygon.prototype.invert = function() {
+    //inverts the polygon, with an optional asset for extended margins:
+    simplePolygon.prototype.invert = function(assetObject) {
         var invertedPoints = this.getPointsPath();
         
         var minX = invertedPoints[0].x;
@@ -1112,23 +1113,52 @@ var APIAreaMapper = APIAreaMapper || (function() {
             maxY = Math.max(maxY, invertedPoints[i].y);
         }
         
-        //the inverted border needs to be this much larger than the original polygon:
-        var invertedBorderDistance = 1;
-        
+        //calculate margins around the inverted space:
+        var marginPadding = 1,
+            marginTop = 0,
+            marginBottom = 0,
+            marginLeft = 0,
+            marginRight = 0;
+            
+        if('undefined' !== typeof(assetObject)) {
+            
+            //factor in vertical scale:
+            marginTop = (maxY - minY) * ((assetObject.getProperty('scaleVertical') - 1) / 2);
+            marginBottom = marginTop;
+            
+            //factor in vertical offset:
+            marginTop -= assetObject.getProperty('offsetVertical');
+            marginBottom += assetObject.getProperty('offsetVertical');
+            
+            //factor in horizontal scale:
+            marginLeft = (maxX - minX) * ((assetObject.getProperty('scaleHorizontal') - 1) / 2);
+            marginRight = marginLeft;
+            
+            //factor in horizontal offset:
+            marginLeft -= assetObject.getProperty('offsetHorizontal');
+            marginRight += assetObject.getProperty('offsetHorizontal');
+            
+            //don't allow negative margins:
+            marginTop = Math.max(marginTop, 0);
+            marginBottom = Math.max(marginBottom, 0);
+            marginLeft = Math.max(marginLeft, 0);
+            marginRight = Math.max(marginRight, 0);
+        }
+            
         //insert a point immediately down from the control point to branch off from:
         invertedPoints.splice(controlPointIndex + 1, 0, new point(invertedPoints[controlPointIndex].x, invertedPoints[controlPointIndex].y + 1));
         
         //branch the new point to the edge of the inverted border:
-        invertedPoints.splice(controlPointIndex + 1, 0, new point(minX - invertedBorderDistance, invertedPoints[controlPointIndex].y + 1));
+        invertedPoints.splice(controlPointIndex + 1, 0, new point(minX - (marginLeft + marginPadding), invertedPoints[controlPointIndex].y + 1));
         
         //draw the inverted border corners stemming from control point:
-        invertedPoints.splice(controlPointIndex + 1, 0, new point(minX - invertedBorderDistance, maxY + invertedBorderDistance));
-        invertedPoints.splice(controlPointIndex + 1, 0, new point(maxX + invertedBorderDistance, maxY + invertedBorderDistance));
-        invertedPoints.splice(controlPointIndex + 1, 0, new point(maxX + invertedBorderDistance, minY - invertedBorderDistance));
-        invertedPoints.splice(controlPointIndex + 1, 0, new point(minX - invertedBorderDistance, minY - invertedBorderDistance));
+        invertedPoints.splice(controlPointIndex + 1, 0, new point(minX - (marginLeft + marginPadding), maxY + (marginBottom + marginPadding)));
+        invertedPoints.splice(controlPointIndex + 1, 0, new point(maxX + (marginRight + marginPadding), maxY + (marginBottom + marginPadding)));
+        invertedPoints.splice(controlPointIndex + 1, 0, new point(maxX + (marginRight + marginPadding), minY - (marginTop + marginPadding)));
+        invertedPoints.splice(controlPointIndex + 1, 0, new point(minX - (marginLeft + marginPadding), minY - (marginTop + marginPadding)));
         
         //insert a point from the control point leading to the edge of the inverted border:
-        invertedPoints.splice(controlPointIndex + 1, 0, new point(minX - invertedBorderDistance, invertedPoints[controlPointIndex].y));
+        invertedPoints.splice(controlPointIndex + 1, 0, new point(minX - (marginLeft + marginPadding), invertedPoints[controlPointIndex].y));
         
         var op = new simplePolygon();
         op.addPointsPath(invertedPoints);
@@ -1393,8 +1423,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return this.setProperty('simplePolygons', op3);
     };
     
-    graph.prototype.invertSimplePolygon = function(index) {
-        var invertedOp = this.getProperty('simplePolygons')[index].invert();
+    graph.prototype.invertSimplePolygon = function(index, assetObject) {
+        var invertedOp = this.getProperty('simplePolygons')[index].invert(assetObject);
         return this.setProperty('simplePolygons', invertedOp);
     };
     
@@ -3446,7 +3476,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var maskColor = page.get('background_color');
         var g = new graph();
         var floorplanOpIndex = g.addSimplePolygon(a.getProperty('floorplan'), top, left);
-        var floorMaskOpIndex = g.invertSimplePolygon(floorplanOpIndex);
+        var floorMaskOpIndex = g.invertSimplePolygon(floorplanOpIndex, floorAsset);
         var floorMaskRawPath = g.getRawPath('simplePolygons', floorMaskOpIndex);
         var floorMask = createPathObject(floorMaskRawPath.rawPath, this.getProperty('pageId'), 'map', maskColor, maskColor, floorMaskRawPath.top, floorMaskRawPath.left, floorMaskRawPath.height, floorMaskRawPath.width);
         this.setProperty('floorMaskId', floorMask.id);
