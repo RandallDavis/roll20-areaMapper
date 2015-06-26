@@ -6,8 +6,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.144,
-        schemaVersion = 0.045,
+    var version = 0.145,
+        areaSchemaVersion = 0.1,
+        assetSchemaVersion = 0.1,
         buttonBackgroundColor = '#CC1869',
         buttonGreyedColor = '#8D94A9',
         buttonHighlightLinkColor = '#D6F510',
@@ -29,24 +30,32 @@ var APIAreaMapper = APIAreaMapper || (function() {
         wallLengthExtension = 12,
         doorThickness = 20,
         doorLengthExtension = -26,
+        blueprintFloorPolygonColor = '#A3E1E4',
+        blueprintEdgeWallGapsPathColor = '#D13583',
+        blueprintInnerWallsPathColor = '#3535D1',
+        blueprintDoorPathColor = '#EC9B10',
+        blueprintChestPathColor = '#666666',
         
     checkInstall = function() {
         
         log('-=> Area Mapper v'+version+' <=-');
         
-        //TODO: state resets shouldn't destroy areas or preferences, and needs the ability to convert them to newer versions to prevent backward compatibile code elsewhere:
-        if(!_.has(state,'APIAreaMapper') || state.APIAreaMapper.version !== schemaVersion) {
-            log('APIAreaMapper: Resetting state.');
+        if(!_.has(state, 'APIAreaMapper')) {
+            log('APIAreaMapper: No APIAreaMapper state found. Creating it.');
             state.APIAreaMapper = {
-                version: schemaVersion,
-                areas: [],
-                areaInstances: [],
-                activeArea: null,
-                blueprintFloorPolygonColor: '#A3E1E4',
-                blueprintEdgeWallGapsPathColor: '#D13583',
-                blueprintInnerWallsPathColor: '#3535D1',
-                blueprintDoorPathColor: '#EC9B10',
-                blueprintChestPathColor: '#666666',
+                assets: {
+                    schemaVersion: 0
+                },
+                areas: {
+                    schemaVersion: 0
+                }
+            };
+        }
+        
+        if(state.APIAreaMapper.assets && state.APIAreaMapper.assets.schemaVersion !== assetSchemaVersion) {
+            log('APIAreaMapper: Resetting asset state.');
+            state.APIAreaMapper.assets = {
+                schemaVersion: assetSchemaVersion,
                 floorAssets: [
                         ['https://s3.amazonaws.com/files.d20.io/images/48971/thumb.jpg?1340229647',0,0,1,1,0,0],
                         ['https://s3.amazonaws.com/files.d20.io/images/224431/2KRtd2Vic84zocexdHKSDg/thumb.jpg?1348140031',0,0,1,1,0,0],
@@ -68,6 +77,15 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         [['https://s3.amazonaws.com/files.d20.io/images/7962/thumb.png?1336489213',0,0,1.1025,0.9523809523809523,0,-2],
                             ['https://s3.amazonaws.com/files.d20.io/images/2839308/_RR8niUb3sTQgLSoxDhM4g/thumb.png?1390469385',0,0,1,1.0396039603960396,0,-1]]
                     ]
+            };
+        }
+        
+        if(state.APIAreaMapper.areas && state.APIAreaMapper.areas.schemaVersion !== areaSchemaVersion) {
+            log('APIAreaMapper: Resetting area state.');
+            state.APIAreaMapper.areas = {
+                schemaVersion: areaSchemaVersion,
+                areas: [],
+                areaInstances: []
             };
         } 
         
@@ -2040,7 +2058,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 var newNameBase = 'new area ';
                 var greatestNewNameNumber = 0;
                 
-                state.APIAreaMapper.areas.forEach(function(a) {
+                state.APIAreaMapper.areas.areas.forEach(function(a) {
                     a.forEach(function(prop) {
                         if(prop[0] == 'name') {
                             if(prop[1].indexOf(newNameBase) === 0) {
@@ -2099,10 +2117,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this.hide();
         
         //delete the area from state:
-        for(var i = 0; i < state.APIAreaMapper.areas.length; i++) {
-            state.APIAreaMapper.areas[i].forEach(function(prop) {
+        for(var i = 0; i < state.APIAreaMapper.areas.areas.length; i++) {
+            state.APIAreaMapper.areas.areas[i].forEach(function(prop) {
                 if(prop[0] == 'id' && prop[1] == this.getProperty('id')) {
-                    state.APIAreaMapper.areas.splice(i, 1);
+                    state.APIAreaMapper.areas.areas.splice(i, 1);
                 }
             }, this);
         }
@@ -2113,12 +2131,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this.undraw();
         
         //remove all area instances from state:
-        var areaInstances = state.APIAreaMapper.areaInstances;
+        var areaInstances = state.APIAreaMapper.areas.areaInstances;
         for(var i = areaInstances.length - 1; i >= 0; i--) {
             
             //note: expects areaId to be the first property:
             if(areaInstances[i][0][1] === this.getProperty('id')) {
-                state.APIAreaMapper.areaInstances.splice(i, 1);        
+                state.APIAreaMapper.areas.areaInstances.splice(i, 1);        
             }
         }
     };
@@ -2128,7 +2146,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         //note: each area's state is stored in an array of key/value pairs
         
         var id = this.getProperty('id');
-        var areas = state.APIAreaMapper.areas;
+        var areas = state.APIAreaMapper.areas.areas;
         var areaState;
         areas.forEach(function(a) {
             a.forEach(function(prop) {
@@ -2191,12 +2209,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         //remove existing area state:
         var id = this.getProperty('id');
-        var areas = state.APIAreaMapper.areas;
+        var areas = state.APIAreaMapper.areas.areas;
         var oldAreaState;
         for(var i = 0; i < areas.length; i++) {
             areas[i].forEach(function(prop) {
                 if(prop[0] === 'id' && prop[1] === id) {
-                    oldAreaState = state.APIAreaMapper.areas.splice(i, 1);
+                    oldAreaState = state.APIAreaMapper.areas.areas.splice(i, 1);
                     return;
                 }
             });
@@ -2207,7 +2225,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }
         
         //save the updated area state:
-        state.APIAreaMapper.areas.push(areaState);
+        state.APIAreaMapper.areas.areas.push(areaState);
     };
     
     //draws an instance on the page, if one already exists, it'll be redrawn in the new location:
@@ -3010,7 +3028,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     
                     //if the texture is already a standard asset, cycle to the next one:
                     if(textureObject.getProperty('textureType') == 'asset') {
-                        textureObject.setProperty('value', ((textureObject.getProperty('value') + 1) % state.APIAreaMapper.floorAssets.length));
+                        textureObject.setProperty('value', ((textureObject.getProperty('value') + 1) % state.APIAreaMapper.assets.floorAssets.length));
                     }
                     //set the texture to the first standard asset:
                     else {
@@ -3025,7 +3043,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     
                     //if the texture is already a standard asset, cycle to the next one:
                     if(textureObject.getProperty('textureType') == 'asset') {
-                        textureObject.setProperty('value', ((textureObject.getProperty('value') + 1) % state.APIAreaMapper.wallAssets.length));
+                        textureObject.setProperty('value', ((textureObject.getProperty('value') + 1) % state.APIAreaMapper.assets.wallAssets.length));
                     }
                     //set the texture to the first standard asset:
                     else {
@@ -3040,7 +3058,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     
                     //if the texture is already a standard asset pair, cycle to the next one:
                     if(textureObject.getProperty('textureType') == 'asset') {
-                        textureObject.setProperty('value', ((textureObject.getProperty('value') + 1) % state.APIAreaMapper.doorAssets.length));
+                        textureObject.setProperty('value', ((textureObject.getProperty('value') + 1) % state.APIAreaMapper.assets.doorAssets.length));
                     }
                     //set the texture to the first standard asset pair:
                     else {
@@ -3055,7 +3073,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     
                     //if the texture is already a standard asset pair, cycle to the next one:
                     if(textureObject.getProperty('textureType') == 'asset') {
-                        textureObject.setProperty('value', ((textureObject.getProperty('value') + 1) % state.APIAreaMapper.chestAssets.length));
+                        textureObject.setProperty('value', ((textureObject.getProperty('value') + 1) % state.APIAreaMapper.assets.chestAssets.length));
                     }
                     //set the texture to the first standard asset pair:
                     else {
@@ -3140,7 +3158,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     area.prototype.getInstancePageIds = function() {
         var instancePageIds = [];
     
-        state.APIAreaMapper.areaInstances.forEach(function(a) {
+        state.APIAreaMapper.areas.areaInstances.forEach(function(a) {
             if(a[0][1] === this.getProperty('id')) {
                 instancePageIds.push(a[1][1])
             }
@@ -3272,7 +3290,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var areaId = this.getProperty('areaId');
         var pageId = this.getProperty('pageId');
         
-        var areaInstances = state.APIAreaMapper.areaInstances;
+        var areaInstances = state.APIAreaMapper.areas.areaInstances;
         var areaInstanceState;
         areaInstances.forEach(function(a) {
             if(a[0][1] === areaId && a[1][1] === pageId) {
@@ -3340,14 +3358,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
         areaInstanceState.push(['blueprintChestIds', this.getProperty('blueprintChestIds')]);
         
         //remove existing area instance state:
-        var areaInstances = state.APIAreaMapper.areaInstances;
+        var areaInstances = state.APIAreaMapper.areas.areaInstances;
         var oldAreaInstanceState;
         for(var i = 0; i < areaInstances.length; i++) {
             
             //note: expects areaId and pageId to be the first and second properties:
             if(areaInstances[i][0][1] === this.getProperty('areaId')
                     && areaInstances[i][1][1] === this.getProperty('pageId')) {
-                oldAreaInstanceState = state.APIAreaMapper.areaInstances.splice(i, 1);        
+                oldAreaInstanceState = state.APIAreaMapper.areas.areaInstances.splice(i, 1);        
             }
    
             if(oldAreaInstanceState) {
@@ -3356,7 +3374,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }
         
         //save the updated area instance state:
-        state.APIAreaMapper.areaInstances.push(areaInstanceState);
+        state.APIAreaMapper.areas.areaInstances.push(areaInstanceState);
     };
     
     areaInstance.prototype.undraw = function() {
@@ -3467,7 +3485,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var floorAsset;
         switch(floorTexture.getProperty('textureType')) {
             case 'asset':
-                floorAsset = new asset(state.APIAreaMapper.floorAssets[floorTexture.getProperty('value')]);
+                floorAsset = new asset(state.APIAreaMapper.assets.floorAssets[floorTexture.getProperty('value')]);
                 break;
             case 'unique':
                 floorAsset = new asset(floorTexture.getProperty('value'));
@@ -3505,7 +3523,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var wallAsset;
         switch(wallTexture.getProperty('textureType')) {
             case 'asset':
-                wallAsset = new asset(state.APIAreaMapper.wallAssets[wallTexture.getProperty('value')][0]);
+                wallAsset = new asset(state.APIAreaMapper.assets.wallAssets[wallTexture.getProperty('value')][0]);
                 break;
             case 'unique':
                 wallAsset = new asset(wallTexture.getProperty('value')[0]);
@@ -3620,7 +3638,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     var wallTexture = new texture(a.getProperty('wallTexture'));
                     switch(wallTexture.getProperty('textureType')) {
                         case 'asset':
-                            doorAsset = new asset(state.APIAreaMapper.wallAssets[wallTexture.getProperty('value')][doorState.getProperty('isOpen') ? 1 : 0]);
+                            doorAsset = new asset(state.APIAreaMapper.assets.wallAssets[wallTexture.getProperty('value')][doorState.getProperty('isOpen') ? 1 : 0]);
                             break;
                         case 'unique':
                             doorAsset = new asset(wallTexture.getProperty('value')[doorState.getProperty('isOpen') ? 1 : 0]);
@@ -3633,7 +3651,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     var doorTexture = new texture(a.getProperty('doorTexture'));
                     switch(doorTexture.getProperty('textureType')) {
                         case 'asset':
-                            doorAsset = new asset(state.APIAreaMapper.doorAssets[doorTexture.getProperty('value')][doorState.getProperty('isOpen') ? 1 : 0]);
+                            doorAsset = new asset(state.APIAreaMapper.assets.doorAssets[doorTexture.getProperty('value')][doorState.getProperty('isOpen') ? 1 : 0]);
                             break;
                         case 'unique':
                             doorAsset = new asset(doorTexture.getProperty('value')[doorState.getProperty('isOpen') ? 1 : 0]);
@@ -3768,7 +3786,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 var chestTexture = new texture(a.getProperty('chestTexture'));
                 switch(chestTexture.getProperty('textureType')) {
                     case 'asset':
-                        chestAsset = new asset(state.APIAreaMapper.chestAssets[chestTexture.getProperty('value')][chestState.getProperty('isOpen') ? 1 : 0]);
+                        chestAsset = new asset(state.APIAreaMapper.assets.chestAssets[chestTexture.getProperty('value')][chestState.getProperty('isOpen') ? 1 : 0]);
                         break;
                     case 'unique':
                         chestAsset = new asset(chestTexture.getProperty('value')[chestState.getProperty('isOpen') ? 1 : 0]);
@@ -3902,8 +3920,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     a.getProperty('floorplan'),
                     this.getProperty('pageId'),
                     'map',
-                    state.APIAreaMapper.blueprintFloorPolygonColor,
-                    state.APIAreaMapper.blueprintFloorPolygonColor,
+                    blueprintFloorPolygonColor,
+                    blueprintFloorPolygonColor,
                     top,
                     left,
                     a.getProperty('height'),
@@ -3919,7 +3937,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         ewRaw.rawPath,
                         this.getProperty('pageId'),
                         'objects',
-                        state.APIAreaMapper.blueprintEdgeWallGapsPathColor,
+                        blueprintEdgeWallGapsPathColor,
                         'transparent',
                         top + ewRaw.top,
                         left + ewRaw.left,
@@ -3936,7 +3954,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         iw[0],
                         this.getProperty('pageId'),
                         'objects',
-                        state.APIAreaMapper.blueprintInnerWallsPathColor,
+                        blueprintInnerWallsPathColor,
                         'transparent',
                         top + iw[1],
                         left + iw[2],
@@ -3955,7 +3973,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         rp.rawPath,
                         this.getProperty('pageId'),
                         'objects',
-                        state.APIAreaMapper.blueprintDoorPathColor,
+                        blueprintDoorPathColor,
                         'transparent',
                         rp.top,
                         rp.left,
@@ -3971,8 +3989,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 createRectanglePathObject(
                         this.getProperty('pageId'),
                         'objects',
-                        state.APIAreaMapper.blueprintChestPathColor,
-                        state.APIAreaMapper.blueprintChestPathColor,
+                        blueprintChestPathColor,
+                        blueprintChestPathColor,
                         c[0] + top,
                         c[1] + left,
                         c[2],
@@ -4339,7 +4357,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 var asset1;
                 switch(textureObject.getProperty('textureType')) {
                     case 'asset':
-                        asset1 = new asset(state.APIAreaMapper.floorAssets[textureObject.getProperty('value')]);
+                        asset1 = new asset(state.APIAreaMapper.assets.floorAssets[textureObject.getProperty('value')]);
                         break;
                     case 'unique':
                         asset1 = new asset(textureObject.getProperty('value'));
@@ -4430,8 +4448,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     asset2;
                 switch(textureObject.getProperty('textureType')) {
                     case 'asset':
-                        asset1 = new asset(state.APIAreaMapper.wallAssets[textureObject.getProperty('value')][0]);
-                        asset2 = new asset(state.APIAreaMapper.wallAssets[textureObject.getProperty('value')][1]);
+                        asset1 = new asset(state.APIAreaMapper.assets.wallAssets[textureObject.getProperty('value')][0]);
+                        asset2 = new asset(state.APIAreaMapper.assets.wallAssets[textureObject.getProperty('value')][1]);
                         break;
                     case 'unique':
                         asset1 = new asset(textureObject.getProperty('value')[0]);
@@ -4553,8 +4571,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     asset2;
                 switch(textureObject.getProperty('textureType')) {
                     case 'asset':
-                        asset1 = new asset(state.APIAreaMapper.doorAssets[textureObject.getProperty('value')][0]);
-                        asset2 = new asset(state.APIAreaMapper.doorAssets[textureObject.getProperty('value')][1]);
+                        asset1 = new asset(state.APIAreaMapper.assets.doorAssets[textureObject.getProperty('value')][0]);
+                        asset2 = new asset(state.APIAreaMapper.assets.doorAssets[textureObject.getProperty('value')][1]);
                         break;
                     case 'unique':
                         asset1 = new asset(textureObject.getProperty('value')[0]);
@@ -4676,8 +4694,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     asset2;
                 switch(textureObject.getProperty('textureType')) {
                     case 'asset':
-                        asset1 = new asset(state.APIAreaMapper.chestAssets[textureObject.getProperty('value')][0]);
-                        asset2 = new asset(state.APIAreaMapper.chestAssets[textureObject.getProperty('value')][1]);
+                        asset1 = new asset(state.APIAreaMapper.assets.chestAssets[textureObject.getProperty('value')][0]);
+                        asset2 = new asset(state.APIAreaMapper.assets.chestAssets[textureObject.getProperty('value')][1]);
                         break;
                     case 'unique':
                         asset1 = new asset(textureObject.getProperty('value')[0]);
@@ -4994,20 +5012,20 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         switch(assetManagementStateObject.getProperty('classification')) {
             case 'floor':
-                state.APIAreaMapper.floorAssets.push(assetStateObject);
-                textureObject.setProperty('value', state.APIAreaMapper.floorAssets.length - 1);
+                state.APIAreaMapper.assets.floorAssets.push(assetStateObject);
+                textureObject.setProperty('value', state.APIAreaMapper.assets.floorAssets.length - 1);
                 break;
             case 'wall':
-                state.APIAreaMapper.wallAssets.push(assetStateObject);
-                textureObject.setProperty('value', state.APIAreaMapper.wallAssets.length - 1);
+                state.APIAreaMapper.assets.wallAssets.push(assetStateObject);
+                textureObject.setProperty('value', state.APIAreaMapper.assets.wallAssets.length - 1);
                 break;
             case 'door':
-                state.APIAreaMapper.doorAssets.push(assetStateObject);
-                textureObject.setProperty('value', state.APIAreaMapper.doorAssets.length - 1);
+                state.APIAreaMapper.assets.doorAssets.push(assetStateObject);
+                textureObject.setProperty('value', state.APIAreaMapper.assets.doorAssets.length - 1);
                 break;
             case 'chest':
-                state.APIAreaMapper.chestAssets.push(assetStateObject);
-                textureObject.setProperty('value', state.APIAreaMapper.chestAssets.length - 1);
+                state.APIAreaMapper.assets.chestAssets.push(assetStateObject);
+                textureObject.setProperty('value', state.APIAreaMapper.assets.chestAssets.length - 1);
                 break;
             default:
                 log('Unhandled asset classification of ' + assetManagementStateObject.getProperty('classification') + ' in manageAsestCreateGlobal().');
@@ -5022,16 +5040,16 @@ var APIAreaMapper = APIAreaMapper || (function() {
             
             switch(assetManagementStateObject.getProperty('classification')) {
                 case 'floor':
-                    a.useGlobalAsset(assetManagementStateObject.getProperty('classification'), state.APIAreaMapper.floorAssets.length - 1);
+                    a.useGlobalAsset(assetManagementStateObject.getProperty('classification'), state.APIAreaMapper.assets.floorAssets.length - 1);
                     break;
                 case 'wall':
-                    a.useGlobalAsset(assetManagementStateObject.getProperty('classification'), state.APIAreaMapper.wallAssets.length - 1);
+                    a.useGlobalAsset(assetManagementStateObject.getProperty('classification'), state.APIAreaMapper.assets.wallAssets.length - 1);
                     break;
                 case 'door':
-                    a.useGlobalAsset(assetManagementStateObject.getProperty('classification'), state.APIAreaMapper.doorAssets.length - 1);
+                    a.useGlobalAsset(assetManagementStateObject.getProperty('classification'), state.APIAreaMapper.assets.doorAssets.length - 1);
                     break;
                 case 'chest':
-                    a.useGlobalAsset(assetManagementStateObject.getProperty('classification'), state.APIAreaMapper.chestAssets.length - 1);
+                    a.useGlobalAsset(assetManagementStateObject.getProperty('classification'), state.APIAreaMapper.assets.chestAssets.length - 1);
                     break;
                 default:
                     log('Unhandled asset classification of ' + assetManagementStateObject.getProperty('classification') + ' in manageAsestCreateGlobal().');
@@ -5139,16 +5157,16 @@ var APIAreaMapper = APIAreaMapper || (function() {
             var assetLength;
             switch(assetManagementStateObject.getProperty('classification')) {
                 case 'floor':
-                    assetLength = state.APIAreaMapper.floorAssets.length;
+                    assetLength = state.APIAreaMapper.assets.floorAssets.length;
                     break;
                 case 'wall':
-                    assetLength = state.APIAreaMapper.wallAssets.length;
+                    assetLength = state.APIAreaMapper.assets.wallAssets.length;
                     break;
                 case 'door':
-                    assetLength = state.APIAreaMapper.doorAssets.length;
+                    assetLength = state.APIAreaMapper.assets.doorAssets.length;
                     break;
                 case 'chest':
-                    assetLength = state.APIAreaMapper.chestAssets.length;
+                    assetLength = state.APIAreaMapper.assets.chestAssets.length;
                     break;
                 default:
                     log('Unhandled asset classification of ' + assetManagementStateObject.getProperty('classification') + ' in handleManageAssetCycle().');
@@ -5214,7 +5232,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             assetsList.splice(textureObject.getProperty('value'), 1);
             
             //update textures in all areas:
-            state.APIAreaMapper.areas.forEach(function(areaState) {
+            state.APIAreaMapper.areas.areas.forEach(function(areaState) {
                 areaState.forEach(function(prop) {
                     if(prop[0] == 'id') {
                         var a = new area(prop[1]);
@@ -5241,16 +5259,16 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var newTextureObject;
         switch(assetManagementStateObject.getProperty('classification')) {
             case 'floor':
-                newTextureObject = manageAssetsDeleteByClassification(assetManagementStateObject.getProperty('classification'), 'floorTexture', state.APIAreaMapper.floorAssets, textureObject, followUpAction);
+                newTextureObject = manageAssetsDeleteByClassification(assetManagementStateObject.getProperty('classification'), 'floorTexture', state.APIAreaMapper.assets.floorAssets, textureObject, followUpAction);
                 break;
             case 'wall':
-                newTextureObject = manageAssetsDeleteByClassification(assetManagementStateObject.getProperty('classification'), 'wallTexture', state.APIAreaMapper.wallAssets, textureObject, followUpAction);
+                newTextureObject = manageAssetsDeleteByClassification(assetManagementStateObject.getProperty('classification'), 'wallTexture', state.APIAreaMapper.assets.wallAssets, textureObject, followUpAction);
                 break;
             case 'door':
-                newTextureObject = manageAssetsDeleteByClassification(assetManagementStateObject.getProperty('classification'), 'doorTexture', state.APIAreaMapper.doorAssets, textureObject, followUpAction);
+                newTextureObject = manageAssetsDeleteByClassification(assetManagementStateObject.getProperty('classification'), 'doorTexture', state.APIAreaMapper.assets.doorAssets, textureObject, followUpAction);
                 break;
             case 'chest':
-                newTextureObject = manageAssetsDeleteByClassification(assetManagementStateObject.getProperty('classification'), 'chestTexture', state.APIAreaMapper.chestAssets, textureObject, followUpAction);
+                newTextureObject = manageAssetsDeleteByClassification(assetManagementStateObject.getProperty('classification'), 'chestTexture', state.APIAreaMapper.assets.chestAssets, textureObject, followUpAction);
                 break;
             default:
                 log('Unhandled classification of ' + assetManagementStateObject.getProperty('classification') + ' in handleManageAssetGlobalDelete().');
@@ -5353,24 +5371,24 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'asset':
                 switch(assetManagementStateObject.getProperty('classification')) {
                     case 'floor':
-                        var assetObject = new asset(state.APIAreaMapper.floorAssets[textureObject.getProperty('value')]);
+                        var assetObject = new asset(state.APIAreaMapper.assets.floorAssets[textureObject.getProperty('value')]);
                         setPropertyToValue(assetObject, property, value, updateType);
-                        state.APIAreaMapper.floorAssets[textureObject.getProperty('value')] = assetObject.getStateObject();
+                        state.APIAreaMapper.assets.floorAssets[textureObject.getProperty('value')] = assetObject.getStateObject();
                         break;
                     case 'wall':
-                        var assetObject = new asset(state.APIAreaMapper.wallAssets[textureObject.getProperty('value')][assetManagementStateObject.getProperty('pairIndex')]);
+                        var assetObject = new asset(state.APIAreaMapper.assets.wallAssets[textureObject.getProperty('value')][assetManagementStateObject.getProperty('pairIndex')]);
                         setPropertyToValue(assetObject, property, value, updateType);
-                        state.APIAreaMapper.wallAssets[textureObject.getProperty('value')][assetManagementStateObject.getProperty('pairIndex')] = assetObject.getStateObject();
+                        state.APIAreaMapper.assets.wallAssets[textureObject.getProperty('value')][assetManagementStateObject.getProperty('pairIndex')] = assetObject.getStateObject();
                         break;
                     case 'door':
-                        var assetObject = new asset(state.APIAreaMapper.doorAssets[textureObject.getProperty('value')][assetManagementStateObject.getProperty('pairIndex')]);
+                        var assetObject = new asset(state.APIAreaMapper.assets.doorAssets[textureObject.getProperty('value')][assetManagementStateObject.getProperty('pairIndex')]);
                         setPropertyToValue(assetObject, property, value, updateType);
-                        state.APIAreaMapper.doorAssets[textureObject.getProperty('value')][assetManagementStateObject.getProperty('pairIndex')] = assetObject.getStateObject();
+                        state.APIAreaMapper.assets.doorAssets[textureObject.getProperty('value')][assetManagementStateObject.getProperty('pairIndex')] = assetObject.getStateObject();
                         break;
                     case 'chest':
-                        var assetObject = new asset(state.APIAreaMapper.chestAssets[textureObject.getProperty('value')][assetManagementStateObject.getProperty('pairIndex')]);
+                        var assetObject = new asset(state.APIAreaMapper.assets.chestAssets[textureObject.getProperty('value')][assetManagementStateObject.getProperty('pairIndex')]);
                         setPropertyToValue(assetObject, property, value, updateType);
-                        state.APIAreaMapper.chestAssets[textureObject.getProperty('value')][assetManagementStateObject.getProperty('pairIndex')] = assetObject.getStateObject();
+                        state.APIAreaMapper.assets.chestAssets[textureObject.getProperty('value')][assetManagementStateObject.getProperty('pairIndex')] = assetObject.getStateObject();
                         break;
                     default:
                         log('Unhandled classification of ' + assetManagementStateObject.getProperty('classification') + ' in manageAssetEditSetProperty().');
@@ -5484,19 +5502,19 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'asset':
                 switch(assetManagementStateObject.getProperty('classification')) {
                     case 'wall':
-                        var tempAsset = state.APIAreaMapper.wallAssets[textureObject.getProperty('value')][0];
-                        state.APIAreaMapper.wallAssets[textureObject.getProperty('value')][0] = state.APIAreaMapper.wallAssets[textureObject.getProperty('value')][1];
-                        state.APIAreaMapper.wallAssets[textureObject.getProperty('value')][1] = tempAsset;
+                        var tempAsset = state.APIAreaMapper.assets.wallAssets[textureObject.getProperty('value')][0];
+                        state.APIAreaMapper.assets.wallAssets[textureObject.getProperty('value')][0] = state.APIAreaMapper.assets.wallAssets[textureObject.getProperty('value')][1];
+                        state.APIAreaMapper.assets.wallAssets[textureObject.getProperty('value')][1] = tempAsset;
                         break;
                     case 'door':
-                        var tempAsset = state.APIAreaMapper.doorAssets[textureObject.getProperty('value')][0];
-                        state.APIAreaMapper.doorAssets[textureObject.getProperty('value')][0] = state.APIAreaMapper.doorAssets[textureObject.getProperty('value')][1];
-                        state.APIAreaMapper.doorAssets[textureObject.getProperty('value')][1] = tempAsset;
+                        var tempAsset = state.APIAreaMapper.assets.doorAssets[textureObject.getProperty('value')][0];
+                        state.APIAreaMapper.assets.doorAssets[textureObject.getProperty('value')][0] = state.APIAreaMapper.assets.doorAssets[textureObject.getProperty('value')][1];
+                        state.APIAreaMapper.assets.doorAssets[textureObject.getProperty('value')][1] = tempAsset;
                         break;
                     case 'chest':
-                        var tempAsset = state.APIAreaMapper.chestAssets[textureObject.getProperty('value')][0];
-                        state.APIAreaMapper.chestAssets[textureObject.getProperty('value')][0] = state.APIAreaMapper.chestAssets[textureObject.getProperty('value')][1];
-                        state.APIAreaMapper.chestAssets[textureObject.getProperty('value')][1] = tempAsset;
+                        var tempAsset = state.APIAreaMapper.assets.chestAssets[textureObject.getProperty('value')][0];
+                        state.APIAreaMapper.assets.chestAssets[textureObject.getProperty('value')][0] = state.APIAreaMapper.assets.chestAssets[textureObject.getProperty('value')][1];
+                        state.APIAreaMapper.assets.chestAssets[textureObject.getProperty('value')][1] = tempAsset;
                         break;
                     default:
                         log('Unhandled classification of ' + assetManagementStateObject.getProperty('classification') + ' in handleManageAssetEditSwapAssets().');
@@ -6109,7 +6127,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var archivedCount = 0;
         
         //populate drawn areas (with instance count):
-        state.APIAreaMapper.areaInstances.forEach(function(ai) {
+        state.APIAreaMapper.areas.areaInstances.forEach(function(ai) {
             var areaId = ai[0][1];
             
             if(areasByFolder[0][areaId]) {
@@ -6122,7 +6140,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }, this);
         
         //populate area information:
-        state.APIAreaMapper.areas.forEach(function(a) {
+        state.APIAreaMapper.areas.areas.forEach(function(a) {
             var areaId,
                 areaName,
                 areaArchived;
@@ -6200,7 +6218,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         sendStandardInterface(who, 'Area Mapper',
             uiSection('Main Menu', null, [
                     ['navigationActive', 'active area', 'activeArea', !state.APIAreaMapper.activeArea, false],
-                    ['navigation', 'list areas', 'listAreas drawn', !state.APIAreaMapper.areas.length, false],
+                    ['navigation', 'list areas', 'listAreas drawn', !state.APIAreaMapper.areas.areas.length, false],
                     ['active', 'create new area', 'areaCreate', false, (state.APIAreaMapper.recordAreaMode == 'areaCreate')]
                 ])
         );
@@ -6407,19 +6425,19 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'asset':
                 switch(assetManagementStateObject.getProperty('classification')) {
                     case 'floor':
-                        asset1 = new asset(state.APIAreaMapper.floorAssets[textureObject.getProperty('value')]);
+                        asset1 = new asset(state.APIAreaMapper.assets.floorAssets[textureObject.getProperty('value')]);
                         break;
                     case 'wall':
-                        asset1 = new asset(state.APIAreaMapper.wallAssets[textureObject.getProperty('value')][0]);
-                        asset2 = new asset(state.APIAreaMapper.wallAssets[textureObject.getProperty('value')][1]);
+                        asset1 = new asset(state.APIAreaMapper.assets.wallAssets[textureObject.getProperty('value')][0]);
+                        asset2 = new asset(state.APIAreaMapper.assets.wallAssets[textureObject.getProperty('value')][1]);
                         break;
                     case 'door':
-                        asset1 = new asset(state.APIAreaMapper.doorAssets[textureObject.getProperty('value')][0]);
-                        asset2 = new asset(state.APIAreaMapper.doorAssets[textureObject.getProperty('value')][1]);
+                        asset1 = new asset(state.APIAreaMapper.assets.doorAssets[textureObject.getProperty('value')][0]);
+                        asset2 = new asset(state.APIAreaMapper.assets.doorAssets[textureObject.getProperty('value')][1]);
                         break;
                     case 'chest':
-                        asset1 = new asset(state.APIAreaMapper.chestAssets[textureObject.getProperty('value')][0]);
-                        asset2 = new asset(state.APIAreaMapper.chestAssets[textureObject.getProperty('value')][1]);
+                        asset1 = new asset(state.APIAreaMapper.assets.chestAssets[textureObject.getProperty('value')][0]);
+                        asset2 = new asset(state.APIAreaMapper.assets.chestAssets[textureObject.getProperty('value')][1]);
                         break;
                     default:
                         log('Unhandled classification of ' + assetManagementStateObject.getProperty('classification') + ' in interfaceManageAssetEdit().');
