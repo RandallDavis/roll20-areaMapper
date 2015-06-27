@@ -6,7 +6,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 0.145,
+    var version = 0.146,
         areaSchemaVersion = 0.1,
         assetSchemaVersion = 0.1,
         buttonBackgroundColor = '#CC1869',
@@ -35,6 +35,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         blueprintInnerWallsPathColor = '#3535D1',
         blueprintDoorPathColor = '#EC9B10',
         blueprintChestPathColor = '#666666',
+        zOrderWorkaround = true,
         
     checkInstall = function() {
         
@@ -1471,8 +1472,26 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     /* roll20 object management - begin */
     
+    var toBackObject = function(type, id) {
+        var obj = getObj(type, id);
+        if(obj) {
+            toBack(obj);
+        }
+    },
+    
+    toBackListWithDelays = function(l) {
+        var obj;
+        if(l.length) {
+        	obj = l.shift();
+			toBackObject(obj[0], obj[1]);
+			if(l.length) {
+				setTimeout(_.partial(toBackListWithDelays, l), 50);
+			}
+		}
+    },
+    
     //find imgsrc that is legal for object creation:
-    var getCleanImgsrc = function (imgsrc) {
+    getCleanImgsrc = function(imgsrc) {
         var parts = imgsrc.match(/(.*\/images\/.*)(thumb|max|med)(.*)$/);
         
         if(parts) {
@@ -3543,7 +3562,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     createTokenObjectFromAssetBySegment(
                             wallAsset,
                             this.getProperty('pageId'),
-                            'objects',
+                            'map',
                             new segment(new point(s.a.x, s.a.y), new point(s.b.x, s.b.y)),
                             wallThickness,
                             wallLengthExtension
@@ -3577,7 +3596,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     createTokenObjectFromAssetBySegment(
                             wallAsset,
                             this.getProperty('pageId'),
-                            'objects',
+                            'map',
                             new segment(new point(s.a.x, s.a.y), new point(s.b.x, s.b.y)),
                             wallThickness,
                             wallLengthExtension
@@ -3612,6 +3631,22 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }
        
         this.save();
+        
+        /*
+        Run toBack() on objects as a workaround for the Roll20 API bug 
+        https://app.roll20.net/forum/post/1986741/api-z-order-with-newly-created-objects-tofront-and-toback-is-broken/#post-1986741
+        */
+        if(zOrderWorkaround) {
+            var toBackIds = [];
+            
+            toBackIds.unshift(['graphic', this.getProperty('floorTileId')]);
+            toBackIds.unshift(['path', this.getProperty('floorMaskId')]);
+            this.getProperty('wallIds').forEach(function(w) {
+                toBackIds.unshift(['graphic', w]);
+            }, this);
+            
+            toBackListWithDelays(toBackIds);
+        }
     };
     
     //draws an interactive object, which may replace an existing one:
@@ -4308,7 +4343,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
             assetStretchWidth = 200,
             assetPairStretchSpacing = 20,
             labelHover = 36,
-            pageId = Campaign().get('playerpageid');
+            pageId = Campaign().get('playerpageid'),
+            toBackIds = [];
         
         state.APIAreaMapper.assetManagementModalIds = [];
         
@@ -4324,33 +4360,35 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'floor':
                 
                 //create the modal frame:
-                state.APIAreaMapper.assetManagementModalIds.push(['path', 
-                    createRectanglePathObject(
-                            pageId, 
-                            'objects', 
-                            '#000000', 
-                            headerBackgroundColor, 
-                            modalTop, 
-                            modalLeft, 
-                            modalNonPairHeight, 
-                            modalWidth,
-                            2
-                        ).id]);
+                var modalFramePath = createRectanglePathObject(
+                        pageId, 
+                        'objects', 
+                        '#000000', 
+                        headerBackgroundColor, 
+                        modalTop, 
+                        modalLeft, 
+                        modalNonPairHeight, 
+                        modalWidth,
+                        2
+                    );
+                state.APIAreaMapper.assetManagementModalIds.push(['path', modalFramePath.id]);
+                toBackIds.unshift(['path', modalFramePath.id]);
                         
                 //highlight the active asset:
                 if(highlightEditedAsset) {
-                    state.APIAreaMapper.assetManagementModalIds.push(['path', 
-                        createRectanglePathObject(
-                                pageId, 
-                                'objects', 
-                                '#ff0000', 
-                                'transparent', 
-                                modalTop + highlightEditedAssetMargin, 
-                                modalLeft + highlightEditedAssetMargin, 
-                                modalNonPairHeight - (2 * highlightEditedAssetMargin), 
-                                modalWidth - (2 * highlightEditedAssetMargin),
-                                2
-                            ).id]);
+                    var editedAssetHighlightPath = createRectanglePathObject(
+                            pageId, 
+                            'objects', 
+                            '#ff0000', 
+                            'transparent', 
+                            modalTop + highlightEditedAssetMargin, 
+                            modalLeft + highlightEditedAssetMargin, 
+                            modalNonPairHeight - (2 * highlightEditedAssetMargin), 
+                            modalWidth - (2 * highlightEditedAssetMargin),
+                            2
+                        );
+                    state.APIAreaMapper.assetManagementModalIds.push(['path', editedAssetHighlightPath.id]);
+                    toBackIds.unshift(['path', editedAssetHighlightPath.id]);
                 }
                         
                 //note: if there is a classification, there must be a texture:
@@ -4371,76 +4409,79 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 
                 //draw asset:
                 if(asset1) {
-                    state.APIAreaMapper.assetManagementModalIds.push(['graphic', 
-                        createTokenObjectFromAsset(
-                                asset1,
-                                pageId,
-                                'objects',
-                                modalTop + modalTopMargin,
-                                modalLeft + ((modalWidth - assetNonStretchSize) / 2),
-                                assetNonStretchSize,
-                                assetNonStretchSize
-                            ).id]);
+                    var assetToken = createTokenObjectFromAsset(
+                            asset1,
+                            pageId,
+                            'objects',
+                            modalTop + modalTopMargin,
+                            modalLeft + ((modalWidth - assetNonStretchSize) / 2),
+                            assetNonStretchSize,
+                            assetNonStretchSize
+                        );
+                    state.APIAreaMapper.assetManagementModalIds.push(['graphic', assetToken.id]);
+                    toBackIds.unshift(['graphic', assetToken.id]);
                 }
                 
                 //draw band:
-                state.APIAreaMapper.assetManagementModalIds.push(['path', 
-                        createBandPathObject(
-                                pageId, 
-                                modalTop + modalTopMargin,
-                                modalLeft + ((modalWidth - assetNonStretchSize) / 2),
-                                assetNonStretchSize,
-                                assetNonStretchSize, 
-                                0, 
-                                '#00ff00', 
-                                0, 
-                                'objects'
-                            ).id
-                    ]);
+                var bandPath = createBandPathObject(
+                        pageId, 
+                        modalTop + modalTopMargin,
+                        modalLeft + ((modalWidth - assetNonStretchSize) / 2),
+                        assetNonStretchSize,
+                        assetNonStretchSize, 
+                        0, 
+                        '#00ff00', 
+                        0, 
+                        'objects'
+                    );
+                state.APIAreaMapper.assetManagementModalIds.push(['path', bandPath.id]);
+                toBackIds.unshift(['path', bandPath.id]);
                 
                 //draw label:
-                state.APIAreaMapper.assetManagementModalIds.push(['text',
-                        createTextObject(
-                                'floor asset',
-                                pageId,
-                                'objects',
-                                modalTop + modalTopMargin - labelHover,
-                                modalLeft + ((modalWidth - assetNonStretchSize) / 2),
-                                labelHover,
-                                assetNonStretchSize
-                            ).id
-                    ]);
+                var labelText = createTextObject(
+                        'floor asset',
+                        pageId,
+                        'objects',
+                        modalTop + modalTopMargin - labelHover,
+                        modalLeft + ((modalWidth - assetNonStretchSize) / 2),
+                        labelHover,
+                        assetNonStretchSize
+                    );
+                state.APIAreaMapper.assetManagementModalIds.push(['text', labelText.id]);
+                toBackIds.unshift(['text', labelText.id]);
                 break;
             case 'wall':
                 
                 //create the modal frame:
-                state.APIAreaMapper.assetManagementModalIds.push(['path', 
-                    createRectanglePathObject(
-                            pageId, 
-                            'objects', 
-                            '#000000', 
-                            headerBackgroundColor, 
-                            modalTop, 
-                            modalLeft, 
-                            modalPairStretchHeight, 
-                            modalWidth,
-                            2
-                        ).id]);
+                var modalFramePath = createRectanglePathObject(
+                        pageId, 
+                        'objects', 
+                        '#000000', 
+                        headerBackgroundColor, 
+                        modalTop, 
+                        modalLeft, 
+                        modalPairStretchHeight, 
+                        modalWidth,
+                        2
+                    );
+                state.APIAreaMapper.assetManagementModalIds.push(['path', modalFramePath.id]);
+                toBackIds.unshift(['path', modalFramePath.id]);
                     
                 //highlight the active asset:
                 if(highlightEditedAsset) {
-                    state.APIAreaMapper.assetManagementModalIds.push(['path', 
-                        createRectanglePathObject(
-                                pageId, 
-                                'objects', 
-                                '#ff0000', 
-                                'transparent', 
-                                modalTop + highlightEditedAssetMargin, 
-                                modalLeft + highlightEditedAssetMargin + (assetManagementStateObject.getProperty('pairIndex') ? (modalWidth / 2) : 0), 
-                                modalPairStretchHeight - (2 * highlightEditedAssetMargin), 
-                                (modalWidth / 2) - (2 * highlightEditedAssetMargin),
-                                2
-                            ).id]);
+                    var editedAssetHighlightPath = createRectanglePathObject(
+                            pageId, 
+                            'objects', 
+                            '#ff0000', 
+                            'transparent', 
+                            modalTop + highlightEditedAssetMargin, 
+                            modalLeft + highlightEditedAssetMargin + (assetManagementStateObject.getProperty('pairIndex') ? (modalWidth / 2) : 0), 
+                            modalPairStretchHeight - (2 * highlightEditedAssetMargin), 
+                            (modalWidth / 2) - (2 * highlightEditedAssetMargin),
+                            2
+                        );
+                    state.APIAreaMapper.assetManagementModalIds.push(['path', editedAssetHighlightPath.id]);
+                    toBackIds.unshift(['path', editedAssetHighlightPath.id]);
                 }
        
                 //note: if there is a classification, there must be a texture:
@@ -4461,109 +4502,113 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 }
             
                 //draw assets:
-                state.APIAreaMapper.assetManagementModalIds.push(['graphic', 
-                    createTokenObjectFromAsset(
-                            asset1,
-                            pageId,
-                            'objects',
-                            modalTop + modalTopMargin,
-                            modalLeft + (modalWidth / 2) - assetStretchWidth - assetPairStretchSpacing,
-                            assetStretchHeight,
-                            assetStretchWidth
-                        ).id]);
-                state.APIAreaMapper.assetManagementModalIds.push(['graphic', 
-                    createTokenObjectFromAsset(
-                            asset2,
-                            pageId,
-                            'objects',
-                            modalTop + modalTopMargin,
-                            modalLeft + (modalWidth / 2) + assetPairStretchSpacing,
-                            assetStretchHeight,
-                            assetStretchWidth
-                        ).id]);
+                var assetToken = createTokenObjectFromAsset(
+                        asset1,
+                        pageId,
+                        'objects',
+                        modalTop + modalTopMargin,
+                        modalLeft + (modalWidth / 2) - assetStretchWidth - assetPairStretchSpacing,
+                        assetStretchHeight,
+                        assetStretchWidth
+                    );
+                state.APIAreaMapper.assetManagementModalIds.push(['graphic', assetToken.id]);
+                toBackIds.unshift(['graphic', assetToken.id]);
+                assetToken = createTokenObjectFromAsset(
+                        asset2,
+                        pageId,
+                        'objects',
+                        modalTop + modalTopMargin,
+                        modalLeft + (modalWidth / 2) + assetPairStretchSpacing,
+                        assetStretchHeight,
+                        assetStretchWidth
+                    );
+                state.APIAreaMapper.assetManagementModalIds.push(['graphic', assetToken.id]);
+                toBackIds.unshift(['graphic', assetToken.id]);
                 
                 //draw bands:
-                state.APIAreaMapper.assetManagementModalIds.push(['path', 
-                        createBandPathObject(
-                                pageId, 
-                                modalTop + modalTopMargin,
-                                modalLeft + (modalWidth / 2) - assetStretchWidth - assetPairStretchSpacing,
-                                assetStretchHeight,
-                                assetStretchWidth, 
-                                0, 
-                                '#00ff00', 
-                                0, 
-                                'objects'
-                            ).id
-                    ]);
-                state.APIAreaMapper.assetManagementModalIds.push(['path', 
-                        createBandPathObject(
-                                pageId, 
-                                modalTop + modalTopMargin,
-                                modalLeft + (modalWidth / 2) + assetPairStretchSpacing,
-                                assetStretchHeight,
-                                assetStretchWidth, 
-                                0, 
-                                '#00ff00', 
-                                0, 
-                                'objects'
-                            ).id
-                    ]);
+                var bandPath = createBandPathObject(
+                        pageId, 
+                        modalTop + modalTopMargin,
+                        modalLeft + (modalWidth / 2) - assetStretchWidth - assetPairStretchSpacing,
+                        assetStretchHeight,
+                        assetStretchWidth, 
+                        0, 
+                        '#00ff00', 
+                        0, 
+                        'objects'
+                    );
+                state.APIAreaMapper.assetManagementModalIds.push(['path', bandPath.id]);
+                toBackIds.unshift(['path', bandPath.id]);
+                bandPath = createBandPathObject(
+                        pageId, 
+                        modalTop + modalTopMargin,
+                        modalLeft + (modalWidth / 2) + assetPairStretchSpacing,
+                        assetStretchHeight,
+                        assetStretchWidth, 
+                        0, 
+                        '#00ff00', 
+                        0, 
+                        'objects'
+                    );
+                state.APIAreaMapper.assetManagementModalIds.push(['path', bandPath.id]);
+                toBackIds.unshift(['path', bandPath.id]);
                 
                 //draw labels:
-                state.APIAreaMapper.assetManagementModalIds.push(['text',
-                        createTextObject(
-                                'wall / hidden closed door asset',
-                                pageId,
-                                'objects',
-                                modalTop + modalTopMargin - labelHover,
-                                modalLeft + (modalWidth / 2) - (assetStretchWidth + assetPairStretchSpacing),
-                                labelHover,
-                                assetStretchWidth
-                            ).id
-                    ]);
-                state.APIAreaMapper.assetManagementModalIds.push(['text',
-                        createTextObject(
-                                'hidden open door asset',
-                                pageId,
-                                'objects',
-                                modalTop + modalTopMargin - labelHover,
-                                modalLeft + (modalWidth / 2) + assetPairStretchSpacing,
-                                labelHover,
-                                assetStretchWidth
-                            ).id
-                    ]);
+                var labelText = createTextObject(
+                        'wall / hidden closed door asset',
+                        pageId,
+                        'objects',
+                        modalTop + modalTopMargin - labelHover,
+                        modalLeft + (modalWidth / 2) - (assetStretchWidth + assetPairStretchSpacing),
+                        labelHover,
+                        assetStretchWidth
+                    );
+                state.APIAreaMapper.assetManagementModalIds.push(['text', labelText.id]);
+                toBackIds.unshift(['text', labelText.id]);
+                labelText = createTextObject(
+                        'hidden open door asset',
+                        pageId,
+                        'objects',
+                        modalTop + modalTopMargin - labelHover,
+                        modalLeft + (modalWidth / 2) + assetPairStretchSpacing,
+                        labelHover,
+                        assetStretchWidth
+                    );
+                state.APIAreaMapper.assetManagementModalIds.push(['text', labelText.id]);
+                toBackIds.unshift(['text', labelText.id]);
                 break;
             case 'door':
                 
                 //create the modal frame:
-                state.APIAreaMapper.assetManagementModalIds.push(['path', 
-                    createRectanglePathObject(
-                            pageId, 
-                            'objects', 
-                            '#000000', 
-                            headerBackgroundColor, 
-                            modalTop, 
-                            modalLeft, 
-                            modalPairStretchHeight, 
-                            modalWidth,
-                            2
-                        ).id]);
+                var modalFramePath = createRectanglePathObject(
+                        pageId, 
+                        'objects', 
+                        '#000000', 
+                        headerBackgroundColor, 
+                        modalTop, 
+                        modalLeft, 
+                        modalPairStretchHeight, 
+                        modalWidth,
+                        2
+                    );
+                state.APIAreaMapper.assetManagementModalIds.push(['path', modalFramePath.id]);
+                toBackIds.unshift(['path', modalFramePath.id]);
                         
                 //highlight the active asset:
                 if(highlightEditedAsset) {
-                    state.APIAreaMapper.assetManagementModalIds.push(['path', 
-                        createRectanglePathObject(
-                                pageId, 
-                                'objects', 
-                                '#ff0000', 
-                                'transparent', 
-                                modalTop + highlightEditedAssetMargin, 
-                                modalLeft + highlightEditedAssetMargin + (assetManagementStateObject.getProperty('pairIndex') ? (modalWidth / 2) : 0), 
-                                modalPairStretchHeight - (2 * highlightEditedAssetMargin), 
-                                (modalWidth / 2) - (2 * highlightEditedAssetMargin),
-                                2
-                            ).id]);
+                    var editedAssetHighlightPath = createRectanglePathObject(
+                            pageId, 
+                            'objects', 
+                            '#ff0000', 
+                            'transparent', 
+                            modalTop + highlightEditedAssetMargin, 
+                            modalLeft + highlightEditedAssetMargin + (assetManagementStateObject.getProperty('pairIndex') ? (modalWidth / 2) : 0), 
+                            modalPairStretchHeight - (2 * highlightEditedAssetMargin), 
+                            (modalWidth / 2) - (2 * highlightEditedAssetMargin),
+                            2
+                        );
+                    state.APIAreaMapper.assetManagementModalIds.push(['path', editedAssetHighlightPath.id]);
+                    toBackIds.unshift(['path', editedAssetHighlightPath.id]);
                 }
                         
                 //note: if there is a classification, there must be a texture:
@@ -4584,109 +4629,113 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 }
        
                 //draw assets:
-                state.APIAreaMapper.assetManagementModalIds.push(['graphic', 
-                    createTokenObjectFromAsset(
-                            asset1,
-                            pageId,
-                            'objects',
-                            modalTop + modalTopMargin,
-                            modalLeft + (modalWidth / 2) - assetStretchWidth - assetPairStretchSpacing,
-                            assetStretchHeight,
-                            assetStretchWidth
-                        ).id]);
-                state.APIAreaMapper.assetManagementModalIds.push(['graphic', 
-                    createTokenObjectFromAsset(
-                            asset2,
-                            pageId,
-                            'objects',
-                            modalTop + modalTopMargin,
-                            modalLeft + (modalWidth / 2) + assetPairStretchSpacing,
-                            assetStretchHeight,
-                            assetStretchWidth
-                        ).id]);
+                var assetToken = createTokenObjectFromAsset(
+                        asset1,
+                        pageId,
+                        'objects',
+                        modalTop + modalTopMargin,
+                        modalLeft + (modalWidth / 2) - assetStretchWidth - assetPairStretchSpacing,
+                        assetStretchHeight,
+                        assetStretchWidth
+                    );
+                state.APIAreaMapper.assetManagementModalIds.push(['graphic', assetToken.id]);
+                toBackIds.unshift(['graphic', assetToken.id]);
+                assetToken = createTokenObjectFromAsset(
+                        asset2,
+                        pageId,
+                        'objects',
+                        modalTop + modalTopMargin,
+                        modalLeft + (modalWidth / 2) + assetPairStretchSpacing,
+                        assetStretchHeight,
+                        assetStretchWidth
+                    );
+                state.APIAreaMapper.assetManagementModalIds.push(['graphic', assetToken.id]);
+                toBackIds.unshift(['graphic', assetToken.id]);
                 
                 //draw bands:
-                state.APIAreaMapper.assetManagementModalIds.push(['path', 
-                        createBandPathObject(
-                                pageId, 
-                                modalTop + modalTopMargin,
-                                modalLeft + (modalWidth / 2) - assetStretchWidth - assetPairStretchSpacing,
-                                assetStretchHeight,
-                                assetStretchWidth, 
-                                0, 
-                                '#00ff00', 
-                                0, 
-                                'objects'
-                            ).id
-                    ]);
-                state.APIAreaMapper.assetManagementModalIds.push(['path', 
-                        createBandPathObject(
-                                pageId, 
-                                modalTop + modalTopMargin,
-                                modalLeft + (modalWidth / 2) + assetPairStretchSpacing,
-                                assetStretchHeight,
-                                assetStretchWidth, 
-                                0, 
-                                '#00ff00', 
-                                0, 
-                                'objects'
-                            ).id
-                    ]);
+                var bandPath = createBandPathObject(
+                        pageId, 
+                        modalTop + modalTopMargin,
+                        modalLeft + (modalWidth / 2) - assetStretchWidth - assetPairStretchSpacing,
+                        assetStretchHeight,
+                        assetStretchWidth, 
+                        0, 
+                        '#00ff00', 
+                        0, 
+                        'objects'
+                    );
+                state.APIAreaMapper.assetManagementModalIds.push(['path', bandPath.id]);
+                toBackIds.unshift(['path', bandPath.id]);
+                bandPath = createBandPathObject(
+                        pageId, 
+                        modalTop + modalTopMargin,
+                        modalLeft + (modalWidth / 2) + assetPairStretchSpacing,
+                        assetStretchHeight,
+                        assetStretchWidth, 
+                        0, 
+                        '#00ff00', 
+                        0, 
+                        'objects'
+                    );
+                state.APIAreaMapper.assetManagementModalIds.push(['path', bandPath.id]);
+                toBackIds.unshift(['path', bandPath.id]);
                 
                 //draw labels:
-                state.APIAreaMapper.assetManagementModalIds.push(['text',
-                        createTextObject(
-                                'closed door asset',
-                                pageId,
-                                'objects',
-                                modalTop + modalTopMargin - labelHover,
-                                modalLeft + (modalWidth / 2) - (assetStretchWidth + assetPairStretchSpacing),
-                                labelHover,
-                                assetStretchWidth
-                            ).id
-                    ]);
-                state.APIAreaMapper.assetManagementModalIds.push(['text',
-                        createTextObject(
-                                'open door asset',
-                                pageId,
-                                'objects',
-                                modalTop + modalTopMargin - labelHover,
-                                modalLeft + (modalWidth / 2) + assetPairStretchSpacing,
-                                labelHover,
-                                assetStretchWidth
-                            ).id
-                    ]);
+                var labelText = createTextObject(
+                        'closed door asset',
+                        pageId,
+                        'objects',
+                        modalTop + modalTopMargin - labelHover,
+                        modalLeft + (modalWidth / 2) - (assetStretchWidth + assetPairStretchSpacing),
+                        labelHover,
+                        assetStretchWidth
+                    );
+                state.APIAreaMapper.assetManagementModalIds.push(['text', labelText.id]);
+                toBackIds.unshift(['text', labelText.id]);
+                labelText = createTextObject(
+                        'open door asset',
+                        pageId,
+                        'objects',
+                        modalTop + modalTopMargin - labelHover,
+                        modalLeft + (modalWidth / 2) + assetPairStretchSpacing,
+                        labelHover,
+                        assetStretchWidth
+                    );
+                state.APIAreaMapper.assetManagementModalIds.push(['text', labelText.id]);
+                toBackIds.unshift(['text', labelText.id]);
                 break;
             case 'chest':
                 
                 //create the modal frame:
-                state.APIAreaMapper.assetManagementModalIds.push(['path', 
-                    createRectanglePathObject(
-                            pageId, 
-                            'objects', 
-                            '#000000', 
-                            headerBackgroundColor, 
-                            modalTop, 
-                            modalLeft, 
-                            modalPairNonStretchHeight, 
-                            modalWidth,
-                            2
-                        ).id]);
+                var modalFramePath = createRectanglePathObject(
+                        pageId, 
+                        'objects', 
+                        '#000000', 
+                        headerBackgroundColor, 
+                        modalTop, 
+                        modalLeft, 
+                        modalPairNonStretchHeight, 
+                        modalWidth,
+                        2
+                    );
+                state.APIAreaMapper.assetManagementModalIds.push(['path', modalFramePath.id]);
+                toBackIds.unshift(['path', modalFramePath.id]);
                         
                 //highlight the active asset:
                 if(highlightEditedAsset) {
-                    state.APIAreaMapper.assetManagementModalIds.push(['path', 
-                        createRectanglePathObject(
-                                pageId, 
-                                'objects', 
-                                '#ff0000', 
-                                'transparent', 
-                                modalTop + highlightEditedAssetMargin, 
-                                modalLeft + highlightEditedAssetMargin + (assetManagementStateObject.getProperty('pairIndex') ? (modalWidth / 2) : 0), 
-                                modalPairNonStretchHeight - (2 * highlightEditedAssetMargin), 
-                                (modalWidth / 2) - (2 * highlightEditedAssetMargin),
-                                2
-                            ).id]);
+                    var editedAssetHighlightPath = createRectanglePathObject(
+                            pageId, 
+                            'objects', 
+                            '#ff0000', 
+                            'transparent', 
+                            modalTop + highlightEditedAssetMargin, 
+                            modalLeft + highlightEditedAssetMargin + (assetManagementStateObject.getProperty('pairIndex') ? (modalWidth / 2) : 0), 
+                            modalPairNonStretchHeight - (2 * highlightEditedAssetMargin), 
+                            (modalWidth / 2) - (2 * highlightEditedAssetMargin),
+                            2
+                        );
+                    state.APIAreaMapper.assetManagementModalIds.push(['path', editedAssetHighlightPath.id]);
+                    toBackIds.unshift(['path', editedAssetHighlightPath.id]);
                 }
                         
                 //note: if there is a classification, there must be a texture:
@@ -4707,81 +4756,91 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 }
                 
                 //draw assets:
-                state.APIAreaMapper.assetManagementModalIds.push(['graphic', 
-                    createTokenObjectFromAsset(
-                            asset1,
-                            pageId,
-                            'objects',
-                            modalTop + modalTopMargin,
-                            modalLeft + (modalWidth / 2) - assetPairNonStretchSize - assetPairNonStretchSpacing,
-                            assetPairNonStretchSize,
-                            assetPairNonStretchSize
-                        ).id]);
-                state.APIAreaMapper.assetManagementModalIds.push(['graphic', 
-                    createTokenObjectFromAsset(
-                            asset2,
-                            pageId,
-                            'objects',
-                            modalTop + modalTopMargin,
-                            modalLeft + (modalWidth / 2) + assetPairNonStretchSpacing,
-                            assetPairNonStretchSize,
-                            assetPairNonStretchSize
-                        ).id]);
+                var assetToken = createTokenObjectFromAsset(
+                        asset1,
+                        pageId,
+                        'objects',
+                        modalTop + modalTopMargin,
+                        modalLeft + (modalWidth / 2) - assetPairNonStretchSize - assetPairNonStretchSpacing,
+                        assetPairNonStretchSize,
+                        assetPairNonStretchSize
+                    );
+                state.APIAreaMapper.assetManagementModalIds.push(['graphic', assetToken.id]);
+                toBackIds.unshift(['graphic', assetToken.id]);
+                assetToken = createTokenObjectFromAsset(
+                        asset2,
+                        pageId,
+                        'objects',
+                        modalTop + modalTopMargin,
+                        modalLeft + (modalWidth / 2) + assetPairNonStretchSpacing,
+                        assetPairNonStretchSize,
+                        assetPairNonStretchSize
+                    );
+                state.APIAreaMapper.assetManagementModalIds.push(['graphic', assetToken.id]);
+                toBackIds.unshift(['graphic', assetToken.id]);
                 
                 //draw bands:
-                state.APIAreaMapper.assetManagementModalIds.push(['path', 
-                        createBandPathObject(
-                                pageId, 
-                                modalTop + modalTopMargin,
-                                modalLeft + (modalWidth / 2) - assetPairNonStretchSize - assetPairNonStretchSpacing,
-                                assetPairNonStretchSize,
-                                assetPairNonStretchSize, 
-                                0, 
-                                '#00ff00', 
-                                0, 
-                                'objects'
-                            ).id
-                    ]);
-                state.APIAreaMapper.assetManagementModalIds.push(['path', 
-                        createBandPathObject(
-                                pageId, 
-                                modalTop + modalTopMargin,
-                                modalLeft + (modalWidth / 2) + assetPairNonStretchSpacing,
-                                assetPairNonStretchSize,
-                                assetPairNonStretchSize, 
-                                0, 
-                                '#00ff00', 
-                                0, 
-                                'objects'
-                            ).id
-                    ]);
+                var bandPath = createBandPathObject(
+                        pageId, 
+                        modalTop + modalTopMargin,
+                        modalLeft + (modalWidth / 2) - assetPairNonStretchSize - assetPairNonStretchSpacing,
+                        assetPairNonStretchSize,
+                        assetPairNonStretchSize, 
+                        0, 
+                        '#00ff00', 
+                        0, 
+                        'objects'
+                    );
+                state.APIAreaMapper.assetManagementModalIds.push(['path', bandPath.id]);
+                toBackIds.unshift(['path', bandPath.id]);
+                bandPath = createBandPathObject(
+                        pageId, 
+                        modalTop + modalTopMargin,
+                        modalLeft + (modalWidth / 2) + assetPairNonStretchSpacing,
+                        assetPairNonStretchSize,
+                        assetPairNonStretchSize, 
+                        0, 
+                        '#00ff00', 
+                        0, 
+                        'objects'
+                    );
+                state.APIAreaMapper.assetManagementModalIds.push(['path', bandPath.id]);
+                toBackIds.unshift(['path', bandPath.id]);
                 
                 //draw labels:
-                state.APIAreaMapper.assetManagementModalIds.push(['text',
-                        createTextObject(
-                                'closed chest asset',
-                                pageId,
-                                'objects',
-                                modalTop + modalTopMargin - labelHover,
-                                modalLeft + (modalWidth / 2) - (assetPairNonStretchSize + assetPairNonStretchSpacing),
-                                labelHover,
-                                assetPairNonStretchSize
-                            ).id
-                    ]);
-                state.APIAreaMapper.assetManagementModalIds.push(['text',
-                        createTextObject(
-                                'open chest asset',
-                                pageId,
-                                'objects',
-                                modalTop + modalTopMargin - labelHover,
-                                modalLeft + (modalWidth / 2) + assetPairNonStretchSpacing,
-                                labelHover,
-                                assetPairNonStretchSize
-                            ).id
-                    ]);
+                var labelText = createTextObject(
+                        'closed chest asset',
+                        pageId,
+                        'objects',
+                        modalTop + modalTopMargin - labelHover,
+                        modalLeft + (modalWidth / 2) - (assetPairNonStretchSize + assetPairNonStretchSpacing),
+                        labelHover,
+                        assetPairNonStretchSize
+                    );
+                state.APIAreaMapper.assetManagementModalIds.push(['text', labelText.id]);
+                toBackIds.unshift(['text', labelText.id]);
+                labelText = createTextObject(
+                        'open chest asset',
+                        pageId,
+                        'objects',
+                        modalTop + modalTopMargin - labelHover,
+                        modalLeft + (modalWidth / 2) + assetPairNonStretchSpacing,
+                        labelHover,
+                        assetPairNonStretchSize
+                    );
+                state.APIAreaMapper.assetManagementModalIds.push(['text', labelText.id]);
+                toBackIds.unshift(['text', labelText.id]);
                 break;
             default:
                 break;
+        }
+        
+        /*
+        Run toBack() on objects as a workaround for the Roll20 API bug 
+        https://app.roll20.net/forum/post/1986741/api-z-order-with-newly-created-objects-tofront-and-toback-is-broken/#post-1986741
+        */
+        if(zOrderWorkaround) {
+            toBackListWithDelays(toBackIds);
         }
     },
     
@@ -7019,7 +7078,7 @@ on('ready', function() {
         APIAreaMapper.registerEventHandlers();
     } else {
         log('--------------------------------------------------------------');
-        log('APIRoomManagement requires the VisualAlert script to work.');
+        log('APIAreaMapper requires the VisualAlert script to work.');
         log('VisualAlert git repo: https://github.com/RandallDavis/roll20-visualAlertScript');
         log('--------------------------------------------------------------');
     }
