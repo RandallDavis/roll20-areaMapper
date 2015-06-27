@@ -6,7 +6,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 1.0001,
+    var version = 1.0002,
         areaSchemaVersion = 1.0,
         assetSchemaVersion = 1.0,
         buttonBackgroundColor = '#CC1869',
@@ -6253,7 +6253,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 break;
             case 'hidden':
                 for(var areaId in areasByFolder[1]) {
-                    folderLinks.push(['navigation', areasByFolder[1][areaId], 'manageArea ' + areaId, false, state.APIAreaMapper.activeArea == areaId]);
+                    folderLinks.push(['navigationActive', areasByFolder[1][areaId], 'manageArea ' + areaId, false, state.APIAreaMapper.activeArea == areaId]);
                 }
                 html += uiSection('Hidden', null, folderLinks)
                     +uiSection('Other Lists', 'The numbers in parentheses represent the number of areas in the list.', [
@@ -6263,7 +6263,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 break;
             case 'archived':
                 for(var areaId in areasByFolder[2]) {
-                    folderLinks.push(['navigation', areasByFolder[2][areaId], 'manageArea ' + areaId, false, state.APIAreaMapper.activeArea == areaId]);
+                    folderLinks.push(['navigationActive', areasByFolder[2][areaId], 'manageArea ' + areaId, false, state.APIAreaMapper.activeArea == areaId]);
                 }
                 html += uiSection('Hidden', null, folderLinks)
                     +uiSection('Other Lists', 'The numbers in parentheses represent the number of areas in the list.', [
