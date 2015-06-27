@@ -6,7 +6,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 1.0,
+    var version = 1.0001,
         areaSchemaVersion = 1.0,
         assetSchemaVersion = 1.0,
         buttonBackgroundColor = '#CC1869',
@@ -5478,8 +5478,15 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 return;
         }
         
+        //update asset management state:
         assetManagementStateObject.setProperty('texture', textureObject.getStateObject());
         state.APIAreaMapper.assetManagement = assetManagementStateObject.getStateObject();
+        
+        //if the asset is a unique area asset, update the area:
+        if(assetManagementStateObject.getProperty('scope') == 'area' && textureObject.getProperty('textureType') == 'unique') {
+            var a = new area(state.APIAreaMapper.activeArea);
+            a.useUniqueAsset(assetManagementStateObject.getProperty('classification'), textureObject);
+        }
     },
     
     handleManageAssetEditRotate = function(direction, amount) {
