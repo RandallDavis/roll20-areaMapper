@@ -1,3 +1,8 @@
+/*
+THIS IS A TEST SCRIPT TO PROVE OUT A BUG REPORT - IT IS NOT NEEDED TO RUN AreaMapper.
+*/
+
+
 var APIToFrontTester = APIToFrontTester || (function() {
     
     var graphicUrl1 = 'https://s3.amazonaws.com/files.d20.io/images/48971/thumb.jpg?1340229647',
