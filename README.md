@@ -10,12 +10,12 @@ alt="AreaMapper demo" width="100%" height="100%" border="10" /></a>
 
 ##### Features:
 - Area maps are created and managed using a robust user interface and Roll20's drawing tools.
-- User interface can be set to be in whispers or a handout.
-- Areas are saved in state, and can be hidden, redrawn (on any page - even multiple pages simultaneously).
-- Dynamic lighting is handled automatically.
+- User interface can be in whispers or in a handout.
+- Areas are saved in state, and can be hidden and redrawn (on any page - even multiple pages simultaneously).
+- Dynamic lighting is handled automatically. Create as many areas as you want - it's easy to switch between them.
 - Doors and chests (and other objects down the road) have interactive logic so that players can toggle them. These can be locked, trapped, and hidden. Interacting with them results in animations that everyone can see.
 - Assets (floor, wall, door, and chest images) can be imported via the user interface. They can also be edited through the user interface to fix unwanted border transparencies, bad centering, etc.
-- Unique assets can be used in an area. This makes it really easy to import a map and use it as the floor image of an area.
+- Unique assets can be used. This makes it really easy to import a map and use it as the floor image of an area.
 
 ##### Required libraries:
 This requires another script I wrote for its visual alert animations. It can be found here: https://github.com/RandallDavis/roll20-visualAlertScript.
