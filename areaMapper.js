@@ -6,7 +6,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 1.0002,
+    var version = 1.0003,
         areaSchemaVersion = 1.0,
         assetSchemaVersion = 1.0,
         buttonBackgroundColor = '#CC1869',
@@ -1482,7 +1482,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     toBackListWithDelays = function(l) {
         var obj;
         if(l.length) {
-        	obj = l.shift();
+            obj = l.shift();
 			toBackObject(obj[0], obj[1]);
 			if(l.length) {
 				setTimeout(_.partial(toBackListWithDelays, l), 50);
@@ -6121,45 +6121,49 @@ var APIAreaMapper = APIAreaMapper || (function() {
             return 0;
         };
         
-        var instructions = null;
+        var manageInstructions = null;
+        if(state.APIAreaMapper.recordAreaMode == 'areaInstanceCreate') {
+            manageInstructions = 'Use a drawing tool to specify where to draw the instance.';
+        }
         
+        var modifyInstructions = null;
         switch(state.APIAreaMapper.recordAreaMode) {
             case 'areaAppend':
-                instructions = 'Use a drawing tool to add to the floorplan.';
+                modifyInstructions = 'Use a drawing tool to add to the floorplan.';
                 break;
             case 'areaRemove':
-                instructions = 'Use a drawing tool to remove from the floorplan.';
+                modifyInstructions = 'Use a drawing tool to remove from the floorplan.';
                 break;
             case 'edgeWallGapRemove':
-                instructions = 'Use a drawing tool to remove gaps in edge walls. Entire gaps must be captured.';
+                modifyInstructions = 'Use a drawing tool to remove gaps in edge walls. Entire gaps must be captured.';
                 break;
             case 'edgeWallRemove':
-                instructions = 'Use a drawing tool to remove edge walls.';
+                modifyInstructions = 'Use a drawing tool to remove edge walls.';
                 break;
             case 'innerWallAdd':
-                instructions = 'Use a drawing tool to add inner walls. Walls must be fully contained within the floorplan.';
+                modifyInstructions = 'Use a drawing tool to add inner walls. Walls must be fully contained within the floorplan.';
                 break;
             case 'innerWallRemove':
-                instructions = 'Use a drawing tool to remove inner walls.';
+                modifyInstructions = 'Use a drawing tool to remove inner walls.';
                 break;
             case 'doorAdd':
-                instructions = 'Use a drawing tool to add a door by selecting two wall sections that the door should connect.';
+                modifyInstructions = 'Use a drawing tool to add a door by selecting two wall sections that the door should connect.';
                 break;
             case 'doorRemove':
-                instructions = 'Use a drawing tool to remove doors. Entire doors must be captured.';
+                modifyInstructions = 'Use a drawing tool to remove doors. Entire doors must be captured.';
                 break;
             case 'chestAdd':
-                instructions = 'Use a drawing tool to create a chest. The position, height, and width of the drawing will be used.';
+                modifyInstructions = 'Use a drawing tool to create a chest. The position, height, and width of the drawing will be used.';
                 break;
             case 'chestRemove':
-                instructions = 'Use a drawing tool to remove chests. Chest centers must be captured.';
+                modifyInstructions = 'Use a drawing tool to remove chests. Chest centers must be captured.';
                 break;
             default:
                 break;
         }
         
         sendStandardInterface(who, a.getProperty('name'),
-            uiSection('Manage', null, [
+            uiSection('Manage', manageInstructions, [
                     ['active', 'active', 'areaActivate ' + areaId, false, (state.APIAreaMapper.activeArea == areaId)],
                     ['navigation', 'rename', 'rename', (state.APIAreaMapper.activeArea != areaId), false],
                     ['navigation', 'assets', 'manageAssets area', (state.APIAreaMapper.activeArea != areaId), false],
@@ -6170,7 +6174,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     ['active', 'blueprint mode', 'blueprint', !hasInstances || (state.APIAreaMapper.activeArea != areaId), state.APIAreaMapper.blueprintMode],
                     ['navigation', 'redraw', 'redraw', !hasInstances || (state.APIAreaMapper.activeArea != areaId), false]
                 ])
-            +uiSection('Modify', instructions, [
+            +uiSection('Modify', modifyInstructions, [
                     modeCommand('floorplan', ['endRecordAreaMode', 'areaAppend', 'areaRemove'], !hasInstances || (state.APIAreaMapper.activeArea != areaId), state.APIAreaMapper.recordAreaMode),
                     modeCommand('edge walls', ['endRecordAreaMode', 'edgeWallGapRemove', 'edgeWallRemove'], !hasInstances || (state.APIAreaMapper.activeArea != areaId), state.APIAreaMapper.recordAreaMode),
                     modeCommand('inner walls', ['endRecordAreaMode', 'innerWallAdd', 'innerWallRemove'], !hasInstances || (state.APIAreaMapper.activeArea != areaId), state.APIAreaMapper.recordAreaMode),
