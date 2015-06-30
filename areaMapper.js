@@ -6,9 +6,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 1.0003,
+    var version = 1.01,
         areaSchemaVersion = 1.0,
-        assetSchemaVersion = 1.0,
+        assetSchemaVersion = 1.1,
         buttonBackgroundColor = '#CC1869',
         buttonGreyedColor = '#8D94A9',
         buttonHighlightLinkColor = '#D6F510',
@@ -24,6 +24,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         hiddenTagColor = '#277EE2',
         closedDoorAlertPic = 'https://s3.amazonaws.com/files.d20.io/images/8543193/5XhwOpMaBUS_5B444UNC5Q/thumb.png?1427665106',
         openDoorAlertPic = 'https://s3.amazonaws.com/files.d20.io/images/8543205/QBOWp1MHHlJCrPWn9kcVqQ/thumb.png?1427665124',
+        closedTrapdoorAlertPic = 'https://s3.amazonaws.com/files.d20.io/images/10471466/8E3rn1V_OHhwMl-iRTJfrg/thumb.png?1435585449',
+        openTrapdoorAlertPic = 'https://s3.amazonaws.com/files.d20.io/images/10471460/hf8vQVv5-Bm8ipSvG2kTBA/thumb.png?1435585410',
         padlockAlertPic = 'https://s3.amazonaws.com/files.d20.io/images/8546285/bdyuCfZSGRXr3qrVkcPkAg/thumb.png?1427673372',
         skullAlertPic = 'https://s3.amazonaws.com/files.d20.io/images/8779089/aM1ujMQboacuc2fEMFk7Eg/thumb.png?1428784948',
         wallThickness = 14,
@@ -34,7 +36,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         blueprintEdgeWallGapsPathColor = '#D13583',
         blueprintInnerWallsPathColor = '#3535D1',
         blueprintDoorPathColor = '#EC9B10',
-        blueprintChestPathColor = '#666666',
+        blueprintChestPathColor = '#F7F247',
+        blueprintTrapdoorPathColor = '#56C029',
         zOrderWorkaround = true,
         
     checkInstall = function() {
@@ -53,10 +56,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
             };
         }
         
-        if(state.APIAreaMapper.assets && state.APIAreaMapper.assets.schemaVersion !== assetSchemaVersion) {
-            log('APIAreaMapper: Resetting asset state.');
+        if(state.APIAreaMapper.assets && state.APIAreaMapper.assets.schemaVersion < 1.0) {
+            log('APIAreaMapper: Creating assets in state.');
             state.APIAreaMapper.assets = {
-                schemaVersion: assetSchemaVersion,
+                schemaVersion: 1.0,
                 floorAssets: [
                         ['https://s3.amazonaws.com/files.d20.io/images/48971/thumb.jpg?1340229647',0,0,1,1,0,0],
                         ['https://s3.amazonaws.com/files.d20.io/images/224431/2KRtd2Vic84zocexdHKSDg/thumb.jpg?1348140031',0,0,1,1,0,0],
@@ -81,6 +84,19 @@ var APIAreaMapper = APIAreaMapper || (function() {
             };
         }
         
+        if(state.APIAreaMapper.assets && state.APIAreaMapper.assets.schemaVersion < 1.1) {
+            log('APIAreaMapper: Adding assets to state.');
+            state.APIAreaMapper.assets.schemaVersion = 1.1;
+            state.APIAreaMapper.assets.trapdoorAssets = [
+                    [['https://s3.amazonaws.com/files.d20.io/images/5770/thumb.png?1336266346',0,0,1.2387463105442005,1.2387463105442005,3,-1],
+                        ['https://s3.amazonaws.com/files.d20.io/images/5338/thumb.png?1336255241',0,0,1.20462921707625,1.328103711826566,0,0]],
+                    [['https://s3.amazonaws.com/files.d20.io/images/7678/thumb.png?1336442415',0,0,1.0721353521070098,1.08285670562808,0,0],
+                        ['https://s3.amazonaws.com/files.d20.io/images/13947/thumb.png?1337763612',0,0,1,1,0,0]]
+                ];
+                
+            log(state.APIAreaMapper.assets);
+        }
+        
         if(state.APIAreaMapper.areas && state.APIAreaMapper.areas.schemaVersion !== areaSchemaVersion) {
             log('APIAreaMapper: Resetting area state.');
             state.APIAreaMapper.areas = {
@@ -103,6 +119,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         delete state.APIAreaMapper.uiWindow;
         delete state.APIAreaMapper.falseSelection;
         delete state.APIAreaMapper.chestReposition;
+        delete state.APIAreaMapper.trapdoorReposition;
         delete state.APIAreaMapper.assetManagement;
         
         //reset the handout:
@@ -1483,7 +1500,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var obj;
         if(l.length) {
             obj = l.shift();
-			toBackObject(obj[0], obj[1]);
+            toBackObject(obj[0], obj[1]);
 			if(l.length) {
 				setTimeout(_.partial(toBackListWithDelays, l), 50);
 			}
@@ -1686,12 +1703,16 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var usedHeight = assetObject.getProperty('alternate') ? scaledWidth : scaledHeight;
         var usedWidth = assetObject.getProperty('alternate') ? scaledHeight : scaledWidth;
         
+        //calculated offsets:
+        var offsetVertical = assetObject.getProperty('offsetVertical') * height / 70;
+        var offsetHorizontal = assetObject.getProperty('offsetHorizontal') * width / 70;
+        
         var obj = createObj('graphic', {
             imgsrc: assetObject.getProperty('imagesrc'),
             layer: layer,
             pageid: pageId,
-            top: top + (height / 2) + assetObject.getProperty('offsetVertical'),
-            left: left + (width / 2) + assetObject.getProperty('offsetHorizontal'),
+            top: top + (height / 2) + offsetVertical,
+            left: left + (width / 2) + offsetHorizontal,
             height: usedHeight,
             width: usedWidth,
             rotation: rotation + assetObject.getProperty('rotation') + (assetObject.getProperty('alternate') ? 90 : 0)
@@ -1714,12 +1735,16 @@ var APIAreaMapper = APIAreaMapper || (function() {
         midpoint.x += (assetObject.getProperty('offsetVertical') * Math.cos(segment.angle(segment.a).radians - (Math.PI / 2)));
         midpoint.y += (assetObject.getProperty('offsetVertical') * Math.sin(segment.angle(segment.a).radians - (Math.PI / 2)));
         
+        //calculate offsets:
+        var offsetVertical = assetObject.getProperty('offsetVertical') * height / 70;
+        var offsetHorizontal = assetObject.getProperty('offsetHorizontal') * width / 70;
+        
         return createTokenObjectFromAsset(
             assetObject,
             pageId,
             layer,
-            midpoint.y - (height / 2) - assetObject.getProperty('offsetVertical'), //remove misadjustments to top that createTokenObjectFromAsset() makes
-            midpoint.x - (width / 2) - assetObject.getProperty('offsetHorizontal'), //remove misadjustments to left that createTokenObjectFromAsset() makes
+            midpoint.y - (height / 2) - offsetVertical, //remove misadjustments to top that createTokenObjectFromAsset() makes
+            midpoint.x - (width / 2) - offsetHorizontal, //remove misadjustments to left that createTokenObjectFromAsset() makes
             height,
             width,
             segment.angleDegrees(segment.a));
@@ -1810,7 +1835,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         //note: stateObject is structured as [textureType, value (can be null, an asset index, a unique asset, or a unique asset pair)]
         
         //if the stateObject isn't sent in, use the first generic asset:
-        if('undefined' === typeof(stateObject)) {
+        if('undefined' === typeof(stateObject) || stateObject == null) {
             this._textureType = 'asset';
             this._value = 0;
         } else {
@@ -1859,7 +1884,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     assetManagementState.prototype.setProperty = function(property, value) {
         switch(property) {
             case 'scope': //global, area
-            case 'classification': //floor, walls, doors, chests
+            case 'classification': //floor, walls, doors, chests, trapdoors
             case 'texture': //texture object state
             case 'pairIndex': 
                 this['_' + property] = value;
@@ -2001,6 +2026,45 @@ var APIAreaMapper = APIAreaMapper || (function() {
     };
     
     
+    var trapdoor = function(stateObject) {
+        if('undefined' === typeof(stateObject)) {
+            stateObject = new Array(9);
+        }
+        
+        interactiveObject.call(this, stateObject[5], stateObject[6], stateObject[7], stateObject[8]);
+        this._type.push('trapdoor');
+        this._top = stateObject[0];
+        this._left = stateObject[1];
+        this._height = stateObject[2];
+        this._width = stateObject[3];
+        this._rotation = stateObject[4];
+    };
+    
+    inheritPrototype(trapdoor, interactiveObject);
+    
+    trapdoor.prototype.setProperty = function(property, value) {
+        switch(property) {
+            case 'top':
+            case 'left':
+            case 'height':
+            case 'width':
+            case 'rotation':
+                this['_' + property] = value;
+                break;
+            default:
+                return interactiveObject.prototype.setProperty.call(this, property, value);
+                break;
+        }
+        
+        return null;
+    };
+    
+    trapdoor.prototype.getStateObject = function() {
+        var stateObject = [this._top, this._left, this._height, this._width, this._rotation];
+        return stateObject.concat(interactiveObject.prototype.getStateObject.call(this));
+    };
+    
+    
     var area = function(id) {
         typedObject.call(this);
         this._type.push('area');
@@ -2009,6 +2073,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this.initializeCollectionProperty('innerWalls');
         this.initializeCollectionProperty('doors');
         this.initializeCollectionProperty('chests');
+        this.initializeCollectionProperty('trapdoors');
         
         //load existing area:
         if('undefined' !== typeof(id)) {
@@ -2028,6 +2093,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'wallTexture': //texture
             case 'doorTexture': //texture
             case 'chestTexture': //texture
+            case 'trapdoorTexture': //texture
             case 'width':
             case 'height':
             case 'archived':
@@ -2039,6 +2105,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'innerWalls': //[simple path, top, left, height, width]
             case 'doors': //[segment position, isOpen, isLocked, isTrapped, isHidden] - represented by door DTO
             case 'chests': //[top, left, height, width, rotation, isOpen, isLocked, isTrapped, isHidden] - represented by chest DTO
+            case 'trapdoors': //[top, left, height, width, rotation, isOpen, isLocked, isTrapped, isHidden] - represented by trapdoor DTO
                 return this['_' + property].push(value) - 1;
             default:
                 return typedObject.prototype.setProperty.call(this, property, value);
@@ -2055,6 +2122,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'innerWalls':
             case 'doors':
             case 'chests':
+            case 'trapdoors':
                 if('undefined' === typeof(value)) {
                     this['_' + property] = [];
                 } else {
@@ -2109,6 +2177,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this.setProperty('wallTexture', new texture().getStateObject());
         this.setProperty('doorTexture', new texture().getStateObject());
         this.setProperty('chestTexture', new texture().getStateObject());
+        this.setProperty('trapdoorTexture', new texture().getStateObject());
         
         //initially, edge walls will be identical to the floorplan, because no gaps have been declared:
         this.setProperty('edgeWalls', [rp.rawPath, 0, 0, rp.height, rp.width]);
@@ -2189,6 +2258,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 case 'wallTexture':
                 case 'doorTexture':
                 case 'chestTexture':
+                case 'trapdoorTexture':
                 case 'width':
                 case 'height':
                 case 'archived':
@@ -2199,6 +2269,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 case 'innerWalls':
                 case 'doors':
                 case 'chests':
+                case 'trapdoors':
                     this.initializeCollectionProperty(areaState[i][0], areaState[i][1]);
                     break;
                 default:
@@ -2217,6 +2288,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         areaState.push(['wallTexture', this.getProperty('wallTexture')]);
         areaState.push(['doorTexture', this.getProperty('doorTexture')]);
         areaState.push(['chestTexture', this.getProperty('chestTexture')]);
+        areaState.push(['trapdoorTexture', this.getProperty('trapdoorTexture')]);
         areaState.push(['width', this.getProperty('width')]);
         areaState.push(['height', this.getProperty('height')]);
         areaState.push(['archived', this.getProperty('archived')]);
@@ -2225,6 +2297,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         areaState.push(['innerWalls', this.getProperty('innerWalls')]);
         areaState.push(['doors', this.getProperty('doors')]);
         areaState.push(['chests', this.getProperty('chests')]);
+        areaState.push(['trapdoors', this.getProperty('trapdoors')]);
         
         //remove existing area state:
         var id = this.getProperty('id');
@@ -2396,6 +2469,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     chestState.setProperty('left', chestState.getProperty('left') + leftDelta);
                     this.getProperty('chests')[i] = chestState.getStateObject();
                 }
+                
+                var trapdoors = this.getProperty('trapdoors');
+                for(var i = 0; i < trapdoors.length; i++) {
+                    var trapdoortState = new trapdoor(trapdoors[i]);
+                    trapdoortState.setProperty('top', trapdoortState.getProperty('top') + topDelta);
+                    trapdoortState.setProperty('left', trapdoortState.getProperty('left') + leftDelta);
+                    this.getProperty('trapdoors')[i] = trapdoortState.getStateObject();
+                }
             }
             
             //adjust all instances' positions so that they don't move visually:
@@ -2490,6 +2571,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     chestState.setProperty('top', chestState.getProperty('top') + topDelta);
                     chestState.setProperty('left', chestState.getProperty('left') + leftDelta);
                     this.getProperty('chests')[i] = chestState.getStateObject();
+                }
+                
+                var trapdoors = this.getProperty('trapdoors');
+                for(var i = 0; i < trapdoors.length; i++) {
+                    var trapdoorState = new trapdoor(trapdoors[i]);
+                    trapdoorState.setProperty('top', trapdoorState.getProperty('top') + topDelta);
+                    trapdoorState.setProperty('left', trapdoorState.getProperty('left') + leftDelta);
+                    this.getProperty('trapdoors')[i] = trapdoorState.getStateObject();
                 }
             }
             
@@ -3037,6 +3126,81 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return followUpAction;
     };
     
+    area.prototype.trapdoorAdd = function(rawPath, pageId, top, left, isFromEvent) {
+        var followUpAction = [];
+        var g = new graph();
+        
+        //get instance that addition is relative to:
+        var instance = new areaInstance(this.getProperty('id'), pageId);
+        
+        //handle illogical case where drawing is done on a page without an instance:
+        if(instance.getProperty('isNew')) {
+            followUpAction.message = 'Area modification attempted on a page without a drawn instance.';
+            return followUpAction;
+        }
+        
+        //get the addition polygon:
+        g.addComplexPolygon(rawPath, top, left, isFromEvent);
+        var addSpIndex = g.convertComplexPolygonToSimplePolygon(0);
+        var addRp = g.getRawPath('simplePolygons', addSpIndex);
+        
+        //create the trapdoor using the polygon's position, width, and height:
+        var trapdoorState = new trapdoor();
+        trapdoorState.setProperty('top', addRp.top - instance.getProperty('top'));
+        trapdoorState.setProperty('left', addRp.left - instance.getProperty('left'));
+        trapdoorState.setProperty('height', addRp.height);
+        trapdoorState.setProperty('width', addRp.width);
+        trapdoorState.setProperty('rotation', 0);
+        this.setProperty('trapdoors', trapdoorState.getStateObject());
+        
+        this.save();
+        this.draw();
+        
+        followUpAction.refresh = true;
+        return followUpAction;
+    };
+    
+    area.prototype.trapdoorRemove = function(rawPath, pageId, top, left, isFromEvent) {
+        var followUpAction = [];
+        
+        var g = new graph();
+        g.addComplexPolygon(rawPath, top, left, isFromEvent);
+        var removeSpIndex = g.convertComplexPolygonToSimplePolygon(0);
+        
+        //get instance that removal is relative to:
+        var instance = new areaInstance(this.getProperty('id'), pageId);
+        
+        //handle illogical case where drawing is done on a page without an instance:
+        if(instance.getProperty('isNew')) {
+            followUpAction.message = 'Area modification attempted on a page without a drawn instance.';
+            return followUpAction;
+        }
+        
+        var oldTrapdoors = this.getProperty('trapdoors');
+        var trapdoors = [];
+        
+        oldTrapdoors.forEach(function(t) {
+            var trapdoorState = new trapdoor(t);
+            var trapdoorTop = trapdoorState.getProperty('top') + instance.getProperty('top');
+            var trapdoorLeft = trapdoorState.getProperty('left') + instance.getProperty('left');
+            var trapdoorCenter = new point(trapdoorLeft + (trapdoorState.getProperty('width') / 2), trapdoorTop + (trapdoorState.getProperty('height') / 2));
+            
+            if(!g.hasInsidePoint('simplePolygons', removeSpIndex, trapdoorCenter)) {
+                trapdoors.push(t);
+            }
+        }, this);
+        
+        if(trapdoors.length < oldTrapdoors.length) {
+            this.initializeCollectionProperty('trapdoors', trapdoors);
+            
+            this.save();
+            this.draw();
+        }
+      
+        followUpAction.refresh = true;
+        return followUpAction;
+    };
+    
     area.prototype.useGlobalAsset = function(classification, globalAssetIndex) {
         
         //if no globalAssetIndex is provided, cycle to the next one:
@@ -3102,6 +3266,21 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     
                     this.setProperty('chestTexture', textureObject.getStateObject());
                     break;
+                case 'trapdoor':
+                    var textureObject = new texture(this.getProperty('trapdoorTexture'));
+                    
+                    //if the texture is already a standard asset pair, cycle to the next one:
+                    if(textureObject.getProperty('textureType') == 'asset') {
+                        textureObject.setProperty('value', ((textureObject.getProperty('value') + 1) % state.APIAreaMapper.assets.trapdoorAssets.length));
+                    }
+                    //set the texture to the first standard asset pair:
+                    else {
+                        textureObject.setProperty('textureType', 'asset');
+                        textureObject.setProperty('value', 0);
+                    }
+                    
+                    this.setProperty('trapdoorTexture', textureObject.getStateObject());
+                    break;
                 default:
                     log('Unhandled classification of ' + classification + ' in area.useGlobalAsset().');
                     return;
@@ -3123,6 +3302,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     break;
                 case 'chest':
                     this.setProperty('chestTexture', textureObject.getStateObject());
+                    break;
+                case 'trapdoor':
+                    this.setProperty('trapdoorTexture', textureObject.getStateObject());
                     break;
                 default:
                     log('Unhandled classification of ' + classification + ' in area.useGlobalAsset().');
@@ -3164,6 +3346,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 break;
             case 'chest':
                 this.setProperty('chestTexture', textureObject.getStateObject());
+                break;
+            case 'trapdoor':
+                this.setProperty('trapdoorTexture', textureObject.getStateObject());
                 break;
             default:
                 log('Unhandled objectType of ' + objectType + ' in area.useUniqueAsset().');
@@ -3243,8 +3428,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this.initializeCollectionProperty('blueprintWallIds');
         this.initializeCollectionProperty('doorIds');
         this.initializeCollectionProperty('chestIds');
+        this.initializeCollectionProperty('trapdoorIds');
         this.initializeCollectionProperty('blueprintDoorIds');
         this.initializeCollectionProperty('blueprintChestIds');
+        this.initializeCollectionProperty('blueprintTrapdoorIds');
         
         this.load();
     };
@@ -3271,8 +3458,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
             //TODO: consider using polymorphic DTOs for these to remove direct referencing of positions within arrays:
             case 'doorIds': //[door token, LoS wall path, feature tag paths]
             case 'chestIds': //[chest token, feature tag paths]
+            case 'trapdoorIds': //[trapdoor token, feature tag paths]
             case 'blueprintDoorIds': //paths
             case 'blueprintChestIds': //paths
+            case 'blueprintTrapdoorIds': //paths
                 return this['_' + property].push(value) - 1;
             default:
                 return typedObject.prototype.setProperty.call(this, property, value);
@@ -3288,8 +3477,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'blueprintWallIds':
             case 'doorIds':
             case 'chestIds':
+            case 'trapdoorIds':
             case 'blueprintDoorIds':
             case 'blueprintChestIds':
+            case 'blueprintTrapdoorIds':
                 if('undefined' === typeof(value)) {
                     this['_' + property] = [];
                 } else {
@@ -3347,8 +3538,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 case 'blueprintWallIds':
                 case 'doorIds':
                 case 'chestIds':
+                case 'trapdoorIds':
                 case 'blueprintDoorIds':
                 case 'blueprintChestIds':
+                case 'blueprintTrapdoorIds':
                     this.initializeCollectionProperty(areaInstanceState[i][0], areaInstanceState[i][1]);
                     break;
                 default:
@@ -3373,8 +3566,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
         areaInstanceState.push(['blueprintWallIds', this.getProperty('blueprintWallIds')]);
         areaInstanceState.push(['doorIds', this.getProperty('doorIds')]);
         areaInstanceState.push(['chestIds', this.getProperty('chestIds')]);
+        areaInstanceState.push(['trapdoorIds', this.getProperty('trapdoorIds')]);
         areaInstanceState.push(['blueprintDoorIds', this.getProperty('blueprintDoorIds')]);
         areaInstanceState.push(['blueprintChestIds', this.getProperty('blueprintChestIds')]);
+        areaInstanceState.push(['blueprintTrapdoorIds', this.getProperty('blueprintTrapdoorIds')]);
         
         //remove existing area instance state:
         var areaInstances = state.APIAreaMapper.areas.areaInstances;
@@ -3464,6 +3659,19 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }, this);
         this.initializeCollectionProperty('chestIds');
         
+        //delete trapdoors:
+        this.getProperty('trapdoorIds').forEach(function(tId) {
+            
+            //delete trapdoor token:
+            deleteObject('graphic', tId[0]);
+            
+            //delete feature tag paths:
+            tId[1].forEach(function(ftId) {
+                deleteObject('path', ftId);
+            }, this);
+        }, this);
+        this.initializeCollectionProperty('trapdoorIds');
+        
         //delete blueprint doors:
         this.getProperty('blueprintDoorIds').forEach(function(wId) {
             deleteObject('path', wId);
@@ -3475,6 +3683,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
             deleteObject('path', cId);
         }, this);
         this.initializeCollectionProperty('blueprintChestIds');
+        
+        //delete blueprint trapdoors:
+        this.getProperty('blueprintTrapdoorIds').forEach(function(tId) {
+            deleteObject('path', tId);
+        }, this);
+        this.initializeCollectionProperty('blueprintTrapdoorIds');
         
         this.save();
     };
@@ -3628,6 +3842,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
         //draw chests:
         for(var i = 0; i < a.getProperty('chests').length; i++) {
             this.drawInteractiveObject('chests', i);
+        }
+        
+        //draw trapdoors:
+        for(var i = 0; i < a.getProperty('trapdoors').length; i++) {
+            this.drawInteractiveObject('trapdoors', i);
         }
        
         this.save();
@@ -3867,7 +4086,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 
                 var chestToken;
                 
-                //keep existing door:
+                //keep existing chest:
                 if(featureTagsOnly) {
                     chestToken = getObj('graphic', this.getProperty('chestIds')[masterIndex][0]);
                     chestProperty.push(this.getProperty('chestIds')[masterIndex][0]); //chest token ID
@@ -3886,7 +4105,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         chestState.getProperty('width'),
                         chestState.getProperty('rotation'));
                        
-                    //set chest privs to players unless the door is hidden:
+                    //set chest privs to players unless the chest is hidden:
                     if(!chestState.getProperty('isHidden')) {
                         chestToken.set("controlledby", "all");
                     }
@@ -3928,6 +4147,124 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 //if it's a new image, push it to the end (which will line up with the master's index):
                 else {
                     this.setProperty('chestIds', chestProperty);
+                }
+                break;
+            case 'trapdoors':
+                var trapdoorState = new trapdoor(master);
+                var trapdoorProperty = [];
+                var trapdoorAsset;
+                
+                //identify the trapdoor asset:
+                var trapdoorTexture = new texture(a.getProperty('trapdoorTexture'));
+                switch(trapdoorTexture.getProperty('textureType')) {
+                    case 'asset':
+                        trapdoorAsset = new asset(state.APIAreaMapper.assets.trapdoorAssets[trapdoorTexture.getProperty('value')][trapdoorState.getProperty('isOpen') ? 1 : 0]);
+                        break;
+                    case 'unique':
+                        trapdoorAsset = new asset(trapdoorTexture.getProperty('value')[trapdoorState.getProperty('isOpen') ? 1 : 0]);
+                        break;
+                    default:
+                        log('Unhandled textureType of ' + trapdoorTexture.getProperty('textureType') + ' for trapdoorTexture in areaInstance.drawObjects().');
+                        break;
+                }
+                
+                var trapdoorTop = trapdoorState.getProperty('top') + this.getProperty('top');
+                var trapdoorLeft = trapdoorState.getProperty('left') + this.getProperty('left');
+                
+                //if the number of objects in the area and the instance are equal, then this is modifying an existing object:
+                var existingTrapdoor = this.getProperty('trapdoorIds').length === a.getProperty(objectType).length;
+                var existingTrapdoorIsSelected = false;
+                
+                if(existingTrapdoor) {
+                    
+                    //delete feature tags:
+                    this.getProperty('trapdoorIds')[masterIndex][1].forEach(function(ftId) {
+                        deleteObject('path', ftId);
+                    }, this);
+                    
+                    //delete trapdoor:
+                    if(!featureTagsOnly) {
+                        //note: there is no behavioral difference in handling of hidden trapdoor
+                        
+                        //the selectedObject will only be provided for the instance that was modified by the user:
+                        existingTrapdoorIsSelected = selectedObject && (this.getProperty('trapdoorIds')[masterIndex][0] === selectedObject.id);
+                        
+                        //delete the old trapdoor image:
+                        deleteObject('graphic', this.getProperty('trapdoorIds')[masterIndex][0]);
+                        
+                        //delete the old trapdoor feature tags:
+                        this.getProperty('trapdoorIds')[masterIndex][1].forEach(function(ftId) {
+                            deleteObject('path', ftId);
+                        }, this);
+                    
+                        //clear properties out to be prudent, but they will be overwritten soon anyway:
+                        this.getProperty('trapdoorIds')[masterIndex] = ['',[]];
+                    }
+                }
+                
+                var trapdoorToken;
+                
+                //keep existing trapdoor:
+                if(featureTagsOnly) {
+                    trapdoorToken = getObj('graphic', this.getProperty('trapdoorIds')[masterIndex][0]);
+                    trapdoorProperty.push(this.getProperty('trapdoorIds')[masterIndex][0]); //trapdoor token ID
+                }
+                //create a new trapdoor:
+                else {
+                    
+                    //draw the trapdoor (on the object or gm layer depending on it being hidden):
+                    trapdoorToken = createTokenObjectFromAsset(
+                        trapdoorAsset, 
+                        this.getProperty('pageId'), 
+                        (trapdoorState.getProperty('isHidden') ? 'gmlayer' : 'objects'),
+                        trapdoorTop,
+                        trapdoorLeft,
+                        trapdoorState.getProperty('height'),
+                        trapdoorState.getProperty('width'),
+                        trapdoorState.getProperty('rotation'));
+                       
+                    //set trapdoor privs to players unless the trapdoor is hidden:
+                    if(!trapdoorState.getProperty('isHidden')) {
+                        trapdoorToken.set("controlledby", "all");
+                    }
+                    
+                    trapdoorProperty.push(trapdoorToken.id);
+                }
+                
+                //draw feature tags around the trapdoor:
+                var featureTagColors = [];
+                if(trapdoorState.getProperty('isLocked')) {
+                    featureTagColors.push(lockedTagColor);
+                }
+                if(trapdoorState.getProperty('isTrapped')) {
+                    featureTagColors.push(trappedTagColor);
+                }
+                if(trapdoorState.getProperty('isHidden')) {
+                    featureTagColors.push(hiddenTagColor);
+                }
+                var tagIds = createBands(
+                    this.getProperty('pageId'),
+                    trapdoorTop,
+                    trapdoorLeft,
+                    trapdoorState.getProperty('height'),
+                    trapdoorState.getProperty('width'),
+                    featureTagColors,
+                    trapdoorState.getProperty('rotation'));
+                
+                trapdoorProperty.push(tagIds);
+                
+                //if this is replacing an existing image, write it back into the appropriate slot:
+                if(existingTrapdoor) {
+                    this.getProperty('trapdoorIds')[masterIndex] = trapdoorProperty;
+                    
+                    //if the selected trapdoor was replaced, store the new trapdoor as a false selection:
+                    if(existingTrapdoorIsSelected) {
+                        state.APIAreaMapper.falseSelection = trapdoorToken.id;
+                    }
+                }
+                //if it's a new image, push it to the end (which will line up with the master's index):
+                else {
+                    this.setProperty('trapdoorIds', trapdoorProperty);
                 }
                 break;
             default:
@@ -4035,6 +4372,23 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     ).id);    
         }, this);
         
+        //draw blueprint trapdoors:
+        a.getProperty('trapdoors').forEach(function(c) {
+            this.setProperty('blueprintTrapdoorIds', 
+                createRectanglePathObject(
+                        this.getProperty('pageId'),
+                        'objects',
+                        blueprintTrapdoorPathColor,
+                        blueprintTrapdoorPathColor,
+                        c[0] + top,
+                        c[1] + left,
+                        c[2],
+                        c[3],
+                        1,
+                        c[4]
+                    ).id);    
+        }, this);
+        
         this.save();
     };
     
@@ -4062,6 +4416,18 @@ var APIAreaMapper = APIAreaMapper || (function() {
             for(var i = 0; i < chestIds.length; i++) {
                 if(graphic.id === chestIds[i][0]) {
                     graphicType = 'chests';
+                    graphicIndex = i;
+                    break;
+                }
+            }
+        }
+        
+        //see if the graphic is a managed trapdoor:
+        if(!graphicType) {
+            var trapdoorIds = this.getProperty('trapdoorIds');
+            for(var i = 0; i < trapdoorIds.length; i++) {
+                if(graphic.id === trapdoorIds[i][0]) {
+                    graphicType = 'trapdoors';
                     graphicIndex = i;
                     break;
                 }
@@ -4148,6 +4514,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 handleInteraction(chestState, chestCenter, openDoorAlertPic, closedDoorAlertPic, padlockAlertPic, skullAlertPic);
                 master = chestState.getStateObject();
                 break;
+            case 'trapdoors':
+                var trapdoorState = new trapdoor(master);
+                var trapdoorTop = trapdoorState.getProperty('top') + this.getProperty('top');
+                var trapdoorLeft = trapdoorState.getProperty('left') + this.getProperty('left');
+                var trapdoorCenter = new point(trapdoorLeft + (trapdoorState.getProperty('width') / 2), trapdoorTop + (trapdoorState.getProperty('height') / 2));
+                handleInteraction(trapdoorState, trapdoorCenter, openTrapdoorAlertPic, closedTrapdoorAlertPic, padlockAlertPic, skullAlertPic);
+                master = trapdoorState.getStateObject();
+                break;
             default:
                 log('Unsupported objectType of ' + objectType + ' in areaInstance.handleInteractiveObjectInteraction().');
                 return;
@@ -4227,6 +4601,41 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     }
                 }
                 break;
+            case 'trapdoors':
+                if(state.APIAreaMapper.trapdoorReposition) {
+                    specialInteraction = true;
+                    
+                    //update the trapdoor's position / rotation / dimensions in the master area:
+                    graphicMaster[0] = graphic.get('top') - this.getProperty('top') - (graphic.get('height') / 2);
+                    graphicMaster[1] = graphic.get('left') - this.getProperty('left') - (graphic.get('width') / 2);
+                    graphicMaster[2] = graphic.get('height');
+                    graphicMaster[3] = graphic.get('width');
+                    graphicMaster[4] = graphic.get('rotation');
+                    
+                    a.getProperty(managedGraphic.graphicType)[managedGraphic.graphicIndex] = graphicMaster;
+                    a.save();
+                    
+                    //draw the object in the area, so that it propagates to all instances:
+                    a.drawInteractiveObject(managedGraphic.graphicType, managedGraphic.graphicIndex, false, graphic);
+                } else {
+                    var trapdoorTop = graphicMaster[0] + this.getProperty('top');
+                    var trapdoorLeft = graphicMaster[1] + this.getProperty('left');
+                    
+                    var p = (new segment(
+                        new point(
+                            trapdoorLeft,
+                            trapdoorTop),
+                        new point(
+                            trapdoorLeft + graphicMaster[3],
+                            trapdoorTop + graphicMaster[2]))).midpoint();
+                    
+                    //compare position to point, using epsilon, to see if it moved:
+                    if((Math.abs(graphic.get('left') - p.x) < positionEpsilon)
+                            && (Math.abs(graphic.get('top') - p.y) < positionEpsilon)) {
+                        return;
+                    }
+                }
+                break;
             default:
                 log('Unhandled graphic type of ' + managedGraphic.graphicType + ' in areaInstance.handleGraphicChange().');
                 break;
@@ -4293,6 +4702,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 redraw = changeProperty(chestState, property, followUpAction);
                 graphicMaster = chestState.getStateObject();
                 break;
+            case 'trapdoors':
+                var trapdoorState = new trapdoor(graphicMaster);
+                redraw = changeProperty(trapdoorState, property, followUpAction);
+                graphicMaster = trapdoorState.getStateObject();
+                break;
             default:
                 log('Unhandled graphic type of ' + managedGraphic.graphicType + ' in areaInstance.toggleInteractiveProperty().');
                 followUpAction.message = 'There was a problem; see the log for details.';
@@ -4353,6 +4767,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var textureObject;
         if(assetManagementStateObject.getProperty('texture')) {
             textureObject = new texture(assetManagementStateObject.getProperty('texture'));
+        }
+        
+        //handle null textures for backward compatibility:
+        if(!textureObject) {
+            textureObject = new texture();
         }
         
         //note: the classification can be null:
@@ -4831,6 +5250,133 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 state.APIAreaMapper.assetManagementModalIds.push(['text', labelText.id]);
                 toBackIds.unshift(['text', labelText.id]);
                 break;
+            case 'trapdoor':
+                
+                //create the modal frame:
+                var modalFramePath = createRectanglePathObject(
+                        pageId, 
+                        'objects', 
+                        '#000000', 
+                        headerBackgroundColor, 
+                        modalTop, 
+                        modalLeft, 
+                        modalPairNonStretchHeight, 
+                        modalWidth,
+                        2
+                    );
+                state.APIAreaMapper.assetManagementModalIds.push(['path', modalFramePath.id]);
+                toBackIds.unshift(['path', modalFramePath.id]);
+                        
+                //highlight the active asset:
+                if(highlightEditedAsset) {
+                    var editedAssetHighlightPath = createRectanglePathObject(
+                            pageId, 
+                            'objects', 
+                            '#ff0000', 
+                            'transparent', 
+                            modalTop + highlightEditedAssetMargin, 
+                            modalLeft + highlightEditedAssetMargin + (assetManagementStateObject.getProperty('pairIndex') ? (modalWidth / 2) : 0), 
+                            modalPairNonStretchHeight - (2 * highlightEditedAssetMargin), 
+                            (modalWidth / 2) - (2 * highlightEditedAssetMargin),
+                            2
+                        );
+                    state.APIAreaMapper.assetManagementModalIds.push(['path', editedAssetHighlightPath.id]);
+                    toBackIds.unshift(['path', editedAssetHighlightPath.id]);
+                }
+                        
+                //note: if there is a classification, there must be a texture:
+                var asset1,
+                    asset2;
+                switch(textureObject.getProperty('textureType')) {
+                    case 'asset':
+                        asset1 = new asset(state.APIAreaMapper.assets.trapdoorAssets[textureObject.getProperty('value')][0]);
+                        asset2 = new asset(state.APIAreaMapper.assets.trapdoorAssets[textureObject.getProperty('value')][1]);
+                        break;
+                    case 'unique':
+                        asset1 = new asset(textureObject.getProperty('value')[0]);
+                        asset2 = new asset(textureObject.getProperty('value')[1]);
+                        break;
+                    default:
+                        log('Unhandled textureType of ' + textureObject.getProperty('textureType') + ' in drawAssetManagementModal().');
+                        return;
+                }
+                
+                //draw assets:
+                var assetToken = createTokenObjectFromAsset(
+                        asset1,
+                        pageId,
+                        'objects',
+                        modalTop + modalTopMargin,
+                        modalLeft + (modalWidth / 2) - assetPairNonStretchSize - assetPairNonStretchSpacing,
+                        assetPairNonStretchSize,
+                        assetPairNonStretchSize
+                    );
+                state.APIAreaMapper.assetManagementModalIds.push(['graphic', assetToken.id]);
+                toBackIds.unshift(['graphic', assetToken.id]);
+                assetToken = createTokenObjectFromAsset(
+                        asset2,
+                        pageId,
+                        'objects',
+                        modalTop + modalTopMargin,
+                        modalLeft + (modalWidth / 2) + assetPairNonStretchSpacing,
+                        assetPairNonStretchSize,
+                        assetPairNonStretchSize
+                    );
+                state.APIAreaMapper.assetManagementModalIds.push(['graphic', assetToken.id]);
+                toBackIds.unshift(['graphic', assetToken.id]);
+                
+                //draw bands:
+                var bandPath = createBandPathObject(
+                        pageId, 
+                        modalTop + modalTopMargin,
+                        modalLeft + (modalWidth / 2) - assetPairNonStretchSize - assetPairNonStretchSpacing,
+                        assetPairNonStretchSize,
+                        assetPairNonStretchSize, 
+                        0, 
+                        '#00ff00', 
+                        0, 
+                        'objects'
+                    );
+                state.APIAreaMapper.assetManagementModalIds.push(['path', bandPath.id]);
+                toBackIds.unshift(['path', bandPath.id]);
+                bandPath = createBandPathObject(
+                        pageId, 
+                        modalTop + modalTopMargin,
+                        modalLeft + (modalWidth / 2) + assetPairNonStretchSpacing,
+                        assetPairNonStretchSize,
+                        assetPairNonStretchSize, 
+                        0, 
+                        '#00ff00', 
+                        0, 
+                        'objects'
+                    );
+                state.APIAreaMapper.assetManagementModalIds.push(['path', bandPath.id]);
+                toBackIds.unshift(['path', bandPath.id]);
+                
+                //draw labels:
+                var labelText = createTextObject(
+                        'closed trapdoor asset',
+                        pageId,
+                        'objects',
+                        modalTop + modalTopMargin - labelHover,
+                        modalLeft + (modalWidth / 2) - (assetPairNonStretchSize + assetPairNonStretchSpacing),
+                        labelHover,
+                        assetPairNonStretchSize
+                    );
+                state.APIAreaMapper.assetManagementModalIds.push(['text', labelText.id]);
+                toBackIds.unshift(['text', labelText.id]);
+                labelText = createTextObject(
+                        'open trapdoor asset',
+                        pageId,
+                        'objects',
+                        modalTop + modalTopMargin - labelHover,
+                        modalLeft + (modalWidth / 2) + assetPairNonStretchSpacing,
+                        labelHover,
+                        assetPairNonStretchSize
+                    );
+                state.APIAreaMapper.assetManagementModalIds.push(['text', labelText.id]);
+                toBackIds.unshift(['text', labelText.id]);
+                break;
             default:
                 break;
         }
@@ -4920,6 +5466,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
                             break;
                         case 'chest':
                             assetManagementStateObject.setProperty('texture', a.getProperty('chestTexture'));
+                            break;
+                        case 'trapdoor':
+                            assetManagementStateObject.setProperty('texture', a.getProperty('trapdoorTexture'));
                             break;
                         default:
                             log('Unhandled classification of ' + classification + ' in toggleManageAssetClassification().');
@@ -5023,6 +5572,25 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 var asset2 = new asset();
                 asset2.setProperty('imagesrc', getCleanImgsrc(token2.get('imgsrc')));
                 break;
+            case 'trapdoor':
+                if(selected.length !== 2) {
+                    returnObject.message = 'Exactly two images should be selected to turn into trapdoor assets. One for a closed trapdoor and another for an open trapdoor.';
+                    return returnObject;
+                }
+                
+                var token1 = getObj('graphic', selected[0]._id);
+                var token2 = getObj('graphic', selected[1]._id);
+                
+                if(!token1 || !token2) {
+                    returnObject.message = 'Failure to find exactly two selected images. Two images should be selected to turn into trapdoor assets. One for a closed trapdoor and another for an open trapdoor.';
+                    return returnObject;
+                }
+                
+                var asset1 = new asset();
+                asset1.setProperty('imagesrc', getCleanImgsrc(token1.get('imgsrc')));
+                var asset2 = new asset();
+                asset2.setProperty('imagesrc', getCleanImgsrc(token2.get('imgsrc')));
+                break;
             default:
                 log('Unhandled asset classification of ' + classification + ' in createAssetFromSelection().');
                 returnObject.message = 'There was a problem; see the log for details.';
@@ -5086,6 +5654,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 state.APIAreaMapper.assets.chestAssets.push(assetStateObject);
                 textureObject.setProperty('value', state.APIAreaMapper.assets.chestAssets.length - 1);
                 break;
+            case 'trapdoor':
+                state.APIAreaMapper.assets.trapdoorAssets.push(assetStateObject);
+                textureObject.setProperty('value', state.APIAreaMapper.assets.trapdoorAssets.length - 1);
+                break;
             default:
                 log('Unhandled asset classification of ' + assetManagementStateObject.getProperty('classification') + ' in manageAsestCreateGlobal().');
                 return 'There was a problem; see the log for details.';
@@ -5109,6 +5681,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     break;
                 case 'chest':
                     a.useGlobalAsset(assetManagementStateObject.getProperty('classification'), state.APIAreaMapper.assets.chestAssets.length - 1);
+                    break;
+                case 'trapdoor':
+                    a.useGlobalAsset(assetManagementStateObject.getProperty('classification'), state.APIAreaMapper.assets.trapdoorAssets.length - 1);
                     break;
                 default:
                     log('Unhandled asset classification of ' + assetManagementStateObject.getProperty('classification') + ' in manageAsestCreateGlobal().');
@@ -5149,6 +5724,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'wall':
             case 'door':
             case 'chest':
+            case 'trapdoor':
                 assetStateObject = [assetCreationReturn.assetState1, assetCreationReturn.assetState2];
                 break;
             default:
@@ -5226,6 +5802,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     break;
                 case 'chest':
                     assetLength = state.APIAreaMapper.assets.chestAssets.length;
+                    break;
+                case 'trapdoor':
+                    assetLength = state.APIAreaMapper.assets.trapdoorAssets.length;
                     break;
                 default:
                     log('Unhandled asset classification of ' + assetManagementStateObject.getProperty('classification') + ' in handleManageAssetCycle().');
@@ -5328,6 +5907,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 break;
             case 'chest':
                 newTextureObject = manageAssetsDeleteByClassification(assetManagementStateObject.getProperty('classification'), 'chestTexture', state.APIAreaMapper.assets.chestAssets, textureObject, followUpAction);
+                break;
+            case 'trapdoor':
+                newTextureObject = manageAssetsDeleteByClassification(assetManagementStateObject.getProperty('classification'), 'trapdoorTexture', state.APIAreaMapper.assets.trapdoorAssets, textureObject, followUpAction);
                 break;
             default:
                 log('Unhandled classification of ' + assetManagementStateObject.getProperty('classification') + ' in handleManageAssetGlobalDelete().');
@@ -5449,6 +6031,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         setPropertyToValue(assetObject, property, value, updateType);
                         state.APIAreaMapper.assets.chestAssets[textureObject.getProperty('value')][assetManagementStateObject.getProperty('pairIndex')] = assetObject.getStateObject();
                         break;
+                    case 'trapdoor':
+                        var assetObject = new asset(state.APIAreaMapper.assets.trapdoorAssets[textureObject.getProperty('value')][assetManagementStateObject.getProperty('pairIndex')]);
+                        setPropertyToValue(assetObject, property, value, updateType);
+                        state.APIAreaMapper.assets.trapdoorAssets[textureObject.getProperty('value')][assetManagementStateObject.getProperty('pairIndex')] = assetObject.getStateObject();
+                        break;
                     default:
                         log('Unhandled classification of ' + assetManagementStateObject.getProperty('classification') + ' in manageAssetEditSetProperty().');
                         return;
@@ -5464,6 +6051,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     case 'wall':
                     case 'door':
                     case 'chest':
+                    case 'trapdoor':
                         var assetObject = new asset(textureObject.getProperty('value')[assetManagementStateObject.getProperty('pairIndex')]);
                         setPropertyToValue(assetObject, property, value, updateType);
                         textureObject.getProperty('value')[assetManagementStateObject.getProperty('pairIndex')] = assetObject.getStateObject();
@@ -5582,6 +6170,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         state.APIAreaMapper.assets.chestAssets[textureObject.getProperty('value')][0] = state.APIAreaMapper.assets.chestAssets[textureObject.getProperty('value')][1];
                         state.APIAreaMapper.assets.chestAssets[textureObject.getProperty('value')][1] = tempAsset;
                         break;
+                    case 'trapdoor':
+                        var tempAsset = state.APIAreaMapper.assets.trapdoorAssets[textureObject.getProperty('value')][0];
+                        state.APIAreaMapper.assets.trapdoorAssets[textureObject.getProperty('value')][0] = state.APIAreaMapper.assets.trapdoorAssets[textureObject.getProperty('value')][1];
+                        state.APIAreaMapper.assets.trapdoorAssets[textureObject.getProperty('value')][1] = tempAsset;
+                        break;
                     default:
                         log('Unhandled classification of ' + assetManagementStateObject.getProperty('classification') + ' in handleManageAssetEditSwapAssets().');
                         followUpAction.message = 'There was a problem; check the log for details.';
@@ -5593,6 +6186,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     case 'wall':
                     case 'door':
                     case 'chest':
+                    case 'trapdoor':
                         var tempAsset = textureObject.getProperty('value')[0];
                         textureObject.getProperty('value')[0] = textureObject.getProperty('value')[1];
                         textureObject.getProperty('value')[1] = tempAsset;
@@ -5749,6 +6343,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return followUpAction;
     },
     
+    toggleTrapdoorReposition = function() {
+        state.APIAreaMapper.trapdoorReposition = !state.APIAreaMapper.trapdoorReposition;
+        
+        var followUpAction = [];
+        followUpAction.refresh = true;
+        return followUpAction;
+    },
+    
     toggleBlueprintMode = function() {
         state.APIAreaMapper.blueprintMode = !state.APIAreaMapper.blueprintMode;
         
@@ -5765,6 +6367,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
     toggleInteractiveProperty = function(selected, who, property) {
         var followUpAction = [];
         followUpAction.refresh = true;
+        
+        if('undefined' === typeof(selected) || selected.length === 0) {
+            followUpAction.Message = 'Nothing is selected.';
+            return followUpAction;
+        }
         
         if(selected.length > 1) {
             followUpAction.Message = 'Only one object should be selected.';
@@ -6091,6 +6698,20 @@ var APIAreaMapper = APIAreaMapper || (function() {
         );
     },
     
+    interfaceTrapdoor = function(who, managedGraphic) {
+        state.APIAreaMapper.uiWindow = 'trapdoor';
+        
+        sendStandardInterface(who, 'Area Mapper',
+            uiSection('Trapdoor Management', null, [
+                    ['active', 'open', 'interactiveObjectOpen', false, managedGraphic.properties[5]],
+                    ['active', 'lock', 'interactiveObjectLock', false, managedGraphic.properties[6]],
+                    ['active', 'trap', 'interactiveObjectTrap', false, managedGraphic.properties[7]],
+                    ['active', 'hide', 'interactiveObjectHide', false, managedGraphic.properties[8]],
+                    ['active', 'reposition', 'trapdoorReposition', false, state.APIAreaMapper.trapdoorReposition] //this is a global setting for repositioning all trapdoors
+                ])
+        );
+    },
+    
     interfaceAreaManagement = function(who, areaId) {
         var a = new area(areaId);
         
@@ -6106,6 +6727,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var hasInnerWalls = a.getProperty('innerWalls').length;
         var hasDoors = a.getProperty('doors').length;
         var hasChests = a.getProperty('chests').length;
+        var hasTrapdoors = a.getProperty('trapdoors').length;
         var hasInstances = a.getInstancePageIds().length;
         var isArchived = a.getProperty('archived');
         
@@ -6158,6 +6780,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'chestRemove':
                 modifyInstructions = 'Use a drawing tool to remove chests. Chest centers must be captured.';
                 break;
+            case 'trapdoorAdd':
+                modifyInstructions = 'Use a drawing tool to create a trapdoor. The position, height, and width of the drawing will be used.';
+                break;
+            case 'trapdoorRemove':
+                modifyInstructions = 'Use a drawing tool to remove trapdoors. Trapdoor centers must be captured.';
+                break;
             default:
                 break;
         }
@@ -6179,7 +6807,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     modeCommand('edge walls', ['endRecordAreaMode', 'edgeWallGapRemove', 'edgeWallRemove'], !hasInstances || (state.APIAreaMapper.activeArea != areaId), state.APIAreaMapper.recordAreaMode),
                     modeCommand('inner walls', ['endRecordAreaMode', 'innerWallAdd', 'innerWallRemove'], !hasInstances || (state.APIAreaMapper.activeArea != areaId), state.APIAreaMapper.recordAreaMode),
                     modeCommand('doors', ['endRecordAreaMode', 'doorAdd', 'doorRemove'], !hasInstances || (state.APIAreaMapper.activeArea != areaId), state.APIAreaMapper.recordAreaMode),
-                    modeCommand('chests', ['endRecordAreaMode', 'chestAdd', 'chestRemove'], !hasInstances || (state.APIAreaMapper.activeArea != areaId), state.APIAreaMapper.recordAreaMode)
+                    modeCommand('chests', ['endRecordAreaMode', 'chestAdd', 'chestRemove'], !hasInstances || (state.APIAreaMapper.activeArea != areaId), state.APIAreaMapper.recordAreaMode),
+                    modeCommand('trapdoors', ['endRecordAreaMode', 'trapdoorAdd', 'trapdoorRemove'], !hasInstances || (state.APIAreaMapper.activeArea != areaId), state.APIAreaMapper.recordAreaMode)
                 ])
             //TODO: instance-specific modifications: move, resize, rotate
         );
@@ -6467,6 +7096,39 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 log('Unhandled scope of ' + assetManagementStateObject.getProperty('scope') + ' in interfaceManageAssets().');
                 return;
         }
+        
+        
+        var trapdoorCommands = [
+                ['active', 'active', 'manageAssetActivateClassification trapdoor', false, activeClassification == 'trapdoor'],
+                ['navigation', assetManagementStateObject.getProperty('scope') == 'global' ? 'create' : 'create unique', 'manageAssetCreate', activeClassification != 'trapdoor', false],
+                ['navigation', 'cycle', 'manageAssetCycle', activeClassification != 'trapdoor', false],
+                ['navigation', 'edit', 'manageAssetEdit', activeClassification != 'trapdoor', false],
+            ];
+            
+        switch(assetManagementStateObject.getProperty('scope')) {
+            case 'global':
+                chestCommands.push(['navigation', 'delete', 'manageAssetDelete', activeClassification != 'trapdoor', false]);
+                break;
+            case 'area':
+                var areaTextureObject = new texture(a.getProperty('wallTexture'));
+                
+                switch(areaTextureObject.getProperty('textureType')) {
+                    case 'asset':
+                        chestCommands.push(['navigation', 'delete', 'manageAssetDelete', activeClassification != 'trapdoor', false]);
+                        break;
+                    case 'unique':
+                        
+                        //orphaning a unique asset effectively deletes it:
+                        chestCommands.push(['navigation', 'delete', 'manageAssetCycle', activeClassification != 'trapdoor', false]);
+                        break;
+                    default:
+                        break;
+                }
+                break;
+            default:
+                log('Unhandled scope of ' + assetManagementStateObject.getProperty('scope') + ' in interfaceManageAssets().');
+                return;
+        }
             
             
         sendStandardInterface(who, uiTitle,
@@ -6474,6 +7136,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             +uiSection('Walls', activeClassification == 'wall' ? 'The wall assets can be seen on the top left corner of the player page.' : null, wallCommands)
             +uiSection('Doors', activeClassification == 'door' ? 'The door assets can be seen on the top left corner of the player page.' : null, doorCommands)
             +uiSection('Chests', activeClassification == 'chest' ? 'The chest assets can be seen on the top left corner of the player page.' : null, chestCommands)
+            +uiSection('Trapdoors', activeClassification == 'trapdoor' ? 'The trapdoor assets can be seen on the top left corner of the player page.' : null, trapdoorCommands)
         );
     },
     
@@ -6508,6 +7171,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         asset1 = new asset(state.APIAreaMapper.assets.chestAssets[textureObject.getProperty('value')][0]);
                         asset2 = new asset(state.APIAreaMapper.assets.chestAssets[textureObject.getProperty('value')][1]);
                         break;
+                    case 'trapdoor':
+                        asset1 = new asset(state.APIAreaMapper.assets.trapdoorAssets[textureObject.getProperty('value')][0]);
+                        asset2 = new asset(state.APIAreaMapper.assets.trapdoorAssets[textureObject.getProperty('value')][1]);
+                        break;
                     default:
                         log('Unhandled classification of ' + assetManagementStateObject.getProperty('classification') + ' in interfaceManageAssetEdit().');
                         return;
@@ -6521,6 +7188,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     case 'wall':
                     case 'door':
                     case 'chest':
+                    case 'trapdoor':
                         asset1 = new asset(textureObject.getProperty('value')[0]);
                         asset2 = new asset(textureObject.getProperty('value')[1]);
                         break;
@@ -6546,6 +7214,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'wall':
             case 'door':
             case 'chest':
+            case 'trapdoor':
                 links.push(['active', 'left asset', 'manageAssetEditToggleActiveAsset', false, !assetManagementStateObject.getProperty('pairIndex')]);
                 links.push(['navigation', 'swap assets', 'manageAssetEditSwapAssets', false, false]);
                 break;
@@ -6571,6 +7240,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 links.push(['active', 'alternate stretch', 'manageAssetEditAlternateStretch', false, activeAsest.getProperty('alternate')]);
                 break;
             case 'chest':
+            case 'trapdoor':
                 break;
             default:
                 log('Unhandled classification of ' + assetManagementStateObject.getProperty('classification') + ' in interfaceManageAssetEdit().');
@@ -6757,6 +7427,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'chests':
                 interfaceChest(who, managedGraphicProperties);
                 break;
+            case 'trapdoors':
+                interfaceTrapdoor(who, managedGraphicProperties);
+                break;
             default:
                 log('Unhandled graphicType of ' + managedGraphicProperties.graphicType + ' in intuit().');
                 followUpAction.message = 'There was a problem; see the log for details.';
@@ -6902,6 +7575,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 case 'doorRemove':
                 case 'chestAdd':
                 case 'chestRemove':
+                case 'trapdoorAdd':
+                case 'trapdoorRemove':
                 case 'areaInstanceCreate':
                     retainRecordAreaMode = true;
                     followUpAction = toggleOrSetAreaRecordMode(chatCommand[1]);
@@ -6914,6 +7589,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 case 'chestReposition':
                     retainFalseSelection = true;
                     followUpAction = toggleChestReposition();
+                    break;
+                case 'trapdoorReposition':
+                    retainFalseSelection = true;
+                    followUpAction = toggleTrapdoorReposition();
                     break;
                 case 'redraw':
                     retainRecordAreaMode = true;
@@ -7029,6 +7708,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     break;
                 case 'chestRemove':
                     followUpAction = a.chestRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                    break;
+                case 'trapdoorAdd':
+                    followUpAction = a.trapdoorAdd(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                    break;
+                case 'trapdoorRemove':
+                    followUpAction = a.trapdoorRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
                     break;
                 case 'areaInstanceCreate':
                     followUpAction = a.createInstance(path.get('_pageid'), path.get('top'), path.get('left'));
