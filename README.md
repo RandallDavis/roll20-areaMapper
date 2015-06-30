@@ -18,6 +18,9 @@ alt="AreaMapper demo" width="100%" height="100%" border="10" /></a>
 - Unique assets can be used. This makes it really easy to import a map and use it as the floor image of an area.
 - Blueprint mode is available.
 
+##### Features not appearing in the video since they were implemented after it was made:
+- Trapdoors.
+
 ##### Required libraries:
 This requires another script I wrote for its visual alert animations. It can be found here: https://github.com/RandallDavis/roll20-visualAlertScript.
 
