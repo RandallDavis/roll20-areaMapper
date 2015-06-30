@@ -36,8 +36,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         blueprintEdgeWallGapsPathColor = '#D13583',
         blueprintInnerWallsPathColor = '#3535D1',
         blueprintDoorPathColor = '#EC9B10',
-        blueprintChestPathColor = '#666666',
-        blueprintTrapdoorPathColor = '#660066',
+        blueprintChestPathColor = '#F7F247',
+        blueprintTrapdoorPathColor = '#56C029',
         zOrderWorkaround = true,
         
     checkInstall = function() {
@@ -88,7 +88,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             log('APIAreaMapper: Adding assets to state.');
             state.APIAreaMapper.assets.schemaVersion = 1.1;
             state.APIAreaMapper.assets.trapdoorAssets = [
-                    [['https://s3.amazonaws.com/files.d20.io/images/5770/thumb.png?1336266346',0,0,1.2387463105442005,1.2387463105442005,0,0],
+                    [['https://s3.amazonaws.com/files.d20.io/images/5770/thumb.png?1336266346',0,0,1.2387463105442005,1.2387463105442005,3,-1],
                         ['https://s3.amazonaws.com/files.d20.io/images/5338/thumb.png?1336255241',0,0,1.20462921707625,1.328103711826566,0,0]],
                     [['https://s3.amazonaws.com/files.d20.io/images/7678/thumb.png?1336442415',0,0,1.0721353521070098,1.08285670562808,0,0],
                         ['https://s3.amazonaws.com/files.d20.io/images/13947/thumb.png?1337763612',0,0,1,1,0,0]]
@@ -1500,7 +1500,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var obj;
         if(l.length) {
             obj = l.shift();
-        	toBackObject(obj[0], obj[1]);
+            toBackObject(obj[0], obj[1]);
 			if(l.length) {
 				setTimeout(_.partial(toBackListWithDelays, l), 50);
 			}
@@ -1703,12 +1703,16 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var usedHeight = assetObject.getProperty('alternate') ? scaledWidth : scaledHeight;
         var usedWidth = assetObject.getProperty('alternate') ? scaledHeight : scaledWidth;
         
+        //calculated offsets:
+        var offsetVertical = assetObject.getProperty('offsetVertical') * height / 70;
+        var offsetHorizontal = assetObject.getProperty('offsetHorizontal') * width / 70;
+        
         var obj = createObj('graphic', {
             imgsrc: assetObject.getProperty('imagesrc'),
             layer: layer,
             pageid: pageId,
-            top: top + (height / 2) + assetObject.getProperty('offsetVertical'),
-            left: left + (width / 2) + assetObject.getProperty('offsetHorizontal'),
+            top: top + (height / 2) + offsetVertical,
+            left: left + (width / 2) + offsetHorizontal,
             height: usedHeight,
             width: usedWidth,
             rotation: rotation + assetObject.getProperty('rotation') + (assetObject.getProperty('alternate') ? 90 : 0)
@@ -1731,12 +1735,16 @@ var APIAreaMapper = APIAreaMapper || (function() {
         midpoint.x += (assetObject.getProperty('offsetVertical') * Math.cos(segment.angle(segment.a).radians - (Math.PI / 2)));
         midpoint.y += (assetObject.getProperty('offsetVertical') * Math.sin(segment.angle(segment.a).radians - (Math.PI / 2)));
         
+        //calculate offsets:
+        var offsetVertical = assetObject.getProperty('offsetVertical') * height / 70;
+        var offsetHorizontal = assetObject.getProperty('offsetHorizontal') * width / 70;
+        
         return createTokenObjectFromAsset(
             assetObject,
             pageId,
             layer,
-            midpoint.y - (height / 2) - assetObject.getProperty('offsetVertical'), //remove misadjustments to top that createTokenObjectFromAsset() makes
-            midpoint.x - (width / 2) - assetObject.getProperty('offsetHorizontal'), //remove misadjustments to left that createTokenObjectFromAsset() makes
+            midpoint.y - (height / 2) - offsetVertical, //remove misadjustments to top that createTokenObjectFromAsset() makes
+            midpoint.x - (width / 2) - offsetHorizontal, //remove misadjustments to left that createTokenObjectFromAsset() makes
             height,
             width,
             segment.angleDegrees(segment.a));
@@ -4097,7 +4105,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         chestState.getProperty('width'),
                         chestState.getProperty('rotation'));
                        
-                    //set chest privs to players unless the door is hidden:
+                    //set chest privs to players unless the chest is hidden:
                     if(!chestState.getProperty('isHidden')) {
                         chestToken.set("controlledby", "all");
                     }
