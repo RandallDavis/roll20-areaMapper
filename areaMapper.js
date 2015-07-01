@@ -6,7 +6,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 1.01,
+    var version = 1.02,
         areaSchemaVersion = 1.0,
         assetSchemaVersion = 1.1,
         buttonBackgroundColor = '#CC1869',
@@ -1501,7 +1501,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         if(l.length) {
             obj = l.shift();
             toBackObject(obj[0], obj[1]);
-			if(l.length) {
+    		if(l.length) {
 				setTimeout(_.partial(toBackListWithDelays, l), 50);
 			}
 		}
@@ -6745,46 +6745,46 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         var manageInstructions = null;
         if(state.APIAreaMapper.recordAreaMode == 'areaInstanceCreate') {
-            manageInstructions = 'Use a drawing tool to specify where to draw the instance.';
+            manageInstructions = 'Use a drawing tool to specify where to draw the instance.</p><p>Any drawing tool can be used.';
         }
         
         var modifyInstructions = null;
         switch(state.APIAreaMapper.recordAreaMode) {
             case 'areaAppend':
-                modifyInstructions = 'Use a drawing tool to add to the floorplan.';
+                modifyInstructions = 'Use a drawing tool to add to the floorplan.</p><p>Rectangle or polygon drawing tools are recommended. If a polygon drawing tool is used, at least three points must be drawn.';
                 break;
             case 'areaRemove':
-                modifyInstructions = 'Use a drawing tool to remove from the floorplan.';
+                modifyInstructions = 'Use a drawing tool to remove from the floorplan.</p><p>Rectangle or polygon drawing tools are recommended. If a polygon drawing tool is used, at least three points must be drawn.';
                 break;
             case 'edgeWallGapRemove':
-                modifyInstructions = 'Use a drawing tool to remove gaps in edge walls. Entire gaps must be captured.';
+                modifyInstructions = 'Use a drawing tool to remove gaps in edge walls. Entire gaps must be captured.</p><p>Rectangle, freehand, or polygon drawing tools are recommended. If a polygon drawing tool is used, at least three points must be drawn.';
                 break;
             case 'edgeWallRemove':
-                modifyInstructions = 'Use a drawing tool to remove edge walls.';
+                modifyInstructions = 'Use a drawing tool to remove edge walls.</p><p>Rectangle, freehand, or polygon drawing tools are recommended. If a polygon drawing tool is used, at least three points must be drawn.';
                 break;
             case 'innerWallAdd':
-                modifyInstructions = 'Use a drawing tool to add inner walls. Walls must be fully contained within the floorplan.';
+                modifyInstructions = 'Use a drawing tool to add inner walls. Walls must be fully contained within the floorplan.</p><p>Polygon drawing tool is recommended. Drawings will be interpreted as paths. At least two points must be drawn.';
                 break;
             case 'innerWallRemove':
-                modifyInstructions = 'Use a drawing tool to remove inner walls.';
+                modifyInstructions = 'Use a drawing tool to remove inner walls.</p><p>Rectangle, freehand, or polygon drawing tools are recommended. If a polygon drawing tool is used, at least three points must be drawn.';
                 break;
             case 'doorAdd':
-                modifyInstructions = 'Use a drawing tool to add a door by selecting two wall sections that the door should connect.';
+                modifyInstructions = 'Use a drawing tool to add a door by selecting two wall sections that the door should connect.</p><p>Polygon drawing tool is recommended. At least three points must be drawn.';
                 break;
             case 'doorRemove':
-                modifyInstructions = 'Use a drawing tool to remove doors. Entire doors must be captured.';
+                modifyInstructions = 'Use a drawing tool to remove doors. Entire doors must be captured.</p><p>Rectangle, freehand, or polygon drawing tools are recommended. If a polygon drawing tool is used, at least three points must be drawn.';
                 break;
             case 'chestAdd':
-                modifyInstructions = 'Use a drawing tool to create a chest. The position, height, and width of the drawing will be used.';
+                modifyInstructions = 'Use a drawing tool to create a chest. The position, height, and width of the drawing will be used.</p><p>Rectangle, freehand, or polygon drawing tools are recommended. If a polygon drawing tool is used, at least three points must be drawn.';
                 break;
             case 'chestRemove':
-                modifyInstructions = 'Use a drawing tool to remove chests. Chest centers must be captured.';
+                modifyInstructions = 'Use a drawing tool to remove chests. Chest centers must be captured.</p><p>Rectangle, freehand, or polygon drawing tools are recommended. If a polygon drawing tool is used, at least three points must be drawn.';
                 break;
             case 'trapdoorAdd':
-                modifyInstructions = 'Use a drawing tool to create a trapdoor. The position, height, and width of the drawing will be used.';
+                modifyInstructions = 'Use a drawing tool to create a trapdoor. The position, height, and width of the drawing will be used.</p><p>Rectangle, freehand, or polygon drawing tools are recommended. If a polygon drawing tool is used, at least three points must be drawn.';
                 break;
             case 'trapdoorRemove':
-                modifyInstructions = 'Use a drawing tool to remove trapdoors. Trapdoor centers must be captured.';
+                modifyInstructions = 'Use a drawing tool to remove trapdoors. Trapdoor centers must be captured.</p><p>Rectangle, freehand, or polygon drawing tools are recommended. If a polygon drawing tool is used, at least three points must be drawn.';
                 break;
             default:
                 break;
