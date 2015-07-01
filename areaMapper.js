@@ -8,7 +8,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     var version = 1.03,
         areaSchemaVersion = 1.0,
-        assetSchemaVersion = 1.1,
+        assetSchemaVersion = 1.2,
         buttonBackgroundColor = '#CC1869',
         buttonGreyedColor = '#8D94A9',
         buttonHighlightLinkColor = '#D6F510',
@@ -95,6 +95,36 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 ];
                 
             log(state.APIAreaMapper.assets);
+        }
+        
+        //correct asset properties:
+        if(state.APIAreaMapper.assets && state.APIAreaMapper.assets.schemaVersion < 1.2) {
+            log('APIAreaMapper: Altering default asset properties.');
+            state.APIAreaMapper.assets.schemaVersion = 1.2;
+            state.APIAreaMapper.assets.wallAssets.forEach(function(w) {
+                switch(w[0]) {
+                    case 'https://s3.amazonaws.com/files.d20.io/images/7068/thumb.png?1336366825':
+                        w[6] = -1;
+                        break;
+                    case 'https://s3.amazonaws.com/files.d20.io/images/452469/9KJ1s2PJhuMbDICeYETXZQ/thumb.png?1355660278':
+                        w[6] = 2;
+                        break;
+                    default:
+                        break;
+                }
+            }, this);
+            state.APIAreaMapper.assets.doorAssets.forEach(function(w) {
+                switch(w[0]) {
+                    case 'https://s3.amazonaws.com/files.d20.io/images/6951/thumb.png?1336359665':
+                        w[6] = -1;
+                        break;
+                    case 'https://s3.amazonaws.com/files.d20.io/images/7068/thumb.png?1336366825':
+                        w[6] = -1;
+                        break;
+                    default:
+                        break;
+                }
+            }, this);
         }
         
         if(state.APIAreaMapper.areas && state.APIAreaMapper.areas.schemaVersion !== areaSchemaVersion) {
@@ -1502,7 +1532,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             obj = l.shift();
             toBackObject(obj[0], obj[1]);
             if(l.length) {
-    			setTimeout(_.partial(toBackListWithDelays, l), 50);
+                setTimeout(_.partial(toBackListWithDelays, l), 50);
 			}
 		}
     },
@@ -7326,7 +7356,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                             +'Roll20 only allows assets to be created that are stored in someone'+ch("'")+'s art library (either yours or someone else'+ch("'")+'s). Even the default assets that are provided with the script are in someone'+ch("'")+'s art library.</p><p>'
                             +'There are two user interface screens for managing assets. They are very similar but have some slight differences:'
                                 +'<ul>'
-                                    +'<li>Through the settings UI, you can reach the '+ch("'")+'Manage Global Assets'+ch("'")+' screen. This manages the global assets directly in state. Changes to assets immediately affect all areas. A window appears that displays the asset that you'+ch("'")+'re interacting with. Cyling between assets changes the asset that is being managed.</li>'
+                                    +'<li>Through the settings UI, you can reach the '+ch("'")+'Manage Global Assets'+ch("'")+' screen. This manages the global assets directly in state. A window appears that displays the asset that you'+ch("'")+'re interacting with. Changes to assets immediately affect all areas. Cyling between assets changes the asset that is being managed.</li>'
                                     +'<li>Through the area management UI, you can reach the '+ch("'")+'Manage Area Assets'+ch("'")+' screen. This manages assets in the context of the active area and has a few options that are different from the '+ch("'")+'Manage Global Assets'+ch("'")+' screen. A window appears that displays the asset that you'+ch("'")+'re interacting with. Cycling between assets changes the global asset that is being managed as well as setting the active area to use that asset. Changes to global assets immediately affect all areas. In some cases, transparent assets can be used (this means that no asset is drawn for the area at all). Instead of having an option to create a global asset, there is an option to create a '+ch("'")+'unique asset'+ch("'")+'. Unique assets are special in that they belong to the area and are not available to other areas. A unique asset can be made global if it should be made available to other areas.</li>'
                                 +'</ul>'
                             +'Assets can be edited directly through the user interface. The goal of this is to get assets to fit neatly into the rectangle that is displayed.'
