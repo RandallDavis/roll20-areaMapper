@@ -93,8 +93,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     [['https://s3.amazonaws.com/files.d20.io/images/7678/thumb.png?1336442415',0,0,1.0721353521070098,1.08285670562808,0,0],
                         ['https://s3.amazonaws.com/files.d20.io/images/13947/thumb.png?1337763612',0,0,1,1,0,0]]
                 ];
-                
-            log(state.APIAreaMapper.assets);
         }
         
         //correct asset properties:
