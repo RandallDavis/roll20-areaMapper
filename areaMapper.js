@@ -6,9 +6,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 1.03,
+    var version = 1.04,
         areaSchemaVersion = 1.0,
-        assetSchemaVersion = 1.2,
         buttonBackgroundColor = '#CC1869',
         buttonGreyedColor = '#8D94A9',
         buttonHighlightLinkColor = '#D6F510',
@@ -38,7 +37,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
         blueprintDoorPathColor = '#EC9B10',
         blueprintChestPathColor = '#F7F247',
         blueprintTrapdoorPathColor = '#56C029',
-        zOrderWorkaround = true,
+        
+        /*
+        When this is true, the script runs toBack() on objects as a workaround for the Roll20 API bug 
+        https://app.roll20.net/forum/post/1986741/api-z-order-with-newly-created-objects-tofront-and-toback-is-broken/#post-1986741
+        */
+        zOrderWorkaround = true, 
         
     checkInstall = function() {
         
@@ -1531,7 +1535,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             toBackObject(obj[0], obj[1]);
             if(l.length) {
                 setTimeout(_.partial(toBackListWithDelays, l), 50);
-			}
+    		}
 		}
     },
     
@@ -1799,6 +1803,23 @@ var APIAreaMapper = APIAreaMapper || (function() {
         state.APIAreaMapper.tempIgnoreDrawingEvents = false;
         
         return obj;
+    },
+    
+    decodeTokenAttributesByAsset = function(graphic, assetObject) {
+        var returnObj = [];
+        
+        //the height and width are reversed if the asset's alternate property is true:
+        var usedHeight = assetObject.getProperty('alternate') ? graphic.get('width') : graphic.get('height');
+        var usedWidth = assetObject.getProperty('alternate') ? graphic.get('height') : graphic.get('width');
+        
+        var decodedHeight = usedHeight / assetObject.getProperty('scaleVertical');
+        var decodedWidth = usedWidth / assetObject.getProperty('scaleHorizontal');
+        
+        returnObj.height = decodedHeight;
+        returnObj.width = decodedWidth;
+        returnObj.rotation = graphic.get('rotation') - assetObject.getProperty('rotation') - (assetObject.getProperty('alternate') ? 90 : 0)
+        
+        return returnObj;
     };
     
     /* roll20 object management - end */
@@ -4565,6 +4586,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     areaInstance.prototype.handleGraphicChange = function(graphic) {
         
+        //TODO: respect OOP instead of altering graphicMaster directly:
+        
         //see if the graphic is being managed:
         var managedGraphic = this.findManagedGraphic(graphic);
         
@@ -4598,12 +4621,28 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 if(state.APIAreaMapper.chestReposition) {
                     specialInteraction = true;
                     
+                    var textureObject = new texture(a.getProperty('chestTexture'));
+                    var assetObject;
+                    switch(textureObject.getProperty('textureType')) {
+                        case 'asset':
+                            assetObject = new asset(state.APIAreaMapper.assets.chestAssets[textureObject.getProperty('value')][graphicMaster[5] ? 1 : 0]);
+                            break;
+                        case 'unique':
+                            assetObject = new asset(textureObject.getProperty('value')[graphicMaster[5] ? 1 : 0]);
+                            break;
+                        default:
+                            log('Unhandled textureType of ' + textureObject.getProperty('textureType') + ' for textureObject in areaInstance.handleGraphicChange().');
+                            break;
+                    }
+                    
+                    var tokenAttributes = decodeTokenAttributesByAsset(graphic, assetObject);
+                    
                     //update the chest's position / rotation / dimensions in the master area:
                     graphicMaster[0] = graphic.get('top') - this.getProperty('top') - (graphic.get('height') / 2);
                     graphicMaster[1] = graphic.get('left') - this.getProperty('left') - (graphic.get('width') / 2);
-                    graphicMaster[2] = graphic.get('height');
-                    graphicMaster[3] = graphic.get('width');
-                    graphicMaster[4] = graphic.get('rotation');
+                    graphicMaster[2] = tokenAttributes.height;
+                    graphicMaster[3] = tokenAttributes.width;
+                    graphicMaster[4] = tokenAttributes.rotation;
                     
                     a.getProperty(managedGraphic.graphicType)[managedGraphic.graphicIndex] = graphicMaster;
                     a.save();
@@ -4633,12 +4672,28 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 if(state.APIAreaMapper.trapdoorReposition) {
                     specialInteraction = true;
                     
+                    var textureObject = new texture(a.getProperty('trapdoorTexture'));
+                    var assetObject;
+                    switch(textureObject.getProperty('textureType')) {
+                        case 'asset':
+                            assetObject = new asset(state.APIAreaMapper.assets.trapdoorAssets[textureObject.getProperty('value')][graphicMaster[5] ? 1 : 0]);
+                            break;
+                        case 'unique':
+                            assetObject = new asset(textureObject.getProperty('value')[graphicMaster[5] ? 1 : 0]);
+                            break;
+                        default:
+                            log('Unhandled textureType of ' + textureObject.getProperty('textureType') + ' for textureObject in areaInstance.handleGraphicChange().');
+                            break;
+                    }
+                    
+                    var tokenAttributes = decodeTokenAttributesByAsset(graphic, assetObject);
+                    
                     //update the trapdoor's position / rotation / dimensions in the master area:
                     graphicMaster[0] = graphic.get('top') - this.getProperty('top') - (graphic.get('height') / 2);
                     graphicMaster[1] = graphic.get('left') - this.getProperty('left') - (graphic.get('width') / 2);
-                    graphicMaster[2] = graphic.get('height');
-                    graphicMaster[3] = graphic.get('width');
-                    graphicMaster[4] = graphic.get('rotation');
+                    graphicMaster[2] = tokenAttributes.height;
+                    graphicMaster[3] = tokenAttributes.width;
+                    graphicMaster[4] = tokenAttributes.rotation;
                     
                     a.getProperty(managedGraphic.graphicType)[managedGraphic.graphicIndex] = graphicMaster;
                     a.save();
