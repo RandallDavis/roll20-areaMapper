@@ -6,9 +6,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 1.03,
+    var version = 1.04,
         areaSchemaVersion = 1.0,
-        assetSchemaVersion = 1.2,
         buttonBackgroundColor = '#CC1869',
         buttonGreyedColor = '#8D94A9',
         buttonHighlightLinkColor = '#D6F510',
