@@ -6,7 +6,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 1.04,
+    var version = 1.05,
         areaSchemaVersion = 1.0,
         buttonBackgroundColor = '#CC1869',
         buttonGreyedColor = '#8D94A9',
@@ -3410,12 +3410,23 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     area.prototype.getInstancePageIds = function() {
         var instancePageIds = [];
-    
-        state.APIAreaMapper.areas.areaInstances.forEach(function(a) {
-            if(a[0][1] === this.getProperty('id')) {
-                instancePageIds.push(a[1][1])
+        
+        for(var i = 0; i < state.APIAreaMapper.areas.areaInstances.length; i++) {
+            if(state.APIAreaMapper.areas.areaInstances[i][0][1] === this.getProperty('id')) {
+                
+                //test to see if the page still exists:
+                var pageObj = getObj('page', state.APIAreaMapper.areas.areaInstances[i][1][1]);
+                
+                if(!pageObj) {
+                    
+                    //clean out the instance, as its page has been deleted:
+                    state.APIAreaMapper.areas.areaInstances.splice(i, 1);
+                    i--;
+                } else {
+                    instancePageIds.push(state.APIAreaMapper.areas.areaInstances[i][1][1])
+                }
             }
-        }, this);
+        }
         
         return instancePageIds;
     };
