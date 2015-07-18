@@ -25,6 +25,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         openDoorAlertPic = 'https://s3.amazonaws.com/files.d20.io/images/8543205/QBOWp1MHHlJCrPWn9kcVqQ/thumb.png?1427665124',
         closedTrapdoorAlertPic = 'https://s3.amazonaws.com/files.d20.io/images/10471466/8E3rn1V_OHhwMl-iRTJfrg/thumb.png?1435585449',
         openTrapdoorAlertPic = 'https://s3.amazonaws.com/files.d20.io/images/10471460/hf8vQVv5-Bm8ipSvG2kTBA/thumb.png?1435585410',
+        closedLightsourceAlertPic = 'https://s3.amazonaws.com/files.d20.io/images/2875450/tlPEO3pChVDm5lOR6UgWDg/thumb.png?1390730143',
+        openLightsourceAlertPic = 'https://s3.amazonaws.com/files.d20.io/images/90119/NeWRJzrmjUyLOdGD_MoN2A/thumb.png?1341838869',
         padlockAlertPic = 'https://s3.amazonaws.com/files.d20.io/images/8546285/bdyuCfZSGRXr3qrVkcPkAg/thumb.png?1427673372',
         skullAlertPic = 'https://s3.amazonaws.com/files.d20.io/images/8779089/aM1ujMQboacuc2fEMFk7Eg/thumb.png?1428784948',
         wallThickness = 14,
@@ -37,6 +39,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         blueprintDoorPathColor = '#EC9B10',
         blueprintChestPathColor = '#F7F247',
         blueprintTrapdoorPathColor = '#56C029',
+        blueprintLightsourcePathColor = '#222222', //TODO: implement now
         
         /*
         When this is true, the script runs toBack() on objects as a workaround for the Roll20 API bug 
@@ -2139,8 +2142,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this._height = stateObject[2];
         this._width = stateObject[3];
         this._rotation = stateObject[4];
-        this._brightLight = stateObject[5];
-        this._dimLight = stateObject[6];
+        this._brightLight = stateObject[5]; //-1 means to use the asset default
+        this._dimLight = stateObject[6]; //-1 means to use the asset default
     };
     
     inheritPrototype(lightsource, interactiveObject);
@@ -2179,6 +2182,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this.initializeCollectionProperty('doors');
         this.initializeCollectionProperty('chests');
         this.initializeCollectionProperty('trapdoors');
+        this.initializeCollectionProperty('lightsources');
         
         //load existing area:
         if('undefined' !== typeof(id)) {
@@ -2199,6 +2203,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'doorTexture': //texture
             case 'chestTexture': //texture
             case 'trapdoorTexture': //texture
+            case 'lightsourceTexture': //texture
             case 'width':
             case 'height':
             case 'archived':
@@ -2211,6 +2216,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'doors': //[segment position, isOpen, isLocked, isTrapped, isHidden] - represented by door DTO
             case 'chests': //[top, left, height, width, rotation, isOpen, isLocked, isTrapped, isHidden] - represented by chest DTO
             case 'trapdoors': //[top, left, height, width, rotation, isOpen, isLocked, isTrapped, isHidden] - represented by trapdoor DTO
+            case 'lightsources': //[top, left, height, width, rotation, brightLight, dimLight, isOpen, isLocked, isTrapped, isHidden] - represented by lightsource DTO
                 return this['_' + property].push(value) - 1;
             default:
                 return typedObject.prototype.setProperty.call(this, property, value);
@@ -2228,6 +2234,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'doors':
             case 'chests':
             case 'trapdoors':
+            case 'lightsources':
                 if('undefined' === typeof(value)) {
                     this['_' + property] = [];
                 } else {
@@ -2283,6 +2290,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this.setProperty('doorTexture', new texture().getStateObject());
         this.setProperty('chestTexture', new texture().getStateObject());
         this.setProperty('trapdoorTexture', new texture().getStateObject());
+        this.setProperty('lightsourceTexture', new texture().getStateObject());
         
         //initially, edge walls will be identical to the floorplan, because no gaps have been declared:
         this.setProperty('edgeWalls', [rp.rawPath, 0, 0, rp.height, rp.width]);
@@ -2364,6 +2372,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 case 'doorTexture':
                 case 'chestTexture':
                 case 'trapdoorTexture':
+                case 'lightsourceTexture':
                 case 'width':
                 case 'height':
                 case 'archived':
@@ -2375,6 +2384,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 case 'doors':
                 case 'chests':
                 case 'trapdoors':
+                case 'lightsources':
                     this.initializeCollectionProperty(areaState[i][0], areaState[i][1]);
                     break;
                 default:
@@ -2394,6 +2404,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         areaState.push(['doorTexture', this.getProperty('doorTexture')]);
         areaState.push(['chestTexture', this.getProperty('chestTexture')]);
         areaState.push(['trapdoorTexture', this.getProperty('trapdoorTexture')]);
+        areaState.push(['lightsourceTexture', this.getProperty('lightsourceTexture')]);
         areaState.push(['width', this.getProperty('width')]);
         areaState.push(['height', this.getProperty('height')]);
         areaState.push(['archived', this.getProperty('archived')]);
@@ -2403,6 +2414,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         areaState.push(['doors', this.getProperty('doors')]);
         areaState.push(['chests', this.getProperty('chests')]);
         areaState.push(['trapdoors', this.getProperty('trapdoors')]);
+        areaState.push(['lightsources', this.getProperty('lightsources')]);
         
         //remove existing area state:
         var id = this.getProperty('id');
@@ -2577,10 +2589,18 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 
                 var trapdoors = this.getProperty('trapdoors');
                 for(var i = 0; i < trapdoors.length; i++) {
-                    var trapdoortState = new trapdoor(trapdoors[i]);
-                    trapdoortState.setProperty('top', trapdoortState.getProperty('top') + topDelta);
-                    trapdoortState.setProperty('left', trapdoortState.getProperty('left') + leftDelta);
-                    this.getProperty('trapdoors')[i] = trapdoortState.getStateObject();
+                    var trapdoorState = new trapdoor(trapdoors[i]);
+                    trapdoorState.setProperty('top', trapdoorState.getProperty('top') + topDelta);
+                    trapdoorState.setProperty('left', trapdoorState.getProperty('left') + leftDelta);
+                    this.getProperty('trapdoors')[i] = trapdoorState.getStateObject();
+                }
+                
+                var lightsources = this.getProperty('lightsources');
+                for(var i = 0; i < lightsources.length; i++) {
+                    var lightsourceState = new lightsource(lightsources[i]);
+                    lightsourceState.setProperty('top', lightsourceState.getProperty('top') + topDelta);
+                    lightsourceState.setProperty('left', lightsourceState.getProperty('left') + leftDelta);
+                    this.getProperty('lightsources')[i] = lightsourceState.getStateObject();
                 }
             }
             
@@ -2684,6 +2704,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     trapdoorState.setProperty('top', trapdoorState.getProperty('top') + topDelta);
                     trapdoorState.setProperty('left', trapdoorState.getProperty('left') + leftDelta);
                     this.getProperty('trapdoors')[i] = trapdoorState.getStateObject();
+                }
+                
+                var lightsources = this.getProperty('lightsources');
+                for(var i = 0; i < lightsources.length; i++) {
+                    var lightsourceState = new lightsource(lightsources[i]);
+                    lightsourceState.setProperty('top', lightsourceState.getProperty('top') + topDelta);
+                    lightsourceState.setProperty('left', lightsourceState.getProperty('left') + leftDelta);
+                    this.getProperty('lightsources')[i] = lightsourceState.getStateObject();
                 }
             }
             
@@ -3306,6 +3334,42 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return followUpAction;
     };
     
+    area.prototype.lightsourceAdd = function(rawPath, pageId, top, left, isFromEvent) {
+        var followUpAction = [];
+        var g = new graph();
+        
+        //get instance that addition is relative to:
+        var instance = new areaInstance(this.getProperty('id'), pageId);
+        
+        //handle illogical case where drawing is done on a page without an instance:
+        if(instance.getProperty('isNew')) {
+            followUpAction.message = 'Area modification attempted on a page without a drawn instance.';
+            return followUpAction;
+        }
+        
+        //get the addition polygon:
+        g.addComplexPolygon(rawPath, top, left, isFromEvent);
+        var addSpIndex = g.convertComplexPolygonToSimplePolygon(0);
+        var addRp = g.getRawPath('simplePolygons', addSpIndex);
+        
+        //create the lightsource using the polygon's position, width, and height:
+        var lightsourceState = new lightsource();
+        lightsourceState.setProperty('top', addRp.top - instance.getProperty('top'));
+        lightsourceState.setProperty('left', addRp.left - instance.getProperty('left'));
+        lightsourceState.setProperty('height', addRp.height);
+        lightsourceState.setProperty('width', addRp.width);
+        lightsourceState.setProperty('rotation', 0);
+        lightsourceState.setProperty('brightLight', -1); //use the asset default
+        lightsourceState.setProperty('dimLight', -1); //use the asset default
+        this.setProperty('lightsources', lightsourceState.getStateObject());
+        
+        this.save();
+        this.draw();
+        
+        followUpAction.refresh = true;
+        return followUpAction;
+    };
+    
     area.prototype.useGlobalAsset = function(classification, globalAssetIndex) {
         
         //if no globalAssetIndex is provided, cycle to the next one:
@@ -3386,6 +3450,21 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     
                     this.setProperty('trapdoorTexture', textureObject.getStateObject());
                     break;
+                case 'lightsource':
+                    var textureObject = new texture(this.getProperty('lightsourceTexture'));
+                    
+                    //if the texture is already a standard asset pair, cycle to the next one:
+                    if(textureObject.getProperty('textureType') == 'asset') {
+                        textureObject.setProperty('value', ((textureObject.getProperty('value') + 1) % state.APIAreaMapper.assets.lightsourceAssets.length));
+                    }
+                    //set the texture to the first standard asset pair:
+                    else {
+                        textureObject.setProperty('textureType', 'asset');
+                        textureObject.setProperty('value', 0);
+                    }
+                    
+                    this.setProperty('lightsourceTexture', textureObject.getStateObject());
+                    break;
                 default:
                     log('Unhandled classification of ' + classification + ' in area.useGlobalAsset().');
                     return;
@@ -3410,6 +3489,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     break;
                 case 'trapdoor':
                     this.setProperty('trapdoorTexture', textureObject.getStateObject());
+                    break;
+                case 'lightsource':
+                    this.setProperty('lightsourceTexture', textureObject.getStateObject());
                     break;
                 default:
                     log('Unhandled classification of ' + classification + ' in area.useGlobalAsset().');
@@ -3454,6 +3536,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 break;
             case 'trapdoor':
                 this.setProperty('trapdoorTexture', textureObject.getStateObject());
+                break;
+            case 'lightsource':
+                this.setProperty('lightsourceTexture', textureObject.getStateObject());
                 break;
             default:
                 log('Unhandled objectType of ' + objectType + ' in area.useUniqueAsset().');
@@ -3545,9 +3630,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this.initializeCollectionProperty('doorIds');
         this.initializeCollectionProperty('chestIds');
         this.initializeCollectionProperty('trapdoorIds');
+        this.initializeCollectionProperty('lightsourceIds');
         this.initializeCollectionProperty('blueprintDoorIds');
         this.initializeCollectionProperty('blueprintChestIds');
         this.initializeCollectionProperty('blueprintTrapdoorIds');
+        this.initializeCollectionProperty('blueprintLightsourceIds');
         
         this.load();
     };
@@ -3575,9 +3662,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'doorIds': //[door token, LoS wall path, feature tag paths]
             case 'chestIds': //[chest token, feature tag paths]
             case 'trapdoorIds': //[trapdoor token, feature tag paths]
+            case 'lightsourceIds': //[lightsource token, feature tag paths]
             case 'blueprintDoorIds': //paths
             case 'blueprintChestIds': //paths
             case 'blueprintTrapdoorIds': //paths
+            case 'blueprintLightsourceIds': //paths
                 return this['_' + property].push(value) - 1;
             default:
                 return typedObject.prototype.setProperty.call(this, property, value);
@@ -3594,9 +3683,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'doorIds':
             case 'chestIds':
             case 'trapdoorIds':
+            case 'lightsourceIds':
             case 'blueprintDoorIds':
             case 'blueprintChestIds':
             case 'blueprintTrapdoorIds':
+            case 'blueprintLightsourceIds':
                 if('undefined' === typeof(value)) {
                     this['_' + property] = [];
                 } else {
@@ -3655,9 +3746,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 case 'doorIds':
                 case 'chestIds':
                 case 'trapdoorIds':
+                case 'lightsourceIds':
                 case 'blueprintDoorIds':
                 case 'blueprintChestIds':
                 case 'blueprintTrapdoorIds':
+                case 'blueprintLightsourceIds':
                     this.initializeCollectionProperty(areaInstanceState[i][0], areaInstanceState[i][1]);
                     break;
                 default:
@@ -3683,9 +3776,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
         areaInstanceState.push(['doorIds', this.getProperty('doorIds')]);
         areaInstanceState.push(['chestIds', this.getProperty('chestIds')]);
         areaInstanceState.push(['trapdoorIds', this.getProperty('trapdoorIds')]);
+        areaInstanceState.push(['lightsourceIds', this.getProperty('lightsourceIds')]);
         areaInstanceState.push(['blueprintDoorIds', this.getProperty('blueprintDoorIds')]);
         areaInstanceState.push(['blueprintChestIds', this.getProperty('blueprintChestIds')]);
         areaInstanceState.push(['blueprintTrapdoorIds', this.getProperty('blueprintTrapdoorIds')]);
+        areaInstanceState.push(['blueprintLightsourceIds', this.getProperty('blueprintLightsourceIds')]);
         
         //remove existing area instance state:
         var areaInstances = state.APIAreaMapper.areas.areaInstances;
@@ -3788,6 +3883,19 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }, this);
         this.initializeCollectionProperty('trapdoorIds');
         
+        //delete lightsources:
+        this.getProperty('lightsourceIds').forEach(function(tId) {
+            
+            //delete lightsource token:
+            deleteObject('graphic', tId[0]);
+            
+            //delete feature tag paths:
+            tId[1].forEach(function(ftId) {
+                deleteObject('path', ftId);
+            }, this);
+        }, this);
+        this.initializeCollectionProperty('lightsourceIds');
+        
         //delete blueprint doors:
         this.getProperty('blueprintDoorIds').forEach(function(wId) {
             deleteObject('path', wId);
@@ -3805,6 +3913,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
             deleteObject('path', tId);
         }, this);
         this.initializeCollectionProperty('blueprintTrapdoorIds');
+        
+        //delete blueprint lightsources:
+        this.getProperty('blueprintLightsourceIds').forEach(function(tId) {
+            deleteObject('path', tId);
+        }, this);
+        this.initializeCollectionProperty('blueprintLightsourceIds');
         
         this.save();
     };
@@ -3963,6 +4077,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
         //draw trapdoors:
         for(var i = 0; i < a.getProperty('trapdoors').length; i++) {
             this.drawInteractiveObject('trapdoors', i);
+        }
+        
+        //draw lightsources:
+        for(var i = 0; i < a.getProperty('lightsources').length; i++) {
+            this.drawInteractiveObject('lightsources', i);
         }
        
         this.save();
@@ -4383,6 +4502,126 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     this.setProperty('trapdoorIds', trapdoorProperty);
                 }
                 break;
+            case 'lightsources':
+                var lightsourceState = new lightsource(master);
+                var lightsourceProperty = [];
+                var lightsourceAsset;
+                
+                //identify the lightsource asset:
+                var lightsourceTexture = new texture(a.getProperty('lightsourceTexture'));
+                switch(lightsourceTexture.getProperty('textureType')) {
+                    case 'asset':
+                        lightsourceAsset = new asset(state.APIAreaMapper.assets.lightsourceAssets[lightsourceTexture.getProperty('value')][lightsourceState.getProperty('isOpen') ? 1 : 0]);
+                        break;
+                    case 'unique':
+                        lightsourceAsset = new asset(lightsourceTexture.getProperty('value')[lightsourceState.getProperty('isOpen') ? 1 : 0]);
+                        break;
+                    default:
+                        log('Unhandled textureType of ' + lightsourceTexture.getProperty('textureType') + ' for lightsourceTexture in areaInstance.drawObjects().');
+                        break;
+                }
+                
+                var lightsourceTop = lightsourceState.getProperty('top') + this.getProperty('top');
+                var lightsourceLeft = lightsourceState.getProperty('left') + this.getProperty('left');
+                
+                //if the number of objects in the area and the instance are equal, then this is modifying an existing object:
+                var existingLightsource = this.getProperty('lightsourceIds').length === a.getProperty(objectType).length;
+                var existingLightsourceIsSelected = false;
+                
+                if(existingLightsource) {
+                    
+                    //delete feature tags:
+                    this.getProperty('lightsourceIds')[masterIndex][1].forEach(function(ftId) {
+                        deleteObject('path', ftId);
+                    }, this);
+                    
+                    //delete lightsource:
+                    if(!featureTagsOnly) {
+                        //note: there is no behavioral difference in handling of hidden lightsource
+                        
+                        //the selectedObject will only be provided for the instance that was modified by the user:
+                        existingLightsourceIsSelected = selectedObject && (this.getProperty('lightsourceIds')[masterIndex][0] === selectedObject.id);
+                        
+                        //delete the old lightsource image:
+                        deleteObject('graphic', this.getProperty('lightsourceIds')[masterIndex][0]);
+                        
+                        //delete the old lightsource feature tags:
+                        this.getProperty('lightsourceIds')[masterIndex][1].forEach(function(ftId) {
+                            deleteObject('path', ftId);
+                        }, this);
+                    
+                        //clear properties out to be prudent, but they will be overwritten soon anyway:
+                        this.getProperty('lightsourceIds')[masterIndex] = ['',[]];
+                    }
+                }
+                
+                var lightsourceToken;
+                
+                //keep existing lightsource:
+                if(featureTagsOnly) {
+                    lightsourceToken = getObj('graphic', this.getProperty('lightsourceIds')[masterIndex][0]);
+                    lightsourceProperty.push(this.getProperty('lightsourceIds')[masterIndex][0]); //lightsource token ID
+                }
+                //create a new lightsource:
+                else {
+                    
+                    //draw the lightsource (on the object or gm layer depending on it being hidden):
+                    lightsourceToken = createTokenObjectFromAsset(
+                        lightsourceAsset, 
+                        this.getProperty('pageId'), 
+                        (lightsourceState.getProperty('isHidden') ? 'gmlayer' : 'objects'),
+                        lightsourceTop,
+                        lightsourceLeft,
+                        lightsourceState.getProperty('height'),
+                        lightsourceState.getProperty('width'),
+                        lightsourceState.getProperty('rotation'));
+                       
+                    //set lightsource privs to players unless the lightsource is hidden:
+                    if(!lightsourceState.getProperty('isHidden')) {
+                        lightsourceToken.set("controlledby", "all");
+                    }
+                    
+                    lightsourceProperty.push(lightsourceToken.id);
+                }
+                
+                //TODO: implement now: light sources should be set to project light
+                
+                //draw feature tags around the lightsource:
+                var featureTagColors = [];
+                if(lightsourceState.getProperty('isLocked')) {
+                    featureTagColors.push(lockedTagColor);
+                }
+                if(lightsourceState.getProperty('isTrapped')) {
+                    featureTagColors.push(trappedTagColor);
+                }
+                if(lightsourceState.getProperty('isHidden')) {
+                    featureTagColors.push(hiddenTagColor);
+                }
+                var tagIds = createBands(
+                    this.getProperty('pageId'),
+                    lightsourceTop,
+                    lightsourceLeft,
+                    lightsourceState.getProperty('height'),
+                    lightsourceState.getProperty('width'),
+                    featureTagColors,
+                    lightsourceState.getProperty('rotation'));
+                
+                lightsourceProperty.push(tagIds);
+                
+                //if this is replacing an existing image, write it back into the appropriate slot:
+                if(existingLightsource) {
+                    this.getProperty('lightsourceIds')[masterIndex] = lightsourceProperty;
+                    
+                    //if the selected lightsource was replaced, store the new lightsource as a false selection:
+                    if(existingLightsourceIsSelected) {
+                        state.APIAreaMapper.falseSelection = lightsourceToken.id;
+                    }
+                }
+                //if it's a new image, push it to the end (which will line up with the master's index):
+                else {
+                    this.setProperty('lightsourceIds', lightsourceProperty);
+                }
+                break;
             default:
                 log('Unsupported objectType of ' + objectType + ' in areaInstance.drawInteractiveObject().');
                 return 'There was a problem; check the log for details.';
@@ -4505,6 +4744,23 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     ).id);    
         }, this);
         
+        //draw blueprint lightsources:
+        a.getProperty('lightsources').forEach(function(c) {
+            this.setProperty('blueprintLightsourceIds', 
+                createRectanglePathObject(
+                        this.getProperty('pageId'),
+                        'objects',
+                        blueprintLightsourcePathColor,
+                        blueprintLightsourcePathColor,
+                        c[0] + top,
+                        c[1] + left,
+                        c[2],
+                        c[3],
+                        1,
+                        c[4]
+                    ).id);    
+        }, this);
+        
         this.save();
     };
     
@@ -4544,6 +4800,18 @@ var APIAreaMapper = APIAreaMapper || (function() {
             for(var i = 0; i < trapdoorIds.length; i++) {
                 if(graphic.id === trapdoorIds[i][0]) {
                     graphicType = 'trapdoors';
+                    graphicIndex = i;
+                    break;
+                }
+            }
+        }
+        
+        //see if the graphic is a managed lightsource:
+        if(!graphicType) {
+            var lightsourceIds = this.getProperty('lightsourceIds');
+            for(var i = 0; i < lightsourceIds.length; i++) {
+                if(graphic.id === lightsourceIds[i][0]) {
+                    graphicType = 'lightsources';
                     graphicIndex = i;
                     break;
                 }
@@ -4638,6 +4906,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 handleInteraction(trapdoorState, trapdoorCenter, openTrapdoorAlertPic, closedTrapdoorAlertPic, padlockAlertPic, skullAlertPic);
                 master = trapdoorState.getStateObject();
                 break;
+            case 'lightsources':
+                var lightsourceState = new lightsource(master);
+                var lightsourceTop = lightsourceState.getProperty('top') + this.getProperty('top');
+                var lightsourceLeft = lightsourceState.getProperty('left') + this.getProperty('left');
+                var lightsourceCenter = new point(lightsourceLeft + (lightsourceState.getProperty('width') / 2), lightsourceTop + (lightsourceState.getProperty('height') / 2));
+                handleInteraction(lightsourceState, lightsourceCenter, openLightsourceAlertPic, closedLightsourceAlertPic, padlockAlertPic, skullAlertPic);
+                master = lightsourceState.getStateObject();
+                break;
             default:
                 log('Unsupported objectType of ' + objectType + ' in areaInstance.handleInteractiveObjectInteraction().');
                 return;
@@ -4654,6 +4930,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     areaInstance.prototype.handleGraphicChange = function(graphic) {
         
         //TODO: respect OOP instead of altering graphicMaster directly:
+        //TODO: chests, trapdoors, and lightsources have redundant code:
         
         //see if the graphic is being managed:
         var managedGraphic = this.findManagedGraphic(graphic);
@@ -4786,6 +5063,57 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     }
                 }
                 break;
+            case 'lightsources':
+                if(state.APIAreaMapper.lightsourceReposition) {
+                    specialInteraction = true;
+                    
+                    var textureObject = new texture(a.getProperty('lightsourceTexture'));
+                    var assetObject;
+                    switch(textureObject.getProperty('textureType')) {
+                        case 'asset':
+                            assetObject = new asset(state.APIAreaMapper.assets.lightsourceAssets[textureObject.getProperty('value')][graphicMaster[7] ? 1 : 0]);
+                            break;
+                        case 'unique':
+                            assetObject = new asset(textureObject.getProperty('value')[graphicMaster[7] ? 1 : 0]);
+                            break;
+                        default:
+                            log('Unhandled textureType of ' + textureObject.getProperty('textureType') + ' for textureObject in areaInstance.handleGraphicChange().');
+                            break;
+                    }
+                    
+                    var tokenAttributes = decodeTokenAttributesByAsset(graphic, assetObject);
+                    
+                    //update the lightsource's position / rotation / dimensions in the master area:
+                    graphicMaster[0] = graphic.get('top') - this.getProperty('top') - (graphic.get('height') / 2);
+                    graphicMaster[1] = graphic.get('left') - this.getProperty('left') - (graphic.get('width') / 2);
+                    graphicMaster[2] = tokenAttributes.height;
+                    graphicMaster[3] = tokenAttributes.width;
+                    graphicMaster[4] = tokenAttributes.rotation;
+                    
+                    a.getProperty(managedGraphic.graphicType)[managedGraphic.graphicIndex] = graphicMaster;
+                    a.save();
+                    
+                    //draw the object in the area, so that it propagates to all instances:
+                    a.drawInteractiveObject(managedGraphic.graphicType, managedGraphic.graphicIndex, false, graphic);
+                } else {
+                    var lightsourceTop = graphicMaster[0] + this.getProperty('top');
+                    var lightsourceLeft = graphicMaster[1] + this.getProperty('left');
+                    
+                    var p = (new segment(
+                        new point(
+                            lightsourceLeft,
+                            lightsourceTop),
+                        new point(
+                            lightsourceLeft + graphicMaster[3],
+                            lightsourceTop + graphicMaster[2]))).midpoint();
+                    
+                    //compare position to point, using epsilon, to see if it moved:
+                    if((Math.abs(graphic.get('left') - p.x) < positionEpsilon)
+                            && (Math.abs(graphic.get('top') - p.y) < positionEpsilon)) {
+                        return;
+                    }
+                }
+                break;
             default:
                 log('Unhandled graphic type of ' + managedGraphic.graphicType + ' in areaInstance.handleGraphicChange().');
                 break;
@@ -4856,6 +5184,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 var trapdoorState = new trapdoor(graphicMaster);
                 redraw = changeProperty(trapdoorState, property, followUpAction);
                 graphicMaster = trapdoorState.getStateObject();
+                break;
+            case 'lightsources':
+                var lightsourceState = new lightsource(graphicMaster);
+                redraw = changeProperty(lightsourceState, property, followUpAction);
+                graphicMaster = lightsourceState.getStateObject();
                 break;
             default:
                 log('Unhandled graphic type of ' + managedGraphic.graphicType + ' in areaInstance.toggleInteractiveProperty().');
@@ -6965,7 +7298,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     modeCommand('inner walls', ['endRecordAreaMode', 'innerWallAdd', 'innerWallRemove'], !hasInstances || (state.APIAreaMapper.activeArea != areaId), state.APIAreaMapper.recordAreaMode),
                     modeCommand('doors', ['endRecordAreaMode', 'doorAdd', 'doorRemove'], !hasInstances || (state.APIAreaMapper.activeArea != areaId), state.APIAreaMapper.recordAreaMode),
                     modeCommand('chests', ['endRecordAreaMode', 'chestAdd', 'chestRemove'], !hasInstances || (state.APIAreaMapper.activeArea != areaId), state.APIAreaMapper.recordAreaMode),
-                    modeCommand('trapdoors', ['endRecordAreaMode', 'trapdoorAdd', 'trapdoorRemove'], !hasInstances || (state.APIAreaMapper.activeArea != areaId), state.APIAreaMapper.recordAreaMode)
+                    modeCommand('trapdoors', ['endRecordAreaMode', 'trapdoorAdd', 'trapdoorRemove'], !hasInstances || (state.APIAreaMapper.activeArea != areaId), state.APIAreaMapper.recordAreaMode),
+                    modeCommand('light sources', ['endRecordAreaMode', 'lightsourceAdd', 'lightsourceRemove'], !hasInstances || (state.APIAreaMapper.activeArea != areaId), state.APIAreaMapper.recordAreaMode)
                 ])
             //TODO: instance-specific modifications: move, resize, rotate
         );
@@ -7755,6 +8089,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 case 'chestRemove':
                 case 'trapdoorAdd':
                 case 'trapdoorRemove':
+                case 'lightsourceAdd':
+                case 'lightsourceRemove':
                 case 'areaInstanceCreate':
                     retainRecordAreaMode = true;
                     followUpAction = toggleOrSetAreaRecordMode(chatCommand[1]);
@@ -7892,6 +8228,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     break;
                 case 'trapdoorRemove':
                     followUpAction = a.trapdoorRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                    break;
+                case 'lightsourceAdd':
+                    followupAction = a.lightsourceAdd(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
+                    break;
+                case 'lightsourceRemove':
+                    //TODO: implement now
                     break;
                 case 'areaInstanceCreate':
                     followUpAction = a.createInstance(path.get('_pageid'), path.get('top'), path.get('left'));
