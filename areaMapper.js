@@ -6,7 +6,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 1.06,
+    var version = 1.07,
         areaSchemaVersion = 1.0,
         buttonBackgroundColor = '#CC1869',
         buttonGreyedColor = '#8D94A9',
@@ -127,6 +127,19 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         break;
                 }
             }, this);
+        }
+        
+        if(state.APIAreaMapper.assets && state.APIAreaMapper.assets.schemaVersion < 1.3) {
+            log('APIAreaMapper: Adding assets to state.');
+            state.APIAreaMapper.assets.schemaVersion = 1.3;
+            state.APIAreaMapper.assets.lightsourceAssets = [
+                    [['https://s3.amazonaws.com/files.d20.io/images/2875450/tlPEO3pChVDm5lOR6UgWDg/thumb.png?1390730143',0,0,1,1,0,0,40,30],
+                        ['https://s3.amazonaws.com/files.d20.io/images/90119/NeWRJzrmjUyLOdGD_MoN2A/thumb.png?1341838869',0,0,1,1,0,0,40,30]],
+                    [['https://s3.amazonaws.com/files.d20.io/images/298002/jOpj2xv9xXKpoQ9YKnDMQw/thumb.png?1350560695',0,0,1,1,0,0,40,30],
+                        ['https://s3.amazonaws.com/files.d20.io/images/45074/thumb.png?1340020826',0,0,1,1,0,0,40,30]],
+                    [['https://s3.amazonaws.com/files.d20.io/images/298003/ulsp7PmK0xkhPc5NX6bZRw/thumb.png?1350560697',0,0,1,1,0,0,40,30],
+                        ['https://s3.amazonaws.com/files.d20.io/images/45074/thumb.png?1340020826',0,0,1,1,0,0,40,30]]
+                ];
         }
         
         if(state.APIAreaMapper.areas && state.APIAreaMapper.areas.schemaVersion !== areaSchemaVersion) {
@@ -2110,6 +2123,49 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     trapdoor.prototype.getStateObject = function() {
         var stateObject = [this._top, this._left, this._height, this._width, this._rotation];
+        return stateObject.concat(interactiveObject.prototype.getStateObject.call(this));
+    };
+    
+    
+    var lightsource = function(stateObject) {
+        if('undefined' === typeof(stateObject)) {
+            stateObject = new Array(11);
+        }
+        
+        interactiveObject.call(this, stateObject[7], stateObject[8], stateObject[9], stateObject[10]);
+        this._type.push('lightsource');
+        this._top = stateObject[0];
+        this._left = stateObject[1];
+        this._height = stateObject[2];
+        this._width = stateObject[3];
+        this._rotation = stateObject[4];
+        this._brightLight = stateObject[5];
+        this._dimLight = stateObject[6];
+    };
+    
+    inheritPrototype(lightsource, interactiveObject);
+    
+    lightsource.prototype.setProperty = function(property, value) {
+        switch(property) {
+            case 'top':
+            case 'left':
+            case 'height':
+            case 'width':
+            case 'rotation':
+            case 'brightLight':
+            case 'dimLight':
+                this['_' + property] = value;
+                break;
+            default:
+                return interactiveObject.prototype.setProperty.call(this, property, value);
+                break;
+        }
+        
+        return null;
+    };
+    
+    lightsource.prototype.getStateObject = function() {
+        var stateObject = [this._top, this._left, this._height, this._width, this._rotation, this._brightLight, this._dimLight];
         return stateObject.concat(interactiveObject.prototype.getStateObject.call(this));
     };
     
