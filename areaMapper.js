@@ -3370,6 +3370,47 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return followUpAction;
     };
     
+    area.prototype.lightsourceRemove = function(rawPath, pageId, top, left, isFromEvent) {
+        var followUpAction = [];
+        
+        var g = new graph();
+        g.addComplexPolygon(rawPath, top, left, isFromEvent);
+        var removeSpIndex = g.convertComplexPolygonToSimplePolygon(0);
+        
+        //get instance that removal is relative to:
+        var instance = new areaInstance(this.getProperty('id'), pageId);
+        
+        //handle illogical case where drawing is done on a page without an instance:
+        if(instance.getProperty('isNew')) {
+            followUpAction.message = 'Area modification attempted on a page without a drawn instance.';
+            return followUpAction;
+        }
+        
+        var oldLightsources = this.getProperty('lightsources');
+        var lightsources = [];
+        
+        oldLightsources.forEach(function(t) {
+            var lightsourceState = new lightsource(t);
+            var lightsourceTop = lightsourceState.getProperty('top') + instance.getProperty('top');
+            var lightsourceLeft = lightsourceState.getProperty('left') + instance.getProperty('left');
+            var lightsourceCenter = new point(lightsourceLeft + (lightsourceState.getProperty('width') / 2), lightsourceTop + (lightsourceState.getProperty('height') / 2));
+            
+            if(!g.hasInsidePoint('simplePolygons', removeSpIndex, lightsourceCenter)) {
+                lightsources.push(t);
+            }
+        }, this);
+        
+        if(lightsources.length < oldLightsources.length) {
+            this.initializeCollectionProperty('lightsources', lightsources);
+            
+            this.save();
+            this.draw();
+        }
+      
+        followUpAction.refresh = true;
+        return followUpAction;
+    };
+    
     area.prototype.useGlobalAsset = function(classification, globalAssetIndex) {
         
         //if no globalAssetIndex is provided, cycle to the next one:
@@ -8233,7 +8274,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     followupAction = a.lightsourceAdd(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
                     break;
                 case 'lightsourceRemove':
-                    //TODO: implement now
+                    followUpAction = a.lightsourceRemove(path.get('_path'), path.get('_pageid'), path.get('top'), path.get('left'), true);
                     break;
                 case 'areaInstanceCreate':
                     followUpAction = a.createInstance(path.get('_pageid'), path.get('top'), path.get('left'));
