@@ -1551,7 +1551,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             toBackObject(obj[0], obj[1]);
             if(l.length) {
                 setTimeout(_.partial(toBackListWithDelays, l), 50);
-    		}
+        	}
 		}
     },
     
@@ -1857,7 +1857,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this.setProperty('scaleHorizontal', stateObject[4]);
         this.setProperty('offsetVertical', stateObject[5]);
         this.setProperty('offsetHorizontal', stateObject[6]);
-    }
+    };
     
     inheritPrototype(asset, typedObject);
     
@@ -1890,6 +1890,40 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 this.getProperty('offsetVertical'),
                 this.getProperty('offsetHorizontal')
             ];
+    };
+    
+    
+    var lightsourceAsset = function(stateObject) {
+        
+        if('undefined' === typeof(stateObject)) {
+            stateObject = ['',0,0,1,1,0,0,40,30];
+        }
+        
+        asset.call(this, stateObject); //only the asset-specfic fields will be used by the parent object
+        this._type.push('lightsourceAsset');
+        this.setProperty('brightLight', stateObject[7]);
+        this.setProperty('dimLight', stateObject[8]);
+    };
+    
+    inheritPrototype(lightsourceAsset, asset);
+    
+    lightsourceAsset.prototype.setProperty = function(property, value) {
+        switch(property) {
+            case 'brightLight':
+            case 'dimLight':
+                this['_' + property] = value;
+                break;
+            default:
+                return asset.prototype.setProperty.call(this, property, value);
+                break;
+        }
+        
+        return null;
+    };
+    
+    lightsourceAsset.prototype.getStateObject = function() {
+        var stateObject = [this._brightLight, this._dimLight];
+        return asset.prototype.getStateObject.call(this).concat(stateObject);
     };
     
     
@@ -1942,7 +1976,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         } else {
             this.setProperty('pairIndex', 0);
         }
-    }
+    };
     
     inheritPrototype(assetManagementState, typedObject);
     
@@ -4546,16 +4580,17 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'lightsources':
                 var lightsourceState = new lightsource(master);
                 var lightsourceProperty = [];
-                var lightsourceAsset;
+                var lightsourceAssetObject;
                 
                 //identify the lightsource asset:
                 var lightsourceTexture = new texture(a.getProperty('lightsourceTexture'));
+                
                 switch(lightsourceTexture.getProperty('textureType')) {
                     case 'asset':
-                        lightsourceAsset = new asset(state.APIAreaMapper.assets.lightsourceAssets[lightsourceTexture.getProperty('value')][lightsourceState.getProperty('isOpen') ? 1 : 0]);
+                        lightsourceAssetObject = new lightsourceAsset(state.APIAreaMapper.assets.lightsourceAssets[lightsourceTexture.getProperty('value')][lightsourceState.getProperty('isOpen') ? 1 : 0]);
                         break;
                     case 'unique':
-                        lightsourceAsset = new asset(lightsourceTexture.getProperty('value')[lightsourceState.getProperty('isOpen') ? 1 : 0]);
+                        lightsourceAssetObject = new lightsourceAsset(lightsourceTexture.getProperty('value')[lightsourceState.getProperty('isOpen') ? 1 : 0]);
                         break;
                     default:
                         log('Unhandled textureType of ' + lightsourceTexture.getProperty('textureType') + ' for lightsourceTexture in areaInstance.drawObjects().');
@@ -4608,7 +4643,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     
                     //draw the lightsource (on the object or gm layer depending on it being hidden):
                     lightsourceToken = createTokenObjectFromAsset(
-                        lightsourceAsset, 
+                        lightsourceAssetObject, 
                         this.getProperty('pageId'), 
                         (lightsourceState.getProperty('isHidden') ? 'gmlayer' : 'objects'),
                         lightsourceTop,
@@ -4619,13 +4654,26 @@ var APIAreaMapper = APIAreaMapper || (function() {
                        
                     //set lightsource privs to players unless the lightsource is hidden:
                     if(!lightsourceState.getProperty('isHidden')) {
-                        lightsourceToken.set("controlledby", "all");
+                        lightsourceToken.set('controlledby', 'all');
                     }
                     
                     lightsourceProperty.push(lightsourceToken.id);
                 }
                 
-                //TODO: implement now: light sources should be set to project light
+                //update the token to project light:
+                if(!lightsourceState.getProperty('isHidden') && lightsourceState.getProperty('isOpen')) {
+                    lightsourceToken.set('light_radius', 
+                            (lightsourceState.getProperty('brightLight') === -1)
+                                ? lightsourceAssetObject.getProperty('brightLight')
+                                : lightsourceState.getProperty('brightLight')
+                        );
+                    lightsourceToken.set('light_dimradius', 
+                            (lightsourceState.getProperty('dimLight') === -1)
+                                ? lightsourceAssetObject.getProperty('dimLight')
+                                : lightsourceState.getProperty('dimLight')
+                        );
+                    lightsourceToken.set('light_otherplayers', 'true');
+                }
                 
                 //draw feature tags around the lightsource:
                 var featureTagColors = [];
