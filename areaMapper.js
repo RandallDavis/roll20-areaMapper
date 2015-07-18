@@ -168,6 +168,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         delete state.APIAreaMapper.falseSelection;
         delete state.APIAreaMapper.chestReposition;
         delete state.APIAreaMapper.trapdoorReposition;
+        delete state.APIAreaMapper.lightsourceReposition;
         delete state.APIAreaMapper.assetManagement;
         
         //reset the handout:
@@ -6930,6 +6931,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return followUpAction;
     },
     
+    toggleLightsourceReposition = function() {
+        state.APIAreaMapper.lightsourceReposition = !state.APIAreaMapper.lightsourceReposition;
+        
+        var followUpAction = [];
+        followUpAction.refresh = true;
+        return followUpAction;
+    },
+    
     toggleBlueprintMode = function() {
         state.APIAreaMapper.blueprintMode = !state.APIAreaMapper.blueprintMode;
         
@@ -7287,6 +7296,21 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     ['active', 'trap', 'interactiveObjectTrap', false, managedGraphic.properties[7]],
                     ['active', 'hide', 'interactiveObjectHide', false, managedGraphic.properties[8]],
                     ['active', 'reposition', 'trapdoorReposition', false, state.APIAreaMapper.trapdoorReposition] //this is a global setting for repositioning all trapdoors
+                ])
+        );
+    },
+    
+    interfaceLightsource = function(who, managedGraphic) {
+        state.APIAreaMapper.uiWindow = 'lightsource';
+        
+        sendStandardInterface(who, 'Area Mapper',
+            uiSection('Light source Management', null, [
+                    ['active', 'light', 'interactiveObjectOpen', false, managedGraphic.properties[7]],
+                    ['active', 'lock', 'interactiveObjectLock', false, managedGraphic.properties[8]],
+                    ['active', 'trap', 'interactiveObjectTrap', false, managedGraphic.properties[9]],
+                    ['active', 'hide', 'interactiveObjectHide', false, managedGraphic.properties[10]],
+                    //TODO: implement now: changes to lighting radiuses
+                    ['active', 'reposition', 'lightsourceReposition', false, state.APIAreaMapper.lightsourceReposition] //this is a global setting for repositioning all lightsources
                 ])
         );
     },
@@ -8031,6 +8055,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'trapdoors':
                 interfaceTrapdoor(who, managedGraphicProperties);
                 break;
+            case 'lightsources':
+                interfaceLightsource(who, managedGraphicProperties);
+                break;
             default:
                 log('Unhandled graphicType of ' + managedGraphicProperties.graphicType + ' in intuit().');
                 followUpAction.message = 'There was a problem; see the log for details.';
@@ -8196,6 +8223,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 case 'trapdoorReposition':
                     retainFalseSelection = true;
                     followUpAction = toggleTrapdoorReposition();
+                    break;
+                case 'lightsourceReposition':
+                    retainFalseSelection = true;
+                    followUpAction = toggleLightsourceReposition();
                     break;
                 case 'redraw':
                     retainRecordAreaMode = true;
