@@ -5772,133 +5772,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 toBackIds.unshift(['text', labelText.id]);
                 break;
             case 'chest':
-                
-                //create the modal frame:
-                var modalFramePath = createRectanglePathObject(
-                        pageId, 
-                        'objects', 
-                        '#000000', 
-                        headerBackgroundColor, 
-                        modalTop, 
-                        modalLeft, 
-                        modalPairNonStretchHeight, 
-                        modalWidth,
-                        2
-                    );
-                state.APIAreaMapper.assetManagementModalIds.push(['path', modalFramePath.id]);
-                toBackIds.unshift(['path', modalFramePath.id]);
-                        
-                //highlight the active asset:
-                if(highlightEditedAsset) {
-                    var editedAssetHighlightPath = createRectanglePathObject(
-                            pageId, 
-                            'objects', 
-                            '#ff0000', 
-                            'transparent', 
-                            modalTop + highlightEditedAssetMargin, 
-                            modalLeft + highlightEditedAssetMargin + (assetManagementStateObject.getProperty('pairIndex') ? (modalWidth / 2) : 0), 
-                            modalPairNonStretchHeight - (2 * highlightEditedAssetMargin), 
-                            (modalWidth / 2) - (2 * highlightEditedAssetMargin),
-                            2
-                        );
-                    state.APIAreaMapper.assetManagementModalIds.push(['path', editedAssetHighlightPath.id]);
-                    toBackIds.unshift(['path', editedAssetHighlightPath.id]);
-                }
-                        
-                //note: if there is a classification, there must be a texture:
-                var asset1,
-                    asset2;
-                switch(textureObject.getProperty('textureType')) {
-                    case 'asset':
-                        asset1 = new asset(state.APIAreaMapper.assets.chestAssets[textureObject.getProperty('value')][0]);
-                        asset2 = new asset(state.APIAreaMapper.assets.chestAssets[textureObject.getProperty('value')][1]);
-                        break;
-                    case 'unique':
-                        asset1 = new asset(textureObject.getProperty('value')[0]);
-                        asset2 = new asset(textureObject.getProperty('value')[1]);
-                        break;
-                    default:
-                        log('Unhandled textureType of ' + textureObject.getProperty('textureType') + ' in drawAssetManagementModal().');
-                        return;
-                }
-                
-                //draw assets:
-                var assetToken = createTokenObjectFromAsset(
-                        asset1,
-                        pageId,
-                        'objects',
-                        modalTop + modalTopMargin,
-                        modalLeft + (modalWidth / 2) - assetPairNonStretchSize - assetPairNonStretchSpacing,
-                        assetPairNonStretchSize,
-                        assetPairNonStretchSize
-                    );
-                state.APIAreaMapper.assetManagementModalIds.push(['graphic', assetToken.id]);
-                toBackIds.unshift(['graphic', assetToken.id]);
-                assetToken = createTokenObjectFromAsset(
-                        asset2,
-                        pageId,
-                        'objects',
-                        modalTop + modalTopMargin,
-                        modalLeft + (modalWidth / 2) + assetPairNonStretchSpacing,
-                        assetPairNonStretchSize,
-                        assetPairNonStretchSize
-                    );
-                state.APIAreaMapper.assetManagementModalIds.push(['graphic', assetToken.id]);
-                toBackIds.unshift(['graphic', assetToken.id]);
-                
-                //draw bands:
-                var bandPath = createBandPathObject(
-                        pageId, 
-                        modalTop + modalTopMargin,
-                        modalLeft + (modalWidth / 2) - assetPairNonStretchSize - assetPairNonStretchSpacing,
-                        assetPairNonStretchSize,
-                        assetPairNonStretchSize, 
-                        0, 
-                        '#00ff00', 
-                        0, 
-                        'objects'
-                    );
-                state.APIAreaMapper.assetManagementModalIds.push(['path', bandPath.id]);
-                toBackIds.unshift(['path', bandPath.id]);
-                bandPath = createBandPathObject(
-                        pageId, 
-                        modalTop + modalTopMargin,
-                        modalLeft + (modalWidth / 2) + assetPairNonStretchSpacing,
-                        assetPairNonStretchSize,
-                        assetPairNonStretchSize, 
-                        0, 
-                        '#00ff00', 
-                        0, 
-                        'objects'
-                    );
-                state.APIAreaMapper.assetManagementModalIds.push(['path', bandPath.id]);
-                toBackIds.unshift(['path', bandPath.id]);
-                
-                //draw labels:
-                var labelText = createTextObject(
-                        'closed chest asset',
-                        pageId,
-                        'objects',
-                        modalTop + modalTopMargin - labelHover,
-                        modalLeft + (modalWidth / 2) - (assetPairNonStretchSize + assetPairNonStretchSpacing),
-                        labelHover,
-                        assetPairNonStretchSize
-                    );
-                state.APIAreaMapper.assetManagementModalIds.push(['text', labelText.id]);
-                toBackIds.unshift(['text', labelText.id]);
-                labelText = createTextObject(
-                        'open chest asset',
-                        pageId,
-                        'objects',
-                        modalTop + modalTopMargin - labelHover,
-                        modalLeft + (modalWidth / 2) + assetPairNonStretchSpacing,
-                        labelHover,
-                        assetPairNonStretchSize
-                    );
-                state.APIAreaMapper.assetManagementModalIds.push(['text', labelText.id]);
-                toBackIds.unshift(['text', labelText.id]);
-                break;
             case 'trapdoor':
+            case 'lightsource':
                 
                 //create the modal frame:
                 var modalFramePath = createRectanglePathObject(
@@ -5937,8 +5812,23 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     asset2;
                 switch(textureObject.getProperty('textureType')) {
                     case 'asset':
-                        asset1 = new asset(state.APIAreaMapper.assets.trapdoorAssets[textureObject.getProperty('value')][0]);
-                        asset2 = new asset(state.APIAreaMapper.assets.trapdoorAssets[textureObject.getProperty('value')][1]);
+                        switch(assetManagementStateObject.getProperty('classification')) {
+                            case 'chest':
+                                asset1 = new asset(state.APIAreaMapper.assets.chestAssets[textureObject.getProperty('value')][0]);
+                                asset2 = new asset(state.APIAreaMapper.assets.chestAssets[textureObject.getProperty('value')][1]);
+                                break;
+                            case 'trapdoor':
+                                asset1 = new asset(state.APIAreaMapper.assets.trapdoorAssets[textureObject.getProperty('value')][0]);
+                                asset2 = new asset(state.APIAreaMapper.assets.trapdoorAssets[textureObject.getProperty('value')][1]);
+                                break;
+                            case 'lightsource':
+                                asset1 = new asset(state.APIAreaMapper.assets.lightsourceAssets[textureObject.getProperty('value')][0]);
+                                asset2 = new asset(state.APIAreaMapper.assets.lightsourceAssets[textureObject.getProperty('value')][1]);
+                                break;
+                            default:
+                                log('Illogical occurrence of unhandled classification of ' + assetManagementStateObject.getProperty('classification') + ' in drawAssetManagementModal().');
+                                break;
+                        }
                         break;
                     case 'unique':
                         asset1 = new asset(textureObject.getProperty('value')[0]);
@@ -6002,8 +5892,27 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 toBackIds.unshift(['path', bandPath.id]);
                 
                 //draw labels:
+                var labelTextClosed,
+                    labelTextOpen;
+                switch(assetManagementStateObject.getProperty('classification')) {
+                    case 'chest':
+                        labelTextClosed = 'closed chest asset';
+                        labelTextOpen = 'open chest asset';
+                        break;
+                    case 'trapdoor':
+                        labelTextClosed = 'closed trapdoor asset';
+                        labelTextOpen = 'open chest asset';
+                        break;
+                    case 'lightsource':
+                        labelTextClosed = 'unlit light source asset';
+                        labelTextOpen = 'lit light source asset';
+                        break;
+                    default:
+                        log('Illogical occurrence of unhandled classification of ' + assetManagementStateObject.getProperty('classification') + ' in drawAssetManagementModal().');
+                        break;
+                }
                 var labelText = createTextObject(
-                        'closed trapdoor asset',
+                        labelTextClosed,
                         pageId,
                         'objects',
                         modalTop + modalTopMargin - labelHover,
@@ -6014,7 +5923,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 state.APIAreaMapper.assetManagementModalIds.push(['text', labelText.id]);
                 toBackIds.unshift(['text', labelText.id]);
                 labelText = createTextObject(
-                        'open trapdoor asset',
+                        labelTextOpen,
                         pageId,
                         'objects',
                         modalTop + modalTopMargin - labelHover,
