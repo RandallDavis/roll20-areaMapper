@@ -39,7 +39,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         blueprintDoorPathColor = '#EC9B10',
         blueprintChestPathColor = '#F7F247',
         blueprintTrapdoorPathColor = '#56C029',
-        blueprintLightsourcePathColor = '#222222', //TODO: implement now
+        blueprintLightsourcePathColor = '#A520D5',
         
         /*
         When this is true, the script runs toBack() on objects as a workaround for the Roll20 API bug 
@@ -136,11 +136,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
             log('APIAreaMapper: Adding assets to state.');
             state.APIAreaMapper.assets.schemaVersion = 1.3;
             state.APIAreaMapper.assets.lightsourceAssets = [
-                    [['https://s3.amazonaws.com/files.d20.io/images/2875450/tlPEO3pChVDm5lOR6UgWDg/thumb.png?1390730143',0,0,1,1,0,0,40,30],
+                    [['https://s3.amazonaws.com/files.d20.io/images/2875450/tlPEO3pChVDm5lOR6UgWDg/thumb.png?1390730143',0,0,1,1,0,0,0,0], //light values are ignored
                         ['https://s3.amazonaws.com/files.d20.io/images/90119/NeWRJzrmjUyLOdGD_MoN2A/thumb.png?1341838869',0,0,1,1,0,0,40,30]],
-                    [['https://s3.amazonaws.com/files.d20.io/images/298002/jOpj2xv9xXKpoQ9YKnDMQw/thumb.png?1350560695',0,0,1,1,0,0,40,30],
+                    [['https://s3.amazonaws.com/files.d20.io/images/298002/jOpj2xv9xXKpoQ9YKnDMQw/thumb.png?1350560695',0,0,1,1,0,0,0,0], //light values are ignored
                         ['https://s3.amazonaws.com/files.d20.io/images/45074/thumb.png?1340020826',0,0,1,1,0,0,40,30]],
-                    [['https://s3.amazonaws.com/files.d20.io/images/298003/ulsp7PmK0xkhPc5NX6bZRw/thumb.png?1350560697',0,0,1,1,0,0,40,30],
+                    [['https://s3.amazonaws.com/files.d20.io/images/298003/ulsp7PmK0xkhPc5NX6bZRw/thumb.png?1350560697',0,0,1,1,0,0,0,0], //light values are ignored
                         ['https://s3.amazonaws.com/files.d20.io/images/45074/thumb.png?1340020826',0,0,1,1,0,0,40,30]]
                 ];
         }
@@ -1552,7 +1552,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             toBackObject(obj[0], obj[1]);
             if(l.length) {
                 setTimeout(_.partial(toBackListWithDelays, l), 50);
-        	}
+            }
 		}
     },
     
@@ -3685,6 +3685,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return instance.toggleInteractiveProperty(graphic, property);
     };
     
+    area.prototype.changeLightsourceLight = function(graphic, property, action) {
+        var instance = new areaInstance(this.getProperty('id'), graphic.get('_pageid'));
+        return instance.changeLightsourceLight(graphic, property, action);
+    };
+    
     //draws an interactive object in all instances:
     area.prototype.drawInteractiveObject = function(objectType, masterIndex, featureTagsOnly, selectedObject) {
         this.getInstancePageIds().forEach(function(pageId) {
@@ -4661,6 +4666,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     lightsourceProperty.push(lightsourceToken.id);
                 }
                 
+                //TODO: factor in instance scale:
                 //update the token to project light:
                 if(!lightsourceState.getProperty('isHidden') && lightsourceState.getProperty('isOpen')) {
                     lightsourceToken.set('light_radius', 
@@ -5294,8 +5300,78 @@ var APIAreaMapper = APIAreaMapper || (function() {
         a.getProperty(managedGraphic.graphicType)[managedGraphic.graphicIndex] = graphicMaster;
         a.save();
         
-        //redraw the door or just its features across all instances of the area:
+        //redraw the interactive object or just its features across all instances of the area:
         var errorMessage = a.drawInteractiveObject(managedGraphic.graphicType, managedGraphic.graphicIndex, !redraw, graphic);
+        followUpAction.message = errorMessage;
+        
+        this.save();
+        
+        return followUpAction;
+    };
+    
+    areaInstance.prototype.changeLightsourceLight = function(graphic, property, action) {
+        var followUpAction = [];
+        
+        var radiusAlterAmountConstant = 3;
+        
+        var lightAlterAmount;
+        switch(action) {
+            case 'increase':
+                lightAlterAmount = radiusAlterAmountConstant;
+                break;
+            case 'decrease':
+                lightAlterAmount = -radiusAlterAmountConstant;
+                break;
+            default:
+                log('Unhandled action of ' + action + ' in areaInstance.changeLightsourceLight().');
+                followUpAction.message = 'There was a problem; check the log for details.';
+                return followUpAction;
+        }
+        
+        var managedGraphic = this.findManagedGraphic(graphic);
+        
+        if(!managedGraphic) {
+            followUpAction.message = 'The graphic is not managed by the area and/or is not eligible for property changes.';
+            return followUpAction;
+        }
+        
+        a = new area(this.getProperty('areaId'));
+        var graphicMaster = a.getProperty(managedGraphic.graphicType)[managedGraphic.graphicIndex];
+        
+        var lightsourceObject = new lightsource(graphicMaster);
+        var lightsourceTexture = new texture(a.getProperty('lightsourceTexture'));
+        var lightsourceAssetObject;
+        switch(lightsourceTexture.getProperty('textureType')) {
+            case 'asset':
+                lightsourceAssetObject = new lightsourceAsset(state.APIAreaMapper.assets.lightsourceAssets[lightsourceTexture.getProperty('value')][1]); //only concerned with 'lit' assets
+                break;
+            case 'unique':
+                lightsourceAssetObject = new lightsourceAsset(lightsourceTexture.getProperty('value')[1]); //only concerned with 'lit' assets
+                break;
+            default:
+                log('Unhandled textureType of ' + lightsourceTexture.getProperty('textureType') + ' for lightsourceTexture in areaInstance.changeLightsourceLight().');
+                break;
+        }
+        
+        //if the object is currently using the asset default, then use the asset's value as a starting point:
+        if(lightsourceObject.getProperty(property) === -1) {
+            lightsourceObject.setProperty(property, lightsourceAssetObject.getProperty(property) + lightAlterAmount);
+        }
+        //if the object is going back to the asset default, then use the asset's value:
+        else if(lightsourceObject.getProperty(property) + lightAlterAmount === lightsourceAssetObject.getProperty(property)) {
+            lightsourceObject.setProperty(property, -1);
+        }
+        //just alter the custom value:
+        else {
+            lightsourceObject.setProperty(property, lightsourceObject.getProperty(property) + lightAlterAmount);
+        }
+        
+        //update the master:
+        a.getProperty(managedGraphic.graphicType)[managedGraphic.graphicIndex] = lightsourceObject.getStateObject();;
+        a.save();
+        
+        //redraw the lightsource or just its features across all instances of the area:
+        var errorMessage = a.drawInteractiveObject(managedGraphic.graphicType, managedGraphic.graphicIndex, false, graphic);
         followUpAction.message = errorMessage;
         
         this.save();
@@ -6990,12 +7066,56 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 break;
             default:
                 log("Unhandled property of '" + property + "' in toggleInteractiveProperty().");
-                return;
+                followUpAction.message = 'There was a problem; see the log for details';
+                return followUpAction;
         }
         
         var a = new area(state.APIAreaMapper.activeArea);
         
         var returnedFollowUpAction = a.toggleInteractiveProperty(graphic, interactiveProperty);
+        
+        followUpAction.message = returnedFollowUpAction.message;
+        return followUpAction;
+    },
+    
+    handleLightsourceLightChange = function(selected, who, lightType, action) {
+        var followUpAction = [];
+        followUpAction.refresh = true;
+        
+        if('undefined' === typeof(selected) || selected.length === 0) {
+            followUpAction.Message = 'Nothing is selected.';
+            return followUpAction;
+        }
+        
+        if(selected.length > 1) {
+            followUpAction.Message = 'Only one object should be selected.';
+            return followUpAction;
+        }
+        
+        var graphic = getSelectedGraphic(selected);
+        
+        if(!graphic) {
+            followUpAction.Message = 'Unable to find the selected object.';
+            return followUpAction;
+        }
+        
+        var property;
+        switch(lightType) {
+            case 'bright':
+                property = 'brightLight';
+                break;
+            case 'dim':
+                property = 'dimLight';
+                break;
+            default:
+                log("Unhandled lightType of '" + lightType + "' in handleLightsourceLightChange().");
+                followUpAction.message = 'There was a problem; see the log for details';
+                return followUpAction;
+        }
+        
+        var a = new area(state.APIAreaMapper.activeArea);
+        
+        var returnedFollowUpAction = a.changeLightsourceLight(graphic, property, action);
         
         followUpAction.message = returnedFollowUpAction.message;
         return followUpAction;
@@ -7304,13 +7424,20 @@ var APIAreaMapper = APIAreaMapper || (function() {
         state.APIAreaMapper.uiWindow = 'lightsource';
         
         sendStandardInterface(who, 'Area Mapper',
-            uiSection('Light source Management', null, [
+            uiSection('Light Source Management', null, [
                     ['active', 'light', 'interactiveObjectOpen', false, managedGraphic.properties[7]],
                     ['active', 'lock', 'interactiveObjectLock', false, managedGraphic.properties[8]],
                     ['active', 'trap', 'interactiveObjectTrap', false, managedGraphic.properties[9]],
                     ['active', 'hide', 'interactiveObjectHide', false, managedGraphic.properties[10]],
-                    //TODO: implement now: changes to lighting radiuses
                     ['active', 'reposition', 'lightsourceReposition', false, state.APIAreaMapper.lightsourceReposition] //this is a global setting for repositioning all lightsources
+                ])
+            +uiSection('Bright Light Radius', null, [
+                    ['navigation', 'increase', 'lightsourceLight bright increase', false, false],
+                    ['navigation', 'decrease', 'lightsourceLight bright decrease', false, false]
+                ])
+            +uiSection('Dim Light Start Radius', null, [
+                    ['navigation', 'increase', 'lightsourceLight dim increase', false, false],
+                    ['navigation', 'decrease', 'lightsourceLight dim decrease', false, false]
                 ])
         );
     },
@@ -8247,6 +8374,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 case 'interactiveObjectHide':
                     retainFalseSelection = true;
                     followUpAction = toggleInteractiveProperty(msg.selected, msg.who, chatCommand[1]);
+                    break;
+                case 'lightsourceLight':
+                    retainFalseSelection = true;
+                    followUpAction = handleLightsourceLightChange(msg.selected, msg.who, chatCommand[2], chatCommand[3]);
                     break;
                 case 'settings':
                     interfaceSettings(msg.who);
