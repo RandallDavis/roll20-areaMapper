@@ -6,7 +6,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 1.07,
+    var version = 1.08,
         areaSchemaVersion = 1.0,
         buttonBackgroundColor = '#CC1869',
         buttonGreyedColor = '#8D94A9',
@@ -7977,12 +7977,13 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     helpText = uiSection('Help - Assets',
                         'Assets are the images that are used to draw areas. A few assets are provided by default, but assets can be added and removed through the user interface.</p><p>'
                             +'Roll20 only allows assets to be created that are stored in someone'+ch("'")+'s art library (either yours or someone else'+ch("'")+'s). Even the default assets that are provided with the script are in someone'+ch("'")+'s art library.</p><p>'
+                            +'Images purchased from the Roll20 Marketplace are not able to be created by the API. These must be downloaded to your computer and then uploaded into the art library.</p><p>'
                             +'There are two user interface screens for managing assets. They are very similar but have some slight differences:'
                                 +'<ul>'
                                     +'<li>Through the settings UI, you can reach the '+ch("'")+'Manage Global Assets'+ch("'")+' screen. This manages the global assets directly in state. A window appears that displays the asset that you'+ch("'")+'re interacting with. Changes to assets immediately affect all areas. Cyling between assets changes the asset that is being managed.</li>'
                                     +'<li>Through the area management UI, you can reach the '+ch("'")+'Manage Area Assets'+ch("'")+' screen. This manages assets in the context of the active area and has a few options that are different from the '+ch("'")+'Manage Global Assets'+ch("'")+' screen. A window appears that displays the asset that you'+ch("'")+'re interacting with. Cycling between assets changes the global asset that is being managed as well as setting the active area to use that asset. Changes to global assets immediately affect all areas. In some cases, transparent assets can be used (this means that no asset is drawn for the area at all). Instead of having an option to create a global asset, there is an option to create a '+ch("'")+'unique asset'+ch("'")+'. Unique assets are special in that they belong to the area and are not available to other areas. A unique asset can be made global if it should be made available to other areas.</li>'
                                 +'</ul>'
-                            +'Assets can be edited directly through the user interface. The goal of this is to get assets to fit neatly into the rectangle that is displayed.'
+                            +'The way that assets are drawn can be edited directly through the user interface. The goal of this is to get assets to fit neatly into the rectangle that is displayed.'
                                 +'<ul>'
                                     +'<li>Some assets have single assets (such as floors), while some assets are managed as pairs (such as doors). The '+ch("'")+'left asset'+ch("'")+' command link controls which asset of a pair is being managed. The '+ch("'")+'swap assets'+ch("'")+' command link switches the assets in a pair.</li>'
                                     +'<li>Rotation alters the rotation that the asset is drawn with.</li>'
@@ -7990,7 +7991,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                                     +'<li>Vertical and horizontal scale control how large the asset is drawn.</li>'
                                     +'<li>Vertical and horizontal offset control where the asset is drawn.</li>'
                                 +'</ul>'
-                            +'To create an asset, select images on the screen and click the '+ch("'")+'create'+ch("'")+' or '+ch("'")+'create unique'+ch("'")+' command link. If you'+ch("'")+'re creating a type of asset that uses asset pairs, two images will be expected.',
+                            +'Light sources'+ch("'")+' bright and dim light radiuses can be altered. This is only available for the '+ch("'")+'lit'+ch("'")+' light source asset (since the unlit one doesn'+ch("'")+'t project light).</p><p>'
+                            +'To create an asset, select images on the screen and click the '+ch("'")+'create'+ch("'")+' or '+ch("'")+'create unique'+ch("'")+' command link. If you'+ch("'")+'re creating a type of asset that uses asset pairs, two images are expected.',
                         []);
                     break;
                 default:
