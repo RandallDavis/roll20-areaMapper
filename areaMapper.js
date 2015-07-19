@@ -33,6 +33,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         wallLengthExtension = 12,
         doorThickness = 20,
         doorLengthExtension = -26,
+        lightRadiusAlterAmount = 3,
         blueprintFloorPolygonColor = '#A3E1E4',
         blueprintEdgeWallGapsPathColor = '#D13583',
         blueprintInnerWallsPathColor = '#3535D1',
@@ -5312,15 +5313,13 @@ var APIAreaMapper = APIAreaMapper || (function() {
     areaInstance.prototype.changeLightsourceLight = function(graphic, property, action) {
         var followUpAction = [];
         
-        var radiusAlterAmountConstant = 3;
-        
         var lightAlterAmount;
         switch(action) {
             case 'increase':
-                lightAlterAmount = radiusAlterAmountConstant;
+                lightAlterAmount = lightRadiusAlterAmount;
                 break;
             case 'decrease':
-                lightAlterAmount = -radiusAlterAmountConstant;
+                lightAlterAmount = -lightRadiusAlterAmount;
                 break;
             default:
                 log('Unhandled action of ' + action + ' in areaInstance.changeLightsourceLight().');
@@ -6119,6 +6118,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         case 'trapdoor':
                             assetManagementStateObject.setProperty('texture', a.getProperty('trapdoorTexture'));
                             break;
+                        case 'lightsource':
+                            assetManagementStateObject.setProperty('texture', a.getProperty('lightsourceTexture'));
+                            break;
                         default:
                             log('Unhandled classification of ' + classification + ' in toggleManageAssetClassification().');
                             followUpAction.message = 'There was a problem; check the log for details.';
@@ -6165,65 +6167,32 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 asset1.setProperty('imagesrc', getCleanImgsrc(token1.get('imgsrc')));
                 break;
             case 'wall':
-                if(selected.length !== 2) {
-                    returnObject.message = 'Exactly two images should be selected to turn into wall assets. One for a wall / closed hidden door, and another for an open hidden door.';
-                    return returnObject;
-                }
-                
-                var token1 = getObj('graphic', selected[0]._id);
-                var token2 = getObj('graphic', selected[1]._id);
-                
-                if(!token1 || !token2) {
-                    returnObject.message = 'Failure to find exactly two selected images. Two images should be selected to turn into wall assets. One for a wall / closed hidden door, and another for an open hidden door.';
-                    return returnObject;
-                }
-                
-                var asset1 = new asset();
-                asset1.setProperty('imagesrc', getCleanImgsrc(token1.get('imgsrc')));
-                var asset2 = new asset();
-                asset2.setProperty('imagesrc', getCleanImgsrc(token2.get('imgsrc')));
-                break;
             case 'door':
-                if(selected.length !== 2) {
-                    returnObject.message = 'Exactly two images should be selected to turn into door assets. One for a closed door and another for an open door.';
-                    return returnObject;
-                }
-                
-                var token1 = getObj('graphic', selected[0]._id);
-                var token2 = getObj('graphic', selected[1]._id);
-                
-                if(!token1 || !token2) {
-                    returnObject.message = 'Failure to find exactly two selected images. Two images should be selected to turn into door assets. One for a closed door and another for an open door.';
-                    return returnObject;
-                }
-                
-                var asset1 = new asset();
-                asset1.setProperty('imagesrc', getCleanImgsrc(token1.get('imgsrc')));
-                var asset2 = new asset();
-                asset2.setProperty('imagesrc', getCleanImgsrc(token2.get('imgsrc')));
-                break;
             case 'chest':
-                if(selected.length !== 2) {
-                    returnObject.message = 'Exactly two images should be selected to turn into chest assets. One for a closed chest and another for an open chest.';
-                    return returnObject;
-                }
-                
-                var token1 = getObj('graphic', selected[0]._id);
-                var token2 = getObj('graphic', selected[1]._id);
-                
-                if(!token1 || !token2) {
-                    returnObject.message = 'Failure to find exactly two selected images. Two images should be selected to turn into chest assets. One for a closed chest and another for an open chest.';
-                    return returnObject;
-                }
-                
-                var asset1 = new asset();
-                asset1.setProperty('imagesrc', getCleanImgsrc(token1.get('imgsrc')));
-                var asset2 = new asset();
-                asset2.setProperty('imagesrc', getCleanImgsrc(token2.get('imgsrc')));
-                break;
             case 'trapdoor':
+            case 'lightsource':
                 if(selected.length !== 2) {
-                    returnObject.message = 'Exactly two images should be selected to turn into trapdoor assets. One for a closed trapdoor and another for an open trapdoor.';
+                    switch(classification) {
+                        case 'wall':
+                            returnObject.message = 'Exactly two images should be selected to turn into wall assets. One for a wall / closed hidden door, and another for an open hidden door.';
+                            break;
+                        case 'door':
+                            returnObject.message = 'Exactly two images should be selected to turn into door assets. One for a closed door and another for an open door.';
+                            break;
+                        case 'chest':
+                            returnObject.message = 'Exactly two images should be selected to turn into chest assets. One for a closed chest and another for an open chest.';
+                            break;
+                        case 'trapdoor':
+                            returnObject.message = 'Exactly two images should be selected to turn into trapdoor assets. One for a closed trapdoor and another for an open trapdoor.';
+                            break;
+                        case 'lightsource':
+                            returnObject.message = 'Exactly two images should be selected to turn into light source assets. One for an unlit light source and another for a lit light source.';
+                            break;
+                        default:
+                            log('Unhandled asset classification of ' + classification + ' in createAssetFromSelection().');
+                            returnObject.message = 'There was a problem; see the log for details.';
+                            return returnObject;
+                    }
                     return returnObject;
                 }
                 
@@ -6314,6 +6283,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 state.APIAreaMapper.assets.trapdoorAssets.push(assetStateObject);
                 textureObject.setProperty('value', state.APIAreaMapper.assets.trapdoorAssets.length - 1);
                 break;
+            case 'lightsource':
+                state.APIAreaMapper.assets.lightsourceAssets.push(assetStateObject);
+                textureObject.setProperty('value', state.APIAreaMapper.assets.lightsourceAssets.length - 1);
+                break;
             default:
                 log('Unhandled asset classification of ' + assetManagementStateObject.getProperty('classification') + ' in manageAsestCreateGlobal().');
                 return 'There was a problem; see the log for details.';
@@ -6340,6 +6313,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     break;
                 case 'trapdoor':
                     a.useGlobalAsset(assetManagementStateObject.getProperty('classification'), state.APIAreaMapper.assets.trapdoorAssets.length - 1);
+                    break;
+                case 'lightsource':
+                    a.useGlobalAsset(assetManagementStateObject.getProperty('classification'), state.APIAreaMapper.assets.lightsourceAssets.length - 1);
                     break;
                 default:
                     log('Unhandled asset classification of ' + assetManagementStateObject.getProperty('classification') + ' in manageAsestCreateGlobal().');
@@ -6381,6 +6357,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'door':
             case 'chest':
             case 'trapdoor':
+            case 'lightsource':
                 assetStateObject = [assetCreationReturn.assetState1, assetCreationReturn.assetState2];
                 break;
             default:
@@ -6461,6 +6438,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     break;
                 case 'trapdoor':
                     assetLength = state.APIAreaMapper.assets.trapdoorAssets.length;
+                    break;
+                case 'lightsource':
+                    assetLength = state.APIAreaMapper.assets.lightsourceAssets.length;
                     break;
                 default:
                     log('Unhandled asset classification of ' + assetManagementStateObject.getProperty('classification') + ' in handleManageAssetCycle().');
@@ -6566,6 +6546,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 break;
             case 'trapdoor':
                 newTextureObject = manageAssetsDeleteByClassification(assetManagementStateObject.getProperty('classification'), 'trapdoorTexture', state.APIAreaMapper.assets.trapdoorAssets, textureObject, followUpAction);
+                break;
+            case 'lightsource':
+                newTextureObject = manageAssetsDeleteByClassification(assetManagementStateObject.getProperty('classification'), 'lightsourceTexture', state.APIAreaMapper.assets.lightsourceAssets, textureObject, followUpAction);
                 break;
             default:
                 log('Unhandled classification of ' + assetManagementStateObject.getProperty('classification') + ' in handleManageAssetGlobalDelete().');
@@ -6692,6 +6675,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         setPropertyToValue(assetObject, property, value, updateType);
                         state.APIAreaMapper.assets.trapdoorAssets[textureObject.getProperty('value')][assetManagementStateObject.getProperty('pairIndex')] = assetObject.getStateObject();
                         break;
+                    case 'lightsource':
+                        var assetObject = new asset(state.APIAreaMapper.assets.lightsourceAssets[textureObject.getProperty('value')][assetManagementStateObject.getProperty('pairIndex')]);
+                        setPropertyToValue(assetObject, property, value, updateType);
+                        state.APIAreaMapper.assets.lightsourceAssets[textureObject.getProperty('value')][assetManagementStateObject.getProperty('pairIndex')] = assetObject.getStateObject();
+                        break;
                     default:
                         log('Unhandled classification of ' + assetManagementStateObject.getProperty('classification') + ' in manageAssetEditSetProperty().');
                         return;
@@ -6708,6 +6696,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     case 'door':
                     case 'chest':
                     case 'trapdoor':
+                    case 'lightsource':
                         var assetObject = new asset(textureObject.getProperty('value')[assetManagementStateObject.getProperty('pairIndex')]);
                         setPropertyToValue(assetObject, property, value, updateType);
                         textureObject.getProperty('value')[assetManagementStateObject.getProperty('pairIndex')] = assetObject.getStateObject();
@@ -6831,6 +6820,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         state.APIAreaMapper.assets.trapdoorAssets[textureObject.getProperty('value')][0] = state.APIAreaMapper.assets.trapdoorAssets[textureObject.getProperty('value')][1];
                         state.APIAreaMapper.assets.trapdoorAssets[textureObject.getProperty('value')][1] = tempAsset;
                         break;
+                    case 'lightsource':
+                        var tempAsset = state.APIAreaMapper.assets.lightsourceAssets[textureObject.getProperty('value')][0];
+                        state.APIAreaMapper.assets.lightsourceAssets[textureObject.getProperty('value')][0] = state.APIAreaMapper.assets.lightsourceAssets[textureObject.getProperty('value')][1];
+                        state.APIAreaMapper.assets.lightsourceAssets[textureObject.getProperty('value')][1] = tempAsset;
+                        break;
                     default:
                         log('Unhandled classification of ' + assetManagementStateObject.getProperty('classification') + ' in handleManageAssetEditSwapAssets().');
                         followUpAction.message = 'There was a problem; check the log for details.';
@@ -6843,6 +6837,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     case 'door':
                     case 'chest':
                     case 'trapdoor':
+                    case 'lightsource':
                         var tempAsset = textureObject.getProperty('value')[0];
                         textureObject.getProperty('value')[0] = textureObject.getProperty('value')[1];
                         textureObject.getProperty('value')[1] = tempAsset;
@@ -7775,7 +7770,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 doorCommands.push(['navigation', 'delete', 'manageAssetDelete', activeClassification != 'door', false]);
                 break;
             case 'area':
-                var areaTextureObject = new texture(a.getProperty('wallTexture'));
+                var areaTextureObject = new texture(a.getProperty('doorTexture'));
                 
                 switch(areaTextureObject.getProperty('textureType')) {
                     case 'asset':
@@ -7808,7 +7803,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 chestCommands.push(['navigation', 'delete', 'manageAssetDelete', activeClassification != 'chest', false]);
                 break;
             case 'area':
-                var areaTextureObject = new texture(a.getProperty('wallTexture'));
+                var areaTextureObject = new texture(a.getProperty('chestTexture'));
                 
                 switch(areaTextureObject.getProperty('textureType')) {
                     case 'asset':
@@ -7841,7 +7836,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 chestCommands.push(['navigation', 'delete', 'manageAssetDelete', activeClassification != 'trapdoor', false]);
                 break;
             case 'area':
-                var areaTextureObject = new texture(a.getProperty('wallTexture'));
+                var areaTextureObject = new texture(a.getProperty('trapdoorTexture'));
                 
                 switch(areaTextureObject.getProperty('textureType')) {
                     case 'asset':
@@ -7860,6 +7855,39 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 log('Unhandled scope of ' + assetManagementStateObject.getProperty('scope') + ' in interfaceManageAssets().');
                 return;
         }
+        
+        
+        var lightsourceCommands = [
+                ['active', 'active', 'manageAssetActivateClassification lightsource', false, activeClassification == 'lightsource'],
+                ['navigation', assetManagementStateObject.getProperty('scope') == 'global' ? 'create' : 'create unique', 'manageAssetCreate', activeClassification != 'lightsource', false],
+                ['navigation', 'cycle', 'manageAssetCycle', activeClassification != 'lightsource', false],
+                ['navigation', 'edit', 'manageAssetEdit', activeClassification != 'lightsource', false],
+            ];
+            
+        switch(assetManagementStateObject.getProperty('scope')) {
+            case 'global':
+                chestCommands.push(['navigation', 'delete', 'manageAssetDelete', activeClassification != 'lightsource', false]);
+                break;
+            case 'area':
+                var areaTextureObject = new texture(a.getProperty('lightsourceTexture'));
+                
+                switch(areaTextureObject.getProperty('textureType')) {
+                    case 'asset':
+                        chestCommands.push(['navigation', 'delete', 'manageAssetDelete', activeClassification != 'lightsource', false]);
+                        break;
+                    case 'unique':
+                        
+                        //orphaning a unique asset effectively deletes it:
+                        chestCommands.push(['navigation', 'delete', 'manageAssetCycle', activeClassification != 'lightsource', false]);
+                        break;
+                    default:
+                        break;
+                }
+                break;
+            default:
+                log('Unhandled scope of ' + assetManagementStateObject.getProperty('scope') + ' in interfaceManageAssets().');
+                return;
+        }
             
             
         sendStandardInterface(who, uiTitle,
@@ -7868,6 +7896,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             +uiSection('Doors', activeClassification == 'door' ? 'The door assets can be seen on the top left corner of the player page.' : null, doorCommands)
             +uiSection('Chests', activeClassification == 'chest' ? 'The chest assets can be seen on the top left corner of the player page.' : null, chestCommands)
             +uiSection('Trapdoors', activeClassification == 'trapdoor' ? 'The trapdoor assets can be seen on the top left corner of the player page.' : null, trapdoorCommands)
+            +uiSection('Light Sources', activeClassification == 'lightsource' ? 'The lightsource assets can be seen on the top left corner of the player page.' : null, lightsourceCommands)
         );
     },
     
