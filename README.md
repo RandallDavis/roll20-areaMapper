@@ -20,6 +20,7 @@ alt="AreaMapper demo" width="100%" height="100%" border="10" /></a>
 
 ##### Features not appearing in the video since they were implemented after it was made:
 - Trapdoors.
+- Light sources.
 - UX improvements.
 
 ##### Required libraries:
