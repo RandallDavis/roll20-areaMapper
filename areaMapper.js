@@ -34,6 +34,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
         doorThickness = 20,
         doorLengthExtension = -26,
         lightRadiusAlterAmount = 3,
+        defaultBrightLight = 20,
+        defaultDimLight = 10,
         blueprintFloorPolygonColor = '#A3E1E4',
         blueprintEdgeWallGapsPathColor = '#D13583',
         blueprintInnerWallsPathColor = '#3535D1',
@@ -137,12 +139,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
             log('APIAreaMapper: Adding assets to state.');
             state.APIAreaMapper.assets.schemaVersion = 1.3;
             state.APIAreaMapper.assets.lightsourceAssets = [
-                    [['https://s3.amazonaws.com/files.d20.io/images/2875450/tlPEO3pChVDm5lOR6UgWDg/thumb.png?1390730143',0,0,1,1,0,0,0,0], //light values are ignored
-                        ['https://s3.amazonaws.com/files.d20.io/images/90119/NeWRJzrmjUyLOdGD_MoN2A/thumb.png?1341838869',0,0,1,1,0,0,40,30]],
-                    [['https://s3.amazonaws.com/files.d20.io/images/298002/jOpj2xv9xXKpoQ9YKnDMQw/thumb.png?1350560695',0,0,1,1,0,0,0,0], //light values are ignored
-                        ['https://s3.amazonaws.com/files.d20.io/images/45074/thumb.png?1340020826',0,0,1,1,0,0,40,30]],
-                    [['https://s3.amazonaws.com/files.d20.io/images/298003/ulsp7PmK0xkhPc5NX6bZRw/thumb.png?1350560697',0,0,1,1,0,0,0,0], //light values are ignored
-                        ['https://s3.amazonaws.com/files.d20.io/images/45074/thumb.png?1340020826',0,0,1,1,0,0,40,30]]
+                    [['https://s3.amazonaws.com/files.d20.io/images/2875450/tlPEO3pChVDm5lOR6UgWDg/thumb.png?1390730143',0,0,1.1046221254112045,1.0936852726843609,-2,-2,0,0], //light values are ignored
+                        ['https://s3.amazonaws.com/files.d20.io/images/90119/NeWRJzrmjUyLOdGD_MoN2A/thumb.png?1341838869',0,0,1.2775092847093632,1.7103393581163142,1,-3,defaultBrightLight,defaultDimLight]],
+                    [['https://s3.amazonaws.com/files.d20.io/images/298002/jOpj2xv9xXKpoQ9YKnDMQw/thumb.png?1350560695',180,0,1,1.0201,2,0,0,0], //light values are ignored
+                        ['https://s3.amazonaws.com/files.d20.io/images/45074/thumb.png?1340020826',180,0,2.1828745883819374,2.0997174612054823,4,-5,defaultBrightLight,defaultDimLight]],
+                    [['https://s3.amazonaws.com/files.d20.io/images/298003/ulsp7PmK0xkhPc5NX6bZRw/thumb.png?1350560697',180,0,0.8795078309355354,1.030301,7,1,0,0], //light values are ignored
+                        ['https://s3.amazonaws.com/files.d20.io/images/45074/thumb.png?1340020826',180,0,2.0809280095213754,2.1207146358175373,6,-5,defaultBrightLight,defaultDimLight]]
                 ];
         }
         
@@ -1898,7 +1900,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
     var lightsourceAsset = function(stateObject) {
         
         if('undefined' === typeof(stateObject)) {
-            stateObject = ['',0,0,1,1,0,0,40,30];
+            stateObject = ['',0,0,1,1,0,0,defaultBrightLight,defaultDimLight];
         }
         
         asset.call(this, stateObject); //only the asset-specfic fields will be used by the parent object
@@ -5168,10 +5170,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     var assetObject;
                     switch(textureObject.getProperty('textureType')) {
                         case 'asset':
-                            assetObject = new asset(state.APIAreaMapper.assets.lightsourceAssets[textureObject.getProperty('value')][graphicMaster[7] ? 1 : 0]);
+                            assetObject = new lightsourceAsset(state.APIAreaMapper.assets.lightsourceAssets[textureObject.getProperty('value')][graphicMaster[7] ? 1 : 0]);
                             break;
                         case 'unique':
-                            assetObject = new asset(textureObject.getProperty('value')[graphicMaster[7] ? 1 : 0]);
+                            assetObject = new lightsourceAsset(textureObject.getProperty('value')[graphicMaster[7] ? 1 : 0]);
                             break;
                         default:
                             log('Unhandled textureType of ' + textureObject.getProperty('textureType') + ' for textureObject in areaInstance.handleGraphicChange().');
@@ -5518,6 +5520,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 toBackIds.unshift(['text', labelText.id]);
                 break;
             case 'wall':
+            case 'door':
                 
                 //create the modal frame:
                 var modalFramePath = createRectanglePathObject(
@@ -5556,8 +5559,19 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     asset2;
                 switch(textureObject.getProperty('textureType')) {
                     case 'asset':
-                        asset1 = new asset(state.APIAreaMapper.assets.wallAssets[textureObject.getProperty('value')][0]);
-                        asset2 = new asset(state.APIAreaMapper.assets.wallAssets[textureObject.getProperty('value')][1]);
+                        switch(assetManagementStateObject.getProperty('classification')) {
+                            case 'wall':
+                                asset1 = new asset(state.APIAreaMapper.assets.wallAssets[textureObject.getProperty('value')][0]);
+                                asset2 = new asset(state.APIAreaMapper.assets.wallAssets[textureObject.getProperty('value')][1]);
+                                break;
+                            case 'door':
+                                asset1 = new asset(state.APIAreaMapper.assets.doorAssets[textureObject.getProperty('value')][0]);
+                                asset2 = new asset(state.APIAreaMapper.assets.doorAssets[textureObject.getProperty('value')][1]);
+                                break;
+                            default:
+                                log('Illogical occurrence of unhandled classification of ' + assetManagementStateObject.getProperty('classification') + ' in drawAssetManagementModal().');
+                                break;
+                        }
                         break;
                     case 'unique':
                         asset1 = new asset(textureObject.getProperty('value')[0]);
@@ -5621,135 +5635,23 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 toBackIds.unshift(['path', bandPath.id]);
                 
                 //draw labels:
-                var labelText = createTextObject(
-                        'wall / hidden closed door asset',
-                        pageId,
-                        'objects',
-                        modalTop + modalTopMargin - labelHover,
-                        modalLeft + (modalWidth / 2) - (assetStretchWidth + assetPairStretchSpacing),
-                        labelHover,
-                        assetStretchWidth
-                    );
-                state.APIAreaMapper.assetManagementModalIds.push(['text', labelText.id]);
-                toBackIds.unshift(['text', labelText.id]);
-                labelText = createTextObject(
-                        'hidden open door asset',
-                        pageId,
-                        'objects',
-                        modalTop + modalTopMargin - labelHover,
-                        modalLeft + (modalWidth / 2) + assetPairStretchSpacing,
-                        labelHover,
-                        assetStretchWidth
-                    );
-                state.APIAreaMapper.assetManagementModalIds.push(['text', labelText.id]);
-                toBackIds.unshift(['text', labelText.id]);
-                break;
-            case 'door':
-                
-                //create the modal frame:
-                var modalFramePath = createRectanglePathObject(
-                        pageId, 
-                        'objects', 
-                        '#000000', 
-                        headerBackgroundColor, 
-                        modalTop, 
-                        modalLeft, 
-                        modalPairStretchHeight, 
-                        modalWidth,
-                        2
-                    );
-                state.APIAreaMapper.assetManagementModalIds.push(['path', modalFramePath.id]);
-                toBackIds.unshift(['path', modalFramePath.id]);
-                        
-                //highlight the active asset:
-                if(highlightEditedAsset) {
-                    var editedAssetHighlightPath = createRectanglePathObject(
-                            pageId, 
-                            'objects', 
-                            '#ff0000', 
-                            'transparent', 
-                            modalTop + highlightEditedAssetMargin, 
-                            modalLeft + highlightEditedAssetMargin + (assetManagementStateObject.getProperty('pairIndex') ? (modalWidth / 2) : 0), 
-                            modalPairStretchHeight - (2 * highlightEditedAssetMargin), 
-                            (modalWidth / 2) - (2 * highlightEditedAssetMargin),
-                            2
-                        );
-                    state.APIAreaMapper.assetManagementModalIds.push(['path', editedAssetHighlightPath.id]);
-                    toBackIds.unshift(['path', editedAssetHighlightPath.id]);
-                }
-                        
-                //note: if there is a classification, there must be a texture:
-                var asset1,
-                    asset2;
-                switch(textureObject.getProperty('textureType')) {
-                    case 'asset':
-                        asset1 = new asset(state.APIAreaMapper.assets.doorAssets[textureObject.getProperty('value')][0]);
-                        asset2 = new asset(state.APIAreaMapper.assets.doorAssets[textureObject.getProperty('value')][1]);
+                var labelTextClosed,
+                    labelTextOpen;
+                switch(assetManagementStateObject.getProperty('classification')) {
+                    case 'wall':
+                        labelTextClosed = 'wall / hidden closed door asset';
+                        labelTextOpen = 'hidden open door asset';
                         break;
-                    case 'unique':
-                        asset1 = new asset(textureObject.getProperty('value')[0]);
-                        asset2 = new asset(textureObject.getProperty('value')[1]);
+                    case 'door':
+                        labelTextClosed = 'closed door asset';
+                        labelTextOpen = 'open door asset';
                         break;
                     default:
-                        log('Unhandled textureType of ' + textureObject.getProperty('textureType') + ' in drawAssetManagementModal().');
-                        return;
+                        log('Illogical occurrence of unhandled classification of ' + assetManagementStateObject.getProperty('classification') + ' in drawAssetManagementModal().');
+                        break;
                 }
-       
-                //draw assets:
-                var assetToken = createTokenObjectFromAsset(
-                        asset1,
-                        pageId,
-                        'objects',
-                        modalTop + modalTopMargin,
-                        modalLeft + (modalWidth / 2) - assetStretchWidth - assetPairStretchSpacing,
-                        assetStretchHeight,
-                        assetStretchWidth
-                    );
-                state.APIAreaMapper.assetManagementModalIds.push(['graphic', assetToken.id]);
-                toBackIds.unshift(['graphic', assetToken.id]);
-                assetToken = createTokenObjectFromAsset(
-                        asset2,
-                        pageId,
-                        'objects',
-                        modalTop + modalTopMargin,
-                        modalLeft + (modalWidth / 2) + assetPairStretchSpacing,
-                        assetStretchHeight,
-                        assetStretchWidth
-                    );
-                state.APIAreaMapper.assetManagementModalIds.push(['graphic', assetToken.id]);
-                toBackIds.unshift(['graphic', assetToken.id]);
-                
-                //draw bands:
-                var bandPath = createBandPathObject(
-                        pageId, 
-                        modalTop + modalTopMargin,
-                        modalLeft + (modalWidth / 2) - assetStretchWidth - assetPairStretchSpacing,
-                        assetStretchHeight,
-                        assetStretchWidth, 
-                        0, 
-                        '#00ff00', 
-                        0, 
-                        'objects'
-                    );
-                state.APIAreaMapper.assetManagementModalIds.push(['path', bandPath.id]);
-                toBackIds.unshift(['path', bandPath.id]);
-                bandPath = createBandPathObject(
-                        pageId, 
-                        modalTop + modalTopMargin,
-                        modalLeft + (modalWidth / 2) + assetPairStretchSpacing,
-                        assetStretchHeight,
-                        assetStretchWidth, 
-                        0, 
-                        '#00ff00', 
-                        0, 
-                        'objects'
-                    );
-                state.APIAreaMapper.assetManagementModalIds.push(['path', bandPath.id]);
-                toBackIds.unshift(['path', bandPath.id]);
-                
-                //draw labels:
                 var labelText = createTextObject(
-                        'closed door asset',
+                        labelTextClosed,
                         pageId,
                         'objects',
                         modalTop + modalTopMargin - labelHover,
@@ -5760,7 +5662,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 state.APIAreaMapper.assetManagementModalIds.push(['text', labelText.id]);
                 toBackIds.unshift(['text', labelText.id]);
                 labelText = createTextObject(
-                        'open door asset',
+                        labelTextOpen,
                         pageId,
                         'objects',
                         modalTop + modalTopMargin - labelHover,
@@ -5822,8 +5724,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                                 asset2 = new asset(state.APIAreaMapper.assets.trapdoorAssets[textureObject.getProperty('value')][1]);
                                 break;
                             case 'lightsource':
-                                asset1 = new asset(state.APIAreaMapper.assets.lightsourceAssets[textureObject.getProperty('value')][0]);
-                                asset2 = new asset(state.APIAreaMapper.assets.lightsourceAssets[textureObject.getProperty('value')][1]);
+                                asset1 = new lightsourceAsset(state.APIAreaMapper.assets.lightsourceAssets[textureObject.getProperty('value')][0]);
+                                asset2 = new lightsourceAsset(state.APIAreaMapper.assets.lightsourceAssets[textureObject.getProperty('value')][1]);
                                 break;
                             default:
                                 log('Illogical occurrence of unhandled classification of ' + assetManagementStateObject.getProperty('classification') + ' in drawAssetManagementModal().');
@@ -5831,8 +5733,20 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         }
                         break;
                     case 'unique':
-                        asset1 = new asset(textureObject.getProperty('value')[0]);
-                        asset2 = new asset(textureObject.getProperty('value')[1]);
+                        switch(assetManagementStateObject.getProperty('classification')) {
+                            case 'chest':
+                            case 'trapdoor':
+                                asset1 = new asset(textureObject.getProperty('value')[0]);
+                                asset2 = new asset(textureObject.getProperty('value')[1]);
+                                break;
+                            case 'lightsource':
+                                asset1 = new lightsourceAsset(textureObject.getProperty('value')[0]);
+                                asset2 = new lightsourceAsset(textureObject.getProperty('value')[1]);
+                                break;
+                            default:
+                                log('Illogical occurrence of unhandled classification of ' + assetManagementStateObject.getProperty('classification') + ' in drawAssetManagementModal().');
+                                break;
+                        }
                         break;
                     default:
                         log('Unhandled textureType of ' + textureObject.getProperty('textureType') + ' in drawAssetManagementModal().');
@@ -6113,9 +6027,25 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     return returnObject;
                 }
                 
-                var asset1 = new asset();
+                switch(classification) {
+                    case 'wall':
+                    case 'door':
+                    case 'chest':
+                    case 'trapdoor':
+                        asset1 = new asset();
+                        asset2 = new asset();
+                        break;
+                    case 'lightsource':
+                        asset1 = new lightsourceAsset();
+                        asset2 = new lightsourceAsset();
+                        break;
+                    default:
+                        log('Unhandled asset classification of ' + classification + ' in createAssetFromSelection().');
+                        returnObject.message = 'There was a problem; see the log for details.';
+                        return returnObject;
+                }
+                
                 asset1.setProperty('imagesrc', getCleanImgsrc(token1.get('imgsrc')));
-                var asset2 = new asset();
                 asset2.setProperty('imagesrc', getCleanImgsrc(token2.get('imgsrc')));
                 break;
             default:
@@ -6585,7 +6515,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         state.APIAreaMapper.assets.trapdoorAssets[textureObject.getProperty('value')][assetManagementStateObject.getProperty('pairIndex')] = assetObject.getStateObject();
                         break;
                     case 'lightsource':
-                        var assetObject = new asset(state.APIAreaMapper.assets.lightsourceAssets[textureObject.getProperty('value')][assetManagementStateObject.getProperty('pairIndex')]);
+                        var assetObject = new lightsourceAsset(state.APIAreaMapper.assets.lightsourceAssets[textureObject.getProperty('value')][assetManagementStateObject.getProperty('pairIndex')]);
                         setPropertyToValue(assetObject, property, value, updateType);
                         state.APIAreaMapper.assets.lightsourceAssets[textureObject.getProperty('value')][assetManagementStateObject.getProperty('pairIndex')] = assetObject.getStateObject();
                         break;
@@ -6605,8 +6535,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     case 'door':
                     case 'chest':
                     case 'trapdoor':
-                    case 'lightsource':
                         var assetObject = new asset(textureObject.getProperty('value')[assetManagementStateObject.getProperty('pairIndex')]);
+                        setPropertyToValue(assetObject, property, value, updateType);
+                        textureObject.getProperty('value')[assetManagementStateObject.getProperty('pairIndex')] = assetObject.getStateObject();
+                        break;
+                    case 'lightsource':
+                        var assetObject = new lightsourceAsset(textureObject.getProperty('value')[assetManagementStateObject.getProperty('pairIndex')]);
                         setPropertyToValue(assetObject, property, value, updateType);
                         textureObject.getProperty('value')[assetManagementStateObject.getProperty('pairIndex')] = assetObject.getStateObject();
                         break;
@@ -6855,7 +6789,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
        
         var amountValue;
         
-        var property = axis == 'vertical' ? 'offsetVertical' : 'offsetHorizontal';
+        var property = (axis == 'vertical' ? 'offsetVertical' : 'offsetHorizontal');
         var isIncreasing = (action == 'increase');
         
         switch(amount) {
@@ -6872,6 +6806,33 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }
         
         manageAssetEditSetProperty(property, isIncreasing ? amountValue : 0 - amountValue, 'add');
+        
+        //redraw the area if necessary: 
+        var assetManagementStateObject = new assetManagementState(state.APIAreaMapper.assetManagement);
+        if(assetManagementStateObject.getProperty('scope') == 'area') {
+            var a = new area(state.APIAreaMapper.activeArea);
+            a.draw();
+        }
+        
+        return followUpAction;
+    },
+    
+    handleManageAssetEditLightChange = function(lightType, action) {
+        var followUpAction = [];
+        followUpAction.refresh = true;
+        
+        if(!state.APIAreaMapper.assetManagement) {
+            log('handleManageAssetEditLightChange() called without state.APIAreaMapper.assetManagement.');
+            followUpAction.message = 'There was a problem; see the log for details.';
+            return followUpAction;
+        }
+       
+        var amountValue;
+        
+        var property = (lightType == 'bright' ? 'brightLight' : 'dimLight');
+        var isIncreasing = (action == 'increase');
+        
+        manageAssetEditSetProperty(property, isIncreasing ? lightRadiusAlterAmount : 0 - lightRadiusAlterAmount, 'add');
         
         //redraw the area if necessary: 
         var assetManagementStateObject = new assetManagementState(state.APIAreaMapper.assetManagement);
@@ -7844,6 +7805,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
                         asset1 = new asset(state.APIAreaMapper.assets.trapdoorAssets[textureObject.getProperty('value')][0]);
                         asset2 = new asset(state.APIAreaMapper.assets.trapdoorAssets[textureObject.getProperty('value')][1]);
                         break;
+                    case 'lightsource':
+                        asset1 = new lightsourceAsset(state.APIAreaMapper.assets.lightsourceAssets[textureObject.getProperty('value')][0]);
+                        asset2 = new lightsourceAsset(state.APIAreaMapper.assets.lightsourceAssets[textureObject.getProperty('value')][1]);
+                        break;
                     default:
                         log('Unhandled classification of ' + assetManagementStateObject.getProperty('classification') + ' in interfaceManageAssetEdit().');
                         return;
@@ -7860,6 +7825,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     case 'trapdoor':
                         asset1 = new asset(textureObject.getProperty('value')[0]);
                         asset2 = new asset(textureObject.getProperty('value')[1]);
+                        break;
+                    case 'lightsource':
+                        asset1 = new lightsourceAsset(textureObject.getProperty('value')[0]);
+                        asset2 = new lightsourceAsset(textureObject.getProperty('value')[1]);
                         break;
                     default:
                         log('Unhandled classification of ' + assetManagementStateObject.getProperty('classification') + ' in interfaceManageAssetEdit().');
@@ -7884,6 +7853,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'door':
             case 'chest':
             case 'trapdoor':
+            case 'lightsource':
                 links.push(['active', 'left asset', 'manageAssetEditToggleActiveAsset', false, !assetManagementStateObject.getProperty('pairIndex')]);
                 links.push(['navigation', 'swap assets', 'manageAssetEditSwapAssets', false, false]);
                 break;
@@ -7910,6 +7880,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 break;
             case 'chest':
             case 'trapdoor':
+            case 'lightsource':
                 break;
             default:
                 log('Unhandled classification of ' + assetManagementStateObject.getProperty('classification') + ' in interfaceManageAssetEdit().');
@@ -7944,6 +7915,19 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     ['navigation', 'decrease', 'manageAssetEditOffset horizontal decrease tad', false, false],
                     ['navigation', 'decrease lots', 'manageAssetEditOffset horizontal decrease lots', false, false]];
         html += uiSection('Horizontal Position', text, links);
+        
+        //if the asset is a lit lightsource, bring up options to alter the light radiuses:
+        if(assetManagementStateObject.getProperty('classification') == 'lightsource' && assetManagementStateObject.getProperty('pairIndex')) {
+            text = null;
+            links = [['navigation', 'increase', 'manageAssetEditLight bright increase', false, false],
+                        ['navigation', 'decrease', 'manageAssetEditLight bright decrease', false, false]];
+            html += uiSection('Bright Light Radius', text, links);
+            
+            text = null;
+            links = [['navigation', 'increase', 'manageAssetEditLight dim increase', false, false],
+                        ['navigation', 'decrease', 'manageAssetEditLight dim decrease', false, false]];
+            html += uiSection('Dim Light Start Radius', text, links);
+        }
         
         var uiTitle;
         switch(assetManagementStateObject.getProperty('scope')) {
@@ -8216,6 +8200,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     break;
                 case 'manageAssetEditOffset':
                     followUpAction = handleManageAssetEditOffsetChange(chatCommand[2], chatCommand[3], chatCommand[4]);
+                    followUpAction.ignoreSelection = true;
+                    break;
+                case 'manageAssetEditLight':
+                    followUpAction = handleManageAssetEditLightChange(chatCommand[2], chatCommand[3]);
                     followUpAction.ignoreSelection = true;
                     break;
                 case 'mainMenu':
