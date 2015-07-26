@@ -24,8 +24,8 @@ alt="AreaMapper demo" width="100%" height="100%" border="10" /></a>
 - UX improvements.
 
 ##### Tutorial videos:
-- [Getting Started](https://youtu.be/EDj6-Jtt-JU)
-- [Area Lists](https://youtu.be/jOZ6hTuOAX8)
+- [Getting started](https://youtu.be/EDj6-Jtt-JU)
+- [Area lists](https://youtu.be/jOZ6hTuOAX8)
 
 ##### Required libraries:
 This requires another script I wrote for its visual alert animations. It can be found here: https://github.com/RandallDavis/roll20-visualAlertScript.
