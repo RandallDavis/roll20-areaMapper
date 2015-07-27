@@ -6,7 +6,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 1.08,
+    var version = 1.100,
         areaSchemaVersion = 1.0,
         buttonBackgroundColor = '#CC1869',
         buttonGreyedColor = '#8D94A9',
@@ -21,6 +21,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         lockedTagColor = '#E5DB50',
         trappedTagColor = '#E2274C',
         hiddenTagColor = '#277EE2',
+        attachedObjectTagColor = '#AD17CB',
         closedDoorAlertPic = 'https://s3.amazonaws.com/files.d20.io/images/8543193/5XhwOpMaBUS_5B444UNC5Q/thumb.png?1427665106',
         openDoorAlertPic = 'https://s3.amazonaws.com/files.d20.io/images/8543205/QBOWp1MHHlJCrPWn9kcVqQ/thumb.png?1427665124',
         closedTrapdoorAlertPic = 'https://s3.amazonaws.com/files.d20.io/images/10471466/8E3rn1V_OHhwMl-iRTJfrg/thumb.png?1435585449',
@@ -1556,7 +1557,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             if(l.length) {
                 setTimeout(_.partial(toBackListWithDelays, l), 50);
             }
-		}
+        }
     },
     
     //find imgsrc that is legal for object creation:
@@ -2211,6 +2212,59 @@ var APIAreaMapper = APIAreaMapper || (function() {
     };
     
     
+    var attachedObject = function(stateObject) {
+        
+        if('undefined' === typeof(stateObject)) {
+            stateObject = new Array(7);
+        }
+        
+        typedObject.call(this);
+        this._type.push('attachedObject');
+        this._imgsrc = stateObject[0];
+        this._top = stateObject[1];
+        this._left = stateObject[2];
+        this._height = stateObject[3];
+        this._width = stateObject[4];
+        this._rotation = stateObject[5];
+        this._layer = stateObject[6];
+    };
+    
+    inheritPrototype(attachedObject, typedObject);
+    
+    attachedObject.prototype.setProperty = function(property, value) {
+        switch(property) {
+            case 'imgsrc':
+            case 'top':
+            case 'left':
+            case 'height':
+            case 'width':
+            case 'rotation':
+            case 'layer':
+                this['_' + property] = value;
+                break;
+            default:
+                return typedObject.prototype.setProperty.call(this, property, value);
+                break;
+        }
+        
+        return null;
+    };
+    
+    attachedObject.prototype.getStateObject = function() {
+        return [this._imgsrc, this._top, this._left, this._height, this._width, this._rotation, this._layer];
+    };
+    
+    attachedObject.prototype.updateToTokenState = function(token) {
+        this.setProperty('imgsrc', getCleanImgsrc(token.get('imgsrc')));
+        this.setProperty('top', token.get('top') - (token.get('height') / 2));
+        this.setProperty('left', token.get('left') - (token.get('width') / 2));
+        this.setProperty('height', token.get('height'));
+        this.setProperty('width', token.get('width'));
+        this.setProperty('rotation', token.get('rotation'));
+        this.setProperty('layer', token.get('layer'));
+    };
+    
+    
     var area = function(id) {
         typedObject.call(this);
         this._type.push('area');
@@ -2221,6 +2275,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this.initializeCollectionProperty('chests');
         this.initializeCollectionProperty('trapdoors');
         this.initializeCollectionProperty('lightsources');
+        this.initializeCollectionProperty('attachedObjects');
         
         //load existing area:
         if('undefined' !== typeof(id)) {
@@ -2255,6 +2310,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'chests': //[top, left, height, width, rotation, isOpen, isLocked, isTrapped, isHidden] - represented by chest DTO
             case 'trapdoors': //[top, left, height, width, rotation, isOpen, isLocked, isTrapped, isHidden] - represented by trapdoor DTO
             case 'lightsources': //[top, left, height, width, rotation, brightLight, dimLight, isOpen, isLocked, isTrapped, isHidden] - represented by lightsource DTO
+            //TODO now: more fields:
+            case 'attachedObjects': //[imgsrc, top, left, height, width, rotation, layer] - represented by an attachedObject DTO
                 return this['_' + property].push(value) - 1;
             default:
                 return typedObject.prototype.setProperty.call(this, property, value);
@@ -2273,6 +2330,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'chests':
             case 'trapdoors':
             case 'lightsources':
+            case 'attachedObjects':
                 if('undefined' === typeof(value)) {
                     this['_' + property] = [];
                 } else {
@@ -2423,6 +2481,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 case 'chests':
                 case 'trapdoors':
                 case 'lightsources':
+                case 'attachedObjects':
                     this.initializeCollectionProperty(areaState[i][0], areaState[i][1]);
                     break;
                 default:
@@ -2453,6 +2512,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         areaState.push(['chests', this.getProperty('chests')]);
         areaState.push(['trapdoors', this.getProperty('trapdoors')]);
         areaState.push(['lightsources', this.getProperty('lightsources')]);
+        areaState.push(['attachedObjects', this.getProperty('attachedObjects')]);
         
         //remove existing area state:
         var id = this.getProperty('id');
@@ -2644,7 +2704,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             
             //adjust all instances' positions so that they don't move visually:
             this.getInstancePageIds().forEach(function(pageId) {
-                var instance = new areaInstance(this.getProperty('id'), pageId)
+                var instance = new areaInstance(this.getProperty('id'), pageId);
                 instance.setProperty('top', instance.getProperty('top') - topDelta);
                 instance.setProperty('left', instance.getProperty('left') - leftDelta);
                 instance.save();
@@ -2755,7 +2815,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             
             //adjust all instances' positions so that they don't move visually:
             this.getInstancePageIds().forEach(function(pageId) {
-                var instance = new areaInstance(this.getProperty('id'), pageId)
+                var instance = new areaInstance(this.getProperty('id'), pageId);
                 instance.setProperty('top', instance.getProperty('top') - topDelta);
                 instance.setProperty('left', instance.getProperty('left') - leftDelta);
                 instance.save();
@@ -3701,6 +3761,56 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }, this);
     };
     
+    area.prototype.toggleObjectAttach = function(pageId, attachedObjectId, isAttached) {
+        var targetInstance = new areaInstance(this.getProperty('id'), pageId);
+        
+        if(!targetInstance) {
+            return 'Attempt made to ' + (isAttached ? 'detach' : 'attach') + ' an object that is on a page with no area instance.';
+        }
+        
+        if(isAttached) {
+            var attachedObjectIndex = targetInstance.getAttachedObjectIndex(attachedObjectId);
+            
+            if(attachedObjectIndex == null) {
+                log('Unable to find the attached object in the areaInstance in area.toggleObjectAttach().');
+                return 'There was a problem; see the log for details.';
+            }
+            
+            //detach the object across all instances:
+            this.getInstancePageIds().forEach(function(instancePageId) {
+                var areaInstanceObject = new areaInstance(this.getProperty('id'), instancePageId);
+                areaInstanceObject.detachObject(attachedObjectIndex);
+            }, this);
+            
+            this.getProperty('attachedObjects').splice(attachedObjectIndex, 1);
+            this.save();
+        } else {
+            
+            var attachedObjectToken = getObj('graphic', attachedObjectId);
+            
+            if(!attachedObjectToken) {
+                return 'Unable to find the object that is being attached.';
+            }
+            
+            //create a state representation of the object:
+            var attachedObjectState = new attachedObject();
+            
+            attachedObjectState.updateToTokenState(attachedObjectToken);
+            
+            //persist the object's information to the area:
+            var attachedObjectIndex = this.setProperty('attachedObjects', attachedObjectState.getStateObject());
+            this.save();
+            
+            //attach the object to each instance; if the instance is the target one, a token is not created:
+            this.getInstancePageIds().forEach(function(instancePageId) {
+                var areaInstanceObject = new areaInstance(this.getProperty('id'), instancePageId);
+                areaInstanceObject.attachObject(attachedObjectIndex, (instancePageId === pageId ? attachedObjectToken : null));
+            }, this);
+        }
+        
+        return null;
+    };
+    
     
     var areaInstance = function(areaId, pageId) {
         typedObject.call(this);
@@ -3715,6 +3825,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this.initializeCollectionProperty('chestIds');
         this.initializeCollectionProperty('trapdoorIds');
         this.initializeCollectionProperty('lightsourceIds');
+        this.initializeCollectionProperty('attachedObjectIds');
         this.initializeCollectionProperty('blueprintDoorIds');
         this.initializeCollectionProperty('blueprintChestIds');
         this.initializeCollectionProperty('blueprintTrapdoorIds');
@@ -3747,6 +3858,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'chestIds': //[chest token, feature tag paths]
             case 'trapdoorIds': //[trapdoor token, feature tag paths]
             case 'lightsourceIds': //[lightsource token, feature tag paths]
+            case 'attachedObjectIds': //[token, feature tag paths]
             case 'blueprintDoorIds': //paths
             case 'blueprintChestIds': //paths
             case 'blueprintTrapdoorIds': //paths
@@ -3768,6 +3880,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'chestIds':
             case 'trapdoorIds':
             case 'lightsourceIds':
+            case 'attachedObjectIds':
             case 'blueprintDoorIds':
             case 'blueprintChestIds':
             case 'blueprintTrapdoorIds':
@@ -3831,6 +3944,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 case 'chestIds':
                 case 'trapdoorIds':
                 case 'lightsourceIds':
+                case 'attachedObjectIds':
                 case 'blueprintDoorIds':
                 case 'blueprintChestIds':
                 case 'blueprintTrapdoorIds':
@@ -3861,6 +3975,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         areaInstanceState.push(['chestIds', this.getProperty('chestIds')]);
         areaInstanceState.push(['trapdoorIds', this.getProperty('trapdoorIds')]);
         areaInstanceState.push(['lightsourceIds', this.getProperty('lightsourceIds')]);
+        areaInstanceState.push(['attachedObjectIds', this.getProperty('attachedObjectIds')]);
         areaInstanceState.push(['blueprintDoorIds', this.getProperty('blueprintDoorIds')]);
         areaInstanceState.push(['blueprintChestIds', this.getProperty('blueprintChestIds')]);
         areaInstanceState.push(['blueprintTrapdoorIds', this.getProperty('blueprintTrapdoorIds')]);
@@ -3979,6 +4094,19 @@ var APIAreaMapper = APIAreaMapper || (function() {
             }, this);
         }, this);
         this.initializeCollectionProperty('lightsourceIds');
+        
+        //delete attached objects:
+        this.getProperty('attachedObjectIds').forEach(function(tId) {
+            
+            //delete lightsource token:
+            deleteObject('graphic', tId[0]);
+            
+            //delete feature tag paths:
+            tId[1].forEach(function(ftId) {
+                deleteObject('path', ftId);
+            }, this);
+        }, this);
+        this.initializeCollectionProperty('attachedObjectIds');
         
         //delete blueprint doors:
         this.getProperty('blueprintDoorIds').forEach(function(wId) {
@@ -4166,6 +4294,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
         //draw lightsources:
         for(var i = 0; i < a.getProperty('lightsources').length; i++) {
             this.drawInteractiveObject('lightsources', i);
+        }
+        
+        //draw attached objects:
+        for(var i = 0; i < a.getProperty('attachedObjects').length; i++) {
+            this.drawAttachedObject(i, false);
         }
        
         this.save();
@@ -4927,6 +5060,18 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return returnObj;
     };
     
+    areaInstance.prototype.hasAttachedObject = function(objectId) {
+        var attachedObjectIds = this.getProperty('attachedObjectIds');
+        
+        for(var i = 0; i < attachedObjectIds.length; i++) {
+            if(attachedObjectIds[i][0] === objectId) {
+                return true;
+            }
+        }
+        
+        return false;
+    };
+    
     areaInstance.prototype.handleInteractiveObjectInteraction = function(objectType, masterIndex, selectedObject) {
         var a = new area(this.getProperty('areaId'));
         var g = new graph();
@@ -5378,6 +5523,74 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this.save();
         
         return followUpAction;
+    };
+    
+    areaInstance.prototype.getAttachedObjectIndex = function(attachedObjectId) {
+        var attachedObjectIds = this.getProperty('attachedObjectIds');
+        
+        for(var i = 0; i < attachedObjectIds.length; i++) {
+            if(attachedObjectIds[i][0] === attachedObjectId) {
+                return i;
+            }
+        }
+        
+        return null;
+    };
+    
+    areaInstance.prototype.attachObject = function(attachedObjectIndex, attachedObjectToken) {
+        this.drawAttachedObject(attachedObjectIndex, true, attachedObjectToken);
+    };
+    
+    areaInstance.prototype.drawAttachedObject = function(attachedObjectIndex, isNewObject, attachedObjectToken) {
+        var a = new area(this.getProperty('areaId'));
+        
+        var attachedObjectState = new attachedObject(a.getProperty('attachedObjects')[attachedObjectIndex]);
+        
+        //if there is no attachedObject, a new attached object needs to be drawn:
+        if(!attachedObjectToken) {
+            attachedObjectToken = createTokenObjectFromImage(
+                    attachedObjectState.getProperty('imgsrc'),
+                    this.getProperty('pageId'),
+                    attachedObjectState.getProperty('layer'),
+                    attachedObjectState.getProperty('top'),
+                    attachedObjectState.getProperty('left'),
+                    attachedObjectState.getProperty('height'),
+                    attachedObjectState.getProperty('width'),
+                    attachedObjectState.getProperty('rotation')
+                );
+        }
+        
+        var attachedObjectIdSet = [];
+        attachedObjectIdSet.push(attachedObjectToken.id);
+        
+        var bandColors = [];
+        bandColors.push(attachedObjectTagColor);
+        attachedObjectIdSet.push(createBandsFromToken(attachedObjectToken, bandColors));
+        
+        if(isNewObject) {
+            this.getProperty('attachedObjectIds').splice(attachedObjectIndex, 0, attachedObjectIdSet);
+        } else {
+            this.getProperty('attachedObjectIds')[attachedObjectIndex] = attachedObjectIdSet;
+        }
+        
+        this.save();
+    };
+    
+    areaInstance.prototype.detachObject = function(attachedObjectIndex) {
+        
+        //note: during this process, instances are out of sync with the area's attached objects, so it's important not to reference areas in any way:
+        
+        var attachedObjectState = this.getProperty('attachedObjectIds')[attachedObjectIndex];
+        
+        //delete bands:
+        for(var i = 1; i < attachedObjectState.length; i++) {
+            deleteObject('path', attachedObjectState[i]);
+        }
+        
+        //orphan the attached object:
+        this.getProperty('attachedObjectIds').splice(attachedObjectIndex, 1);
+        
+        this.save();
     };
     
     /* area - end */
@@ -6893,6 +7106,33 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return followUpAction;
     },
     
+    toggleObjectAttach = function(selected, who, pageId, attachedObjectId, areaId) {
+        var followUpAction = [];
+        followUpAction.refresh = true;
+        
+        var isAttached = ('undefined' !== typeof(areaId) && areaId != null);
+        
+        if(!areaId) {
+            areaId = state.APIAreaMapper.activeArea;
+        }
+        
+        if(!areaId) {
+            log('toggleObjectAttach called with no supplied areaId and no state.APIAreaMapper.activeArea.');
+            followUpAction.message = 'There was a problem; see the log for details.';
+            return followUpAction;
+        }
+        
+        var a = new area(areaId);
+        
+        var returnMessage = a.toggleObjectAttach(pageId, attachedObjectId, isAttached);
+        
+        if(returnMessage) {
+            followUpAction.message = returnMessage;
+        }
+        
+        return followUpAction;
+    },
+    
     toggleInteractiveProperty = function(selected, who, property) {
         var followUpAction = [];
         followUpAction.refresh = true;
@@ -7086,8 +7326,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
             if('undefined' === typeof(who)) {
                 who = state.APIAreaMapper.playerName;
             }
-            
-            sendChat('Area Mapper', '/w ' + who.split(' ')[0] + ' ' + text); 
+    
+            sendChat('Area Mapper', '/w ' + who.split(' ')[0] + ' ' + text);
         } else {
             var handout = findObjs({                              
                 _type: 'handout',
@@ -7243,6 +7483,37 @@ var APIAreaMapper = APIAreaMapper || (function() {
     /* user interface core - end */
     
     /* user interface windows - begin */
+    
+    interfaceAttachedObject = function(who, attachedObjectToken) {
+        var pageId = attachedObjectToken.get('_pageid');
+        var areaId = '';
+        
+        //the object could belong to any area that has a drawn instance on the page... all have to be searched, since an area shouldn't have to be active to detatch an object:
+        var areaInstances = state.APIAreaMapper.areas.areaInstances;
+        for(var i = areaInstances.length - 1; i >= 0; i--) {
+            
+            //note: expects areaId and pageId to be the first and second properties:
+            if(areaInstances[i][1][1] === pageId) {
+                var areaInstanceObj = new areaInstance(areaInstances[i][0][1], areaInstances[i][1][1]);
+                
+                if(areaInstanceObj.hasAttachedObject(attachedObjectToken.id)) {
+                    areaId = areaInstanceObj.getProperty('areaId');
+                }
+            }
+        }
+        
+        var text = (areaId
+            ? 'Detaching the object will detach it from all instances.'
+            : (state.APIAreaMapper.activeArea
+                ? 'Attaching the object will make it part of the active area.'
+                : 'An area must be active before an object can be attached.'));
+        
+        sendStandardInterface(who, 'Area Mapper',
+            uiSection('Graphic', text, [
+                    ['active', 'attach', 'toggleObjectAttach ' + pageId + ' ' + attachedObjectToken.id + ' ' + areaId, !areaId && !state.APIAreaMapper.activeArea, areaId] //note: areaId may be ''
+                ])
+        );
+    },
     
     interfaceDoor = function(who, managedGraphic) {
         state.APIAreaMapper.uiWindow = 'door';
@@ -8091,28 +8362,28 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var a = new area(state.APIAreaMapper.activeArea);
         var managedGraphicProperties = a.getManagedGraphicProperties(graphic);
         
+        //if the object is not managed, it's probably eligible for attaching/detaching:
         if(!managedGraphicProperties) {
-            followUpAction.message = 'The selected graphic has no options to display.';
-            return followUpAction;
-        }
-        
-        switch(managedGraphicProperties.graphicType) {
-            case 'doors':
-                interfaceDoor(who, managedGraphicProperties);
-                break;
-            case 'chests':
-                interfaceChest(who, managedGraphicProperties);
-                break;
-            case 'trapdoors':
-                interfaceTrapdoor(who, managedGraphicProperties);
-                break;
-            case 'lightsources':
-                interfaceLightsource(who, managedGraphicProperties);
-                break;
-            default:
-                log('Unhandled graphicType of ' + managedGraphicProperties.graphicType + ' in intuit().');
-                followUpAction.message = 'There was a problem; see the log for details.';
-                return followUpAction;
+            interfaceAttachedObject(who, graphic);
+        } else {
+            switch(managedGraphicProperties.graphicType) {
+                case 'doors':
+                    interfaceDoor(who, managedGraphicProperties);
+                    break;
+                case 'chests':
+                    interfaceChest(who, managedGraphicProperties);
+                    break;
+                case 'trapdoors':
+                    interfaceTrapdoor(who, managedGraphicProperties);
+                    break;
+                case 'lightsources':
+                    interfaceLightsource(who, managedGraphicProperties);
+                    break;
+                default:
+                    log('Unhandled graphicType of ' + managedGraphicProperties.graphicType + ' in intuit().');
+                    followUpAction.message = 'There was a problem; see the log for details.';
+                    return followUpAction;
+            }
         }
         
         return followUpAction;
@@ -8295,6 +8566,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 case 'manageAssetTransparent':
                     followUpAction = handleManageAssetTransparent(chatCommand[2]);
                     followUpAction.ignoreSelection = true;
+                    break;
+                case 'toggleObjectAttach':
+                    followUpAction = toggleObjectAttach(msg.selected, msg.who, chatCommand[2], chatCommand[3], (chatCommand.length > 4 ? chatCommand[4] : null));
                     break;
                 case 'interactiveObjectOpen':
                 case 'interactiveObjectLock':
