@@ -3794,7 +3794,6 @@ var APIAreaMapper = APIAreaMapper || (function() {
             
             //create a state representation of the object:
             var attachedObjectState = new attachedObject();
-            
             attachedObjectState.updateToTokenState(attachedObjectToken);
             
             //persist the object's information to the area:
@@ -3809,6 +3808,29 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }
         
         return null;
+    };
+    
+    area.prototype.handleAttachedObjectChange = function(attachedObjectToken) {
+        var targetInstance = new areaInstance(this.getProperty('id'), attachedObjectToken.get('_pageid'));
+        
+        if(!targetInstance) {
+            log('area.handleAttachedObjectChange() called with an object that is on a page with no area instance.');
+        }
+        
+        var attachedObjectIndex = targetInstance.getAttachedObjectIndex(attachedObjectToken.id);
+        
+        //create a state representation of the object and update the area:
+        var attachedObjectState = new attachedObject();
+        attachedObjectState.updateToTokenState(attachedObjectToken);
+        this.getProperty('attachedObjects')[attachedObjectIndex] = attachedObjectState.getStateObject();
+        this.save();
+        
+        //redraw object in all instances:
+        this.getInstancePageIds().forEach(function(instancePageId) {
+            var areaInstanceObject = new areaInstance(this.getProperty('id'), instancePageId);
+            areaInstanceObject.undrawAttachedObject(attachedObjectIndex);
+            areaInstanceObject.drawAttachedObject(attachedObjectIndex, false);
+        }, this);
     };
     
     
@@ -4096,16 +4118,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this.initializeCollectionProperty('lightsourceIds');
         
         //delete attached objects:
-        this.getProperty('attachedObjectIds').forEach(function(tId) {
-            
-            //delete lightsource token:
-            deleteObject('graphic', tId[0]);
-            
-            //delete feature tag paths:
-            tId[1].forEach(function(ftId) {
-                deleteObject('path', ftId);
-            }, this);
-        }, this);
+        var attachedObjectIdCount = this.getProperty('attachedObjectIds').length;
+        for(var i = 0; i < attachedObjectIdCount; i++) {
+            this.undrawAttachedObject(i);
+        }
         this.initializeCollectionProperty('attachedObjectIds');
         
         //delete blueprint doors:
@@ -5539,6 +5555,20 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     areaInstance.prototype.attachObject = function(attachedObjectIndex, attachedObjectToken) {
         this.drawAttachedObject(attachedObjectIndex, true, attachedObjectToken);
+    };
+    
+    areaInstance.prototype.undrawAttachedObject = function(attachedObjectIndex) {
+        //note: this optimistically leaves instance state alone
+        
+        var attachedObjectOldState = this.getProperty('attachedObjectIds')[attachedObjectIndex];
+        
+        //delete token:
+        deleteObject('graphic', attachedObjectOldState[0]);
+        
+        //delete feature tag paths:
+        attachedObjectOldState[1].forEach(function(ftId) {
+            deleteObject('path', ftId);
+        }, this);
     };
     
     areaInstance.prototype.drawAttachedObject = function(attachedObjectIndex, isNewObject, attachedObjectToken) {
@@ -8702,19 +8732,44 @@ var APIAreaMapper = APIAreaMapper || (function() {
     },
     
     handleGraphicChange = function(graphic, prevState) {
+        
+        //note: ignore prevState - if the object was snapped to grid, prevState and graphic will both be changed; if not, prevState is old... I don't know a way to determine which case we're dealing with
+        
         if(state.APIAreaMapper.tempIgnoreDrawingEvents) {
             return;
         }
         
-        if(!state.APIAreaMapper.activeArea) {
-            return;
+        //check for attached object changes:
+        //the object could belong to any area that has a drawn instance on the page... all have to be searched, since an area shouldn't have to be active to detatch an object:
+        var areaId;
+        var pageId = graphic.get('_pageid');
+        var areaInstances = state.APIAreaMapper.areas.areaInstances;
+        for(var i = areaInstances.length - 1; i >= 0; i--) {
+            
+            //note: expects areaId and pageId to be the first and second properties:
+            if(areaInstances[i][1][1] === pageId) {
+                var areaInstanceObj = new areaInstance(areaInstances[i][0][1], areaInstances[i][1][1]);
+                
+                if(areaInstanceObj.hasAttachedObject(graphic.id)) {
+                    areaId = areaInstanceObj.getProperty('areaId');
+                }
+            }
         }
         
-        //ignore prevState: if the object was snapped to grid, prevState and graphic will both be changed; if not, prevState is old... I don't know a way to determine which case we're dealing with
-        
-        //let the area instance know about the graphic being changed; it should only care if it was a position change and if it's a managed object:
-        var a = new area(state.APIAreaMapper.activeArea);
-        a.handleGraphicChange(graphic);
+        if(areaId) {
+            var a = new area(areaId);
+            a.handleAttachedObjectChange(graphic);
+        } else {
+            
+            //TODO: is this requiring an active area to toggle objects?:
+            if(!state.APIAreaMapper.activeArea) {
+                return;
+            }
+            
+            //let the area instance know about the graphic being changed; it should only care if it was a position change and if it's a managed object:
+            var a = new area(state.APIAreaMapper.activeArea);
+            a.handleGraphicChange(graphic);
+        }
     },
     
     /* event handlers - end */
