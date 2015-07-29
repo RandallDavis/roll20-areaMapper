@@ -2214,12 +2214,61 @@ var APIAreaMapper = APIAreaMapper || (function() {
     
     var attachedObject = function(stateObject) {
         
+        this.blindAttributes = [
+                'bar1_link',
+                'bar2_link',
+                'bar3_link',
+                'represents',
+                'flipv',
+                'fliph',
+                'name',
+                'gmnotes',
+                'controlledby',
+                'bar1_value',
+                'bar2_value',
+                'bar3_value',
+                'bar1_max',
+                'bar2_max',
+                'bar3_max',
+                'aura1_radius',
+                'aura2_radius',
+                'aura1_color',
+                'aura2_color',
+                'aura1_square',
+                'aura2_square',
+                'tint_color',
+                'statusmarkers',
+                'showname',
+                'showplayers_name',
+                'showplayers_bar1',
+                'showplayers_bar2',
+                'showplayers_bar3',
+                'showplayers_aura1',
+                'showplayers_aura2',
+                'playersedit_name',
+                'playersedit_bar1',
+                'playersedit_bar2',
+                'playersedit_bar3',
+                'playersedit_aura1',
+                'playersedit_aura2',
+                'light_radius',
+                'light_dimradius',
+                'light_otherplayers',
+                'light_hassight',
+                'light_angle',
+                'light_losangle',
+                'light_multiplier'
+            ];
+        
+        var nonBlindAttributeCount = 7;
+        
         if('undefined' === typeof(stateObject)) {
-            stateObject = new Array(7);
+            stateObject = new Array(nonBlindAttributeCount + this.blindAttributes.length);
         }
         
         typedObject.call(this);
         this._type.push('attachedObject');
+        
         this._imgsrc = stateObject[0];
         this._top = stateObject[1];
         this._left = stateObject[2];
@@ -2227,6 +2276,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this._width = stateObject[4];
         this._rotation = stateObject[5];
         this._layer = stateObject[6];
+        
+        for(var i = nonBlindAttributeCount; i < nonBlindAttributeCount + this.blindAttributes.length; i++) {
+            this['_' + this.blindAttributes[i - nonBlindAttributeCount]] = stateObject[i];
+        }
     };
     
     inheritPrototype(attachedObject, typedObject);
@@ -2243,7 +2296,12 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 this['_' + property] = value;
                 break;
             default:
-                return typedObject.prototype.setProperty.call(this, property, value);
+                if(this.blindAttributes.indexOf(property) > -1) {
+                    this['_' + property] = value;
+                } else {
+                    return typedObject.prototype.setProperty.call(this, property, value);
+                }
+                
                 break;
         }
         
@@ -2251,7 +2309,13 @@ var APIAreaMapper = APIAreaMapper || (function() {
     };
     
     attachedObject.prototype.getStateObject = function() {
-        return [this._imgsrc, this._top, this._left, this._height, this._width, this._rotation, this._layer];
+        var stateObject = [this._imgsrc, this._top, this._left, this._height, this._width, this._rotation, this._layer];
+        
+        this.blindAttributes.forEach(function(ba) {
+            stateObject.push(this.getProperty(ba));
+        }, this);
+        
+        return stateObject;
     };
     
     attachedObject.prototype.updateToTokenState = function(token) {
@@ -2262,6 +2326,16 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this.setProperty('width', token.get('width'));
         this.setProperty('rotation', token.get('rotation'));
         this.setProperty('layer', token.get('layer'));
+        
+        this.blindAttributes.forEach(function(ba) {
+            this.setProperty(ba, token.get(ba));
+        }, this);
+    };
+    
+    attachedObject.prototype.updateToken = function(token) {
+        this.blindAttributes.forEach(function(ba) {
+            token.set(ba, this.getProperty(ba));
+        }, this);
     };
     
     
@@ -2310,8 +2384,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'chests': //[top, left, height, width, rotation, isOpen, isLocked, isTrapped, isHidden] - represented by chest DTO
             case 'trapdoors': //[top, left, height, width, rotation, isOpen, isLocked, isTrapped, isHidden] - represented by trapdoor DTO
             case 'lightsources': //[top, left, height, width, rotation, brightLight, dimLight, isOpen, isLocked, isTrapped, isHidden] - represented by lightsource DTO
-            //TODO now: more fields:
-            case 'attachedObjects': //[imgsrc, top, left, height, width, rotation, layer] - represented by an attachedObject DTO
+            case 'attachedObjects': //[imgsrc, top, left, height, width, rotation, layer, <blindlyCopiedAttributes..>] - represented by an attachedObject DTO
                 return this['_' + property].push(value) - 1;
             default:
                 return typedObject.prototype.setProperty.call(this, property, value);
@@ -3820,8 +3893,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var attachedObjectIndex = targetInstance.getAttachedObjectIndex(attachedObjectToken.id);
         
         //create a state representation of the object and update the area:
-        var attachedObjectState = new attachedObject();
+        var attachedObjectState = new attachedObject(this.getProperty('attachedObjects')[attachedObjectIndex]);
         attachedObjectState.updateToTokenState(attachedObjectToken);
+        
         this.getProperty('attachedObjects')[attachedObjectIndex] = attachedObjectState.getStateObject();
         this.save();
         
@@ -5588,6 +5662,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     attachedObjectState.getProperty('width'),
                     attachedObjectState.getProperty('rotation')
                 );
+            
+            //update the token's attributes to what is in state:
+            attachedObjectState.updateToken(attachedObjectToken);
         }
         
         var attachedObjectIdSet = [];
@@ -8801,8 +8878,8 @@ on('ready', function() {
         APIAreaMapper.registerEventHandlers();
     } else {
         log('--------------------------------------------------------------');
-        log('APIAreaMapper requires the VisualAlert script to work.');
-        log('VisualAlert git repo: https://github.com/RandallDavis/roll20-visualAlertScript');
+        log('Area Mapper requires the Visual Alert script to work.');
+        log('Visual Alert git repo: https://github.com/RandallDavis/roll20-visualAlertScript');
         log('--------------------------------------------------------------');
     }
 });
