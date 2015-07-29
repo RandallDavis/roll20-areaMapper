@@ -2318,10 +2318,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return stateObject;
     };
     
-    attachedObject.prototype.updateToTokenState = function(token) {
+    attachedObject.prototype.updateToTokenState = function(token, relativeAreaInstance) {
         this.setProperty('imgsrc', getCleanImgsrc(token.get('imgsrc')));
-        this.setProperty('top', token.get('top') - (token.get('height') / 2));
-        this.setProperty('left', token.get('left') - (token.get('width') / 2));
+        this.setProperty('top', (token.get('top') - relativeAreaInstance.getProperty('top')) - (token.get('height') / 2));
+        this.setProperty('left', (token.get('left') - relativeAreaInstance.getProperty('left')) - (token.get('width') / 2));
         this.setProperty('height', token.get('height'));
         this.setProperty('width', token.get('width'));
         this.setProperty('rotation', token.get('rotation'));
@@ -3867,7 +3867,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             
             //create a state representation of the object:
             var attachedObjectState = new attachedObject();
-            attachedObjectState.updateToTokenState(attachedObjectToken);
+            attachedObjectState.updateToTokenState(attachedObjectToken, targetInstance);
             
             //persist the object's information to the area:
             var attachedObjectIndex = this.setProperty('attachedObjects', attachedObjectState.getStateObject());
@@ -3894,7 +3894,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         //create a state representation of the object and update the area:
         var attachedObjectState = new attachedObject(this.getProperty('attachedObjects')[attachedObjectIndex]);
-        attachedObjectState.updateToTokenState(attachedObjectToken);
+        attachedObjectState.updateToTokenState(attachedObjectToken, targetInstance);
         
         this.getProperty('attachedObjects')[attachedObjectIndex] = attachedObjectState.getStateObject();
         this.save();
