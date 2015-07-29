@@ -5650,14 +5650,15 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         var attachedObjectState = new attachedObject(a.getProperty('attachedObjects')[attachedObjectIndex]);
         
+        //TODO: account for instance rotation and scale:
         //if there is no attachedObject, a new attached object needs to be drawn:
         if(!attachedObjectToken) {
             attachedObjectToken = createTokenObjectFromImage(
                     attachedObjectState.getProperty('imgsrc'),
                     this.getProperty('pageId'),
                     attachedObjectState.getProperty('layer'),
-                    attachedObjectState.getProperty('top'),
-                    attachedObjectState.getProperty('left'),
+                    attachedObjectState.getProperty('top') + this.getProperty('top'),
+                    attachedObjectState.getProperty('left') + this.getProperty('left'),
                     attachedObjectState.getProperty('height'),
                     attachedObjectState.getProperty('width'),
                     attachedObjectState.getProperty('rotation')
