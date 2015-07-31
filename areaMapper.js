@@ -165,6 +165,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         hideAssetManagementModal();
         
         delete state.APIAreaMapper.tempIgnoreDrawingEvents;
+        delete state.APIAreaMapper.tempIgnoreAttachedObjectEvents;
         delete state.APIAreaMapper.recordAreaMode;
         delete state.APIAreaMapper.playerId;
         delete state.APIAreaMapper.playerName;
@@ -2215,21 +2216,10 @@ var APIAreaMapper = APIAreaMapper || (function() {
     var attachedObject = function(stateObject) {
         
         this.blindAttributes = [
-                'bar1_link',
-                'bar2_link',
-                'bar3_link',
-                'represents',
                 'flipv',
                 'fliph',
                 'name',
                 'gmnotes',
-                'controlledby',
-                'bar1_value',
-                'bar2_value',
-                'bar3_value',
-                'bar1_max',
-                'bar2_max',
-                'bar3_max',
                 'aura1_radius',
                 'aura2_radius',
                 'aura1_color',
@@ -2257,10 +2247,17 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 'light_hassight',
                 'light_angle',
                 'light_losangle',
-                'light_multiplier'
+                'light_multiplier',
+                'represents',
+                'bar1_value',
+                'bar2_value',
+                'bar3_value',
+                'bar1_max',
+                'bar2_max',
+                'bar3_max'
             ];
-        
-        var nonBlindAttributeCount = 7;
+            
+        var nonBlindAttributeCount = 8;
         
         if('undefined' === typeof(stateObject)) {
             stateObject = new Array(nonBlindAttributeCount + this.blindAttributes.length);
@@ -2276,6 +2273,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this._width = stateObject[4];
         this._rotation = stateObject[5];
         this._layer = stateObject[6];
+        
+        //semi-blind attributes:
+        this._controlledby = stateObject[7];
         
         for(var i = nonBlindAttributeCount; i < nonBlindAttributeCount + this.blindAttributes.length; i++) {
             this['_' + this.blindAttributes[i - nonBlindAttributeCount]] = stateObject[i];
@@ -2293,6 +2293,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'width':
             case 'rotation':
             case 'layer':
+            
+            //semi-blind attributes:
+            case 'controlledby':
                 this['_' + property] = value;
                 break;
             default:
@@ -2309,7 +2312,20 @@ var APIAreaMapper = APIAreaMapper || (function() {
     };
     
     attachedObject.prototype.getStateObject = function() {
-        var stateObject = [this._imgsrc, this._top, this._left, this._height, this._width, this._rotation, this._layer];
+        var stateObject = [
+            
+                //standard attributes:
+                this._imgsrc,
+                this._top,
+                this._left,
+                this._height,
+                this._width,
+                this._rotation,
+                this._layer,
+                
+                //semi-blind attributes:
+                this._controlledby
+            ];
         
         this.blindAttributes.forEach(function(ba) {
             stateObject.push(this.getProperty(ba));
@@ -2327,15 +2343,57 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this.setProperty('rotation', token.get('rotation'));
         this.setProperty('layer', token.get('layer'));
         
+        //semi-blind attributes:
+        this.setProperty('controlledby', token.get('controlledby'));
+        
         this.blindAttributes.forEach(function(ba) {
             this.setProperty(ba, token.get(ba));
         }, this);
     };
     
     attachedObject.prototype.updateToken = function(token) {
+  
+        //process blind attributes:
         this.blindAttributes.forEach(function(ba) {
             token.set(ba, this.getProperty(ba));
         }, this);
+        
+        //process semi blind attributes:
+        if(!this.getProperty('represents')) {
+            token.set('controlledby', this.getProperty('controlledby'));
+        }
+    };
+    
+    attachedObject.prototype.hasPertinentDifferences = function(comparedAttachedObject) {
+        
+        //this should never happen:
+        if(!comparedAttachedObject) {
+            log('attachedObject.hasPertinentDifferences() called with empty comparedAttachedObject.');
+            return false;
+        }
+        
+        //detect standard attribute changes:
+        var standardAttributes = ['imgsrc', 'top', 'left', 'height', 'width', 'rotation', 'layer'];
+        for(var i = 0; i < standardAttributes.length; i++) {
+            if(this.getProperty(standardAttributes[i]) != comparedAttachedObject.getProperty(standardAttributes[i])) {
+                return true;
+            }
+        }
+        
+        //detect blind attribute changes:
+        for(var i = 0; i < this.blindAttributes.length; i++) {
+            if(this.getProperty(this.blindAttributes[i]) != comparedAttachedObject.getProperty(this.blindAttributes[i])) {
+                return true;
+            }
+        }
+        
+        //detect semi-blind attributes that aren't managed by character sheets:
+        if(!this.getProperty('represents') &&
+                (this.getProperty('controlledby') != comparedAttachedObject.getProperty('controlledby'))) {
+            return true;
+        }
+        
+        return false;
     };
     
     
@@ -3865,6 +3923,15 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 return 'Unable to find the object that is being attached.';
             }
             
+            if(attachedObjectToken.get('bar1_link') 
+                    || attachedObjectToken.get('bar2_link') 
+                    || attachedObjectToken.get('bar3_link')) {
+                attachedObjectToken.set('bar1_link', '');
+                attachedObjectToken.set('bar2_link', '');
+                attachedObjectToken.set('bar3_link', '');
+                log("Attached object had 'bar links' to a character sheet. These have been disconnected (but the bar values left in place), because Roll20's character sheets have buggy behavior when trying to use them via the API.");
+            }
+            
             //create a state representation of the object:
             var attachedObjectState = new attachedObject();
             attachedObjectState.updateToTokenState(attachedObjectToken, targetInstance);
@@ -3893,11 +3960,20 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var attachedObjectIndex = targetInstance.getAttachedObjectIndex(attachedObjectToken.id);
         
         //create a state representation of the object and update the area:
-        var attachedObjectState = new attachedObject(this.getProperty('attachedObjects')[attachedObjectIndex]);
-        attachedObjectState.updateToTokenState(attachedObjectToken, targetInstance);
+        var oldAttachedObjectState = new attachedObject(this.getProperty('attachedObjects')[attachedObjectIndex]);
+        var newAttachedObjectState = new attachedObject();
+        newAttachedObjectState.updateToTokenState(attachedObjectToken, targetInstance);
+        var shouldContinue = oldAttachedObjectState.hasPertinentDifferences(newAttachedObjectState);
         
-        this.getProperty('attachedObjects')[attachedObjectIndex] = attachedObjectState.getStateObject();
+        //some token changes are managed by character sheets, so if that is all that changed, nothing should be done:
+        if(!shouldContinue) {
+            return;
+        }
+        
+        this.getProperty('attachedObjects')[attachedObjectIndex] = newAttachedObjectState.getStateObject();
         this.save();
+        
+        state.APIAreaMapper.tempIgnoreAttachedObjectEvents = true;
         
         //redraw object in all instances:
         this.getInstancePageIds().forEach(function(instancePageId) {
@@ -3905,6 +3981,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
             areaInstanceObject.undrawAttachedObject(attachedObjectIndex);
             areaInstanceObject.drawAttachedObject(attachedObjectIndex, false);
         }, this);
+        
+        delete state.APIAreaMapper.tempIgnoreAttachedObjectEvents;
     };
     
     
@@ -8813,7 +8891,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         
         //note: ignore prevState - if the object was snapped to grid, prevState and graphic will both be changed; if not, prevState is old... I don't know a way to determine which case we're dealing with
         
-        if(state.APIAreaMapper.tempIgnoreDrawingEvents) {
+        if(state.APIAreaMapper.tempIgnoreDrawingEvents || state.APIAreaMapper.tempIgnoreAttachedObjectEvents) {
             return;
         }
         
