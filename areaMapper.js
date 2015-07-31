@@ -6,7 +6,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 1.08,
+    var version = 1.100,
         areaSchemaVersion = 1.0,
         buttonBackgroundColor = '#CC1869',
         buttonGreyedColor = '#8D94A9',
@@ -21,6 +21,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         lockedTagColor = '#E5DB50',
         trappedTagColor = '#E2274C',
         hiddenTagColor = '#277EE2',
+        attachedObjectTagColor = '#AD17CB',
         closedDoorAlertPic = 'https://s3.amazonaws.com/files.d20.io/images/8543193/5XhwOpMaBUS_5B444UNC5Q/thumb.png?1427665106',
         openDoorAlertPic = 'https://s3.amazonaws.com/files.d20.io/images/8543205/QBOWp1MHHlJCrPWn9kcVqQ/thumb.png?1427665124',
         closedTrapdoorAlertPic = 'https://s3.amazonaws.com/files.d20.io/images/10471466/8E3rn1V_OHhwMl-iRTJfrg/thumb.png?1435585449',
@@ -164,6 +165,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         hideAssetManagementModal();
         
         delete state.APIAreaMapper.tempIgnoreDrawingEvents;
+        delete state.APIAreaMapper.tempIgnoreAttachedObjectEvents;
         delete state.APIAreaMapper.recordAreaMode;
         delete state.APIAreaMapper.playerId;
         delete state.APIAreaMapper.playerName;
@@ -1556,7 +1558,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             if(l.length) {
                 setTimeout(_.partial(toBackListWithDelays, l), 50);
             }
-		}
+        }
     },
     
     //find imgsrc that is legal for object creation:
@@ -2211,6 +2213,190 @@ var APIAreaMapper = APIAreaMapper || (function() {
     };
     
     
+    var attachedObject = function(stateObject) {
+        
+        this.blindAttributes = [
+                'flipv',
+                'fliph',
+                'name',
+                'gmnotes',
+                'aura1_radius',
+                'aura2_radius',
+                'aura1_color',
+                'aura2_color',
+                'aura1_square',
+                'aura2_square',
+                'tint_color',
+                'statusmarkers',
+                'showname',
+                'showplayers_name',
+                'showplayers_bar1',
+                'showplayers_bar2',
+                'showplayers_bar3',
+                'showplayers_aura1',
+                'showplayers_aura2',
+                'playersedit_name',
+                'playersedit_bar1',
+                'playersedit_bar2',
+                'playersedit_bar3',
+                'playersedit_aura1',
+                'playersedit_aura2',
+                'light_radius',
+                'light_dimradius',
+                'light_otherplayers',
+                'light_hassight',
+                'light_angle',
+                'light_losangle',
+                'light_multiplier',
+                'represents',
+                'bar1_value',
+                'bar2_value',
+                'bar3_value',
+                'bar1_max',
+                'bar2_max',
+                'bar3_max'
+            ];
+            
+        var nonBlindAttributeCount = 8;
+        
+        if('undefined' === typeof(stateObject)) {
+            stateObject = new Array(nonBlindAttributeCount + this.blindAttributes.length);
+        }
+        
+        typedObject.call(this);
+        this._type.push('attachedObject');
+        
+        this._imgsrc = stateObject[0];
+        this._top = stateObject[1];
+        this._left = stateObject[2];
+        this._height = stateObject[3];
+        this._width = stateObject[4];
+        this._rotation = stateObject[5];
+        this._layer = stateObject[6];
+        
+        //semi-blind attributes:
+        this._controlledby = stateObject[7];
+        
+        for(var i = nonBlindAttributeCount; i < nonBlindAttributeCount + this.blindAttributes.length; i++) {
+            this['_' + this.blindAttributes[i - nonBlindAttributeCount]] = stateObject[i];
+        }
+    };
+    
+    inheritPrototype(attachedObject, typedObject);
+    
+    attachedObject.prototype.setProperty = function(property, value) {
+        switch(property) {
+            case 'imgsrc':
+            case 'top':
+            case 'left':
+            case 'height':
+            case 'width':
+            case 'rotation':
+            case 'layer':
+            
+            //semi-blind attributes:
+            case 'controlledby':
+                this['_' + property] = value;
+                break;
+            default:
+                if(this.blindAttributes.indexOf(property) > -1) {
+                    this['_' + property] = value;
+                } else {
+                    return typedObject.prototype.setProperty.call(this, property, value);
+                }
+                
+                break;
+        }
+        
+        return null;
+    };
+    
+    attachedObject.prototype.getStateObject = function() {
+        var stateObject = [
+            
+                //standard attributes:
+                this._imgsrc,
+                this._top,
+                this._left,
+                this._height,
+                this._width,
+                this._rotation,
+                this._layer,
+                
+                //semi-blind attributes:
+                this._controlledby
+            ];
+        
+        this.blindAttributes.forEach(function(ba) {
+            stateObject.push(this.getProperty(ba));
+        }, this);
+        
+        return stateObject;
+    };
+    
+    attachedObject.prototype.updateToTokenState = function(token, relativeAreaInstance) {
+        this.setProperty('imgsrc', getCleanImgsrc(token.get('imgsrc')));
+        this.setProperty('top', (token.get('top') - relativeAreaInstance.getProperty('top')) - (token.get('height') / 2));
+        this.setProperty('left', (token.get('left') - relativeAreaInstance.getProperty('left')) - (token.get('width') / 2));
+        this.setProperty('height', token.get('height'));
+        this.setProperty('width', token.get('width'));
+        this.setProperty('rotation', token.get('rotation'));
+        this.setProperty('layer', token.get('layer'));
+        
+        //semi-blind attributes:
+        this.setProperty('controlledby', token.get('controlledby'));
+        
+        this.blindAttributes.forEach(function(ba) {
+            this.setProperty(ba, token.get(ba));
+        }, this);
+    };
+    
+    attachedObject.prototype.updateToken = function(token) {
+  
+        //process blind attributes:
+        this.blindAttributes.forEach(function(ba) {
+            token.set(ba, this.getProperty(ba));
+        }, this);
+        
+        //process semi blind attributes:
+        if(!this.getProperty('represents')) {
+            token.set('controlledby', this.getProperty('controlledby'));
+        }
+    };
+    
+    attachedObject.prototype.hasPertinentDifferences = function(comparedAttachedObject) {
+        
+        //this should never happen:
+        if(!comparedAttachedObject) {
+            log('attachedObject.hasPertinentDifferences() called with empty comparedAttachedObject.');
+            return false;
+        }
+        
+        //detect standard attribute changes:
+        var standardAttributes = ['imgsrc', 'top', 'left', 'height', 'width', 'rotation', 'layer'];
+        for(var i = 0; i < standardAttributes.length; i++) {
+            if(this.getProperty(standardAttributes[i]) != comparedAttachedObject.getProperty(standardAttributes[i])) {
+                return true;
+            }
+        }
+        
+        //detect blind attribute changes:
+        for(var i = 0; i < this.blindAttributes.length; i++) {
+            if(this.getProperty(this.blindAttributes[i]) != comparedAttachedObject.getProperty(this.blindAttributes[i])) {
+                return true;
+            }
+        }
+        
+        //detect semi-blind attributes that aren't managed by character sheets:
+        if(!this.getProperty('represents') &&
+                (this.getProperty('controlledby') != comparedAttachedObject.getProperty('controlledby'))) {
+            return true;
+        }
+        
+        return false;
+    };
+    
+    
     var area = function(id) {
         typedObject.call(this);
         this._type.push('area');
@@ -2221,6 +2407,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this.initializeCollectionProperty('chests');
         this.initializeCollectionProperty('trapdoors');
         this.initializeCollectionProperty('lightsources');
+        this.initializeCollectionProperty('attachedObjects');
         
         //load existing area:
         if('undefined' !== typeof(id)) {
@@ -2255,6 +2442,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'chests': //[top, left, height, width, rotation, isOpen, isLocked, isTrapped, isHidden] - represented by chest DTO
             case 'trapdoors': //[top, left, height, width, rotation, isOpen, isLocked, isTrapped, isHidden] - represented by trapdoor DTO
             case 'lightsources': //[top, left, height, width, rotation, brightLight, dimLight, isOpen, isLocked, isTrapped, isHidden] - represented by lightsource DTO
+            case 'attachedObjects': //[imgsrc, top, left, height, width, rotation, layer, <blindlyCopiedAttributes..>] - represented by an attachedObject DTO
                 return this['_' + property].push(value) - 1;
             default:
                 return typedObject.prototype.setProperty.call(this, property, value);
@@ -2273,6 +2461,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'chests':
             case 'trapdoors':
             case 'lightsources':
+            case 'attachedObjects':
                 if('undefined' === typeof(value)) {
                     this['_' + property] = [];
                 } else {
@@ -2423,6 +2612,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 case 'chests':
                 case 'trapdoors':
                 case 'lightsources':
+                case 'attachedObjects':
                     this.initializeCollectionProperty(areaState[i][0], areaState[i][1]);
                     break;
                 default:
@@ -2453,6 +2643,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         areaState.push(['chests', this.getProperty('chests')]);
         areaState.push(['trapdoors', this.getProperty('trapdoors')]);
         areaState.push(['lightsources', this.getProperty('lightsources')]);
+        areaState.push(['attachedObjects', this.getProperty('attachedObjects')]);
         
         //remove existing area state:
         var id = this.getProperty('id');
@@ -2644,7 +2835,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             
             //adjust all instances' positions so that they don't move visually:
             this.getInstancePageIds().forEach(function(pageId) {
-                var instance = new areaInstance(this.getProperty('id'), pageId)
+                var instance = new areaInstance(this.getProperty('id'), pageId);
                 instance.setProperty('top', instance.getProperty('top') - topDelta);
                 instance.setProperty('left', instance.getProperty('left') - leftDelta);
                 instance.save();
@@ -2755,7 +2946,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             
             //adjust all instances' positions so that they don't move visually:
             this.getInstancePageIds().forEach(function(pageId) {
-                var instance = new areaInstance(this.getProperty('id'), pageId)
+                var instance = new areaInstance(this.getProperty('id'), pageId);
                 instance.setProperty('top', instance.getProperty('top') - topDelta);
                 instance.setProperty('left', instance.getProperty('left') - leftDelta);
                 instance.save();
@@ -3701,6 +3892,99 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }, this);
     };
     
+    area.prototype.toggleObjectAttach = function(pageId, attachedObjectId, isAttached) {
+        var targetInstance = new areaInstance(this.getProperty('id'), pageId);
+        
+        if(!targetInstance) {
+            return 'Attempt made to ' + (isAttached ? 'detach' : 'attach') + ' an object that is on a page with no area instance.';
+        }
+        
+        if(isAttached) {
+            var attachedObjectIndex = targetInstance.getAttachedObjectIndex(attachedObjectId);
+            
+            if(attachedObjectIndex == null) {
+                log('Unable to find the attached object in the areaInstance in area.toggleObjectAttach().');
+                return 'There was a problem; see the log for details.';
+            }
+            
+            //detach the object across all instances:
+            this.getInstancePageIds().forEach(function(instancePageId) {
+                var areaInstanceObject = new areaInstance(this.getProperty('id'), instancePageId);
+                areaInstanceObject.detachObject(attachedObjectIndex);
+            }, this);
+            
+            this.getProperty('attachedObjects').splice(attachedObjectIndex, 1);
+            this.save();
+        } else {
+            
+            var attachedObjectToken = getObj('graphic', attachedObjectId);
+            
+            if(!attachedObjectToken) {
+                return 'Unable to find the object that is being attached.';
+            }
+            
+            if(attachedObjectToken.get('bar1_link') 
+                    || attachedObjectToken.get('bar2_link') 
+                    || attachedObjectToken.get('bar3_link')) {
+                attachedObjectToken.set('bar1_link', '');
+                attachedObjectToken.set('bar2_link', '');
+                attachedObjectToken.set('bar3_link', '');
+                log("Attached object had 'bar links' to a character sheet. These have been disconnected (but the bar values left in place), because Roll20's character sheets have buggy behavior when trying to use them via the API.");
+            }
+            
+            //create a state representation of the object:
+            var attachedObjectState = new attachedObject();
+            attachedObjectState.updateToTokenState(attachedObjectToken, targetInstance);
+            
+            //persist the object's information to the area:
+            var attachedObjectIndex = this.setProperty('attachedObjects', attachedObjectState.getStateObject());
+            this.save();
+            
+            //attach the object to each instance; if the instance is the target one, a token is not created:
+            this.getInstancePageIds().forEach(function(instancePageId) {
+                var areaInstanceObject = new areaInstance(this.getProperty('id'), instancePageId);
+                areaInstanceObject.attachObject(attachedObjectIndex, (instancePageId === pageId ? attachedObjectToken : null));
+            }, this);
+        }
+        
+        return null;
+    };
+    
+    area.prototype.handleAttachedObjectChange = function(attachedObjectToken) {
+        var targetInstance = new areaInstance(this.getProperty('id'), attachedObjectToken.get('_pageid'));
+        
+        if(!targetInstance) {
+            log('area.handleAttachedObjectChange() called with an object that is on a page with no area instance.');
+        }
+        
+        var attachedObjectIndex = targetInstance.getAttachedObjectIndex(attachedObjectToken.id);
+        
+        //create a state representation of the object and update the area:
+        var oldAttachedObjectState = new attachedObject(this.getProperty('attachedObjects')[attachedObjectIndex]);
+        var newAttachedObjectState = new attachedObject();
+        newAttachedObjectState.updateToTokenState(attachedObjectToken, targetInstance);
+        var shouldContinue = oldAttachedObjectState.hasPertinentDifferences(newAttachedObjectState);
+        
+        //some token changes are managed by character sheets, so if that is all that changed, nothing should be done:
+        if(!shouldContinue) {
+            return;
+        }
+        
+        this.getProperty('attachedObjects')[attachedObjectIndex] = newAttachedObjectState.getStateObject();
+        this.save();
+        
+        state.APIAreaMapper.tempIgnoreAttachedObjectEvents = true;
+        
+        //redraw object in all instances:
+        this.getInstancePageIds().forEach(function(instancePageId) {
+            var areaInstanceObject = new areaInstance(this.getProperty('id'), instancePageId);
+            areaInstanceObject.undrawAttachedObject(attachedObjectIndex);
+            areaInstanceObject.drawAttachedObject(attachedObjectIndex, false);
+        }, this);
+        
+        delete state.APIAreaMapper.tempIgnoreAttachedObjectEvents;
+    };
+    
     
     var areaInstance = function(areaId, pageId) {
         typedObject.call(this);
@@ -3715,6 +3999,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this.initializeCollectionProperty('chestIds');
         this.initializeCollectionProperty('trapdoorIds');
         this.initializeCollectionProperty('lightsourceIds');
+        this.initializeCollectionProperty('attachedObjectIds');
         this.initializeCollectionProperty('blueprintDoorIds');
         this.initializeCollectionProperty('blueprintChestIds');
         this.initializeCollectionProperty('blueprintTrapdoorIds');
@@ -3747,6 +4032,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'chestIds': //[chest token, feature tag paths]
             case 'trapdoorIds': //[trapdoor token, feature tag paths]
             case 'lightsourceIds': //[lightsource token, feature tag paths]
+            case 'attachedObjectIds': //[token, feature tag paths]
             case 'blueprintDoorIds': //paths
             case 'blueprintChestIds': //paths
             case 'blueprintTrapdoorIds': //paths
@@ -3768,6 +4054,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
             case 'chestIds':
             case 'trapdoorIds':
             case 'lightsourceIds':
+            case 'attachedObjectIds':
             case 'blueprintDoorIds':
             case 'blueprintChestIds':
             case 'blueprintTrapdoorIds':
@@ -3831,6 +4118,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 case 'chestIds':
                 case 'trapdoorIds':
                 case 'lightsourceIds':
+                case 'attachedObjectIds':
                 case 'blueprintDoorIds':
                 case 'blueprintChestIds':
                 case 'blueprintTrapdoorIds':
@@ -3861,6 +4149,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         areaInstanceState.push(['chestIds', this.getProperty('chestIds')]);
         areaInstanceState.push(['trapdoorIds', this.getProperty('trapdoorIds')]);
         areaInstanceState.push(['lightsourceIds', this.getProperty('lightsourceIds')]);
+        areaInstanceState.push(['attachedObjectIds', this.getProperty('attachedObjectIds')]);
         areaInstanceState.push(['blueprintDoorIds', this.getProperty('blueprintDoorIds')]);
         areaInstanceState.push(['blueprintChestIds', this.getProperty('blueprintChestIds')]);
         areaInstanceState.push(['blueprintTrapdoorIds', this.getProperty('blueprintTrapdoorIds')]);
@@ -3979,6 +4268,13 @@ var APIAreaMapper = APIAreaMapper || (function() {
             }, this);
         }, this);
         this.initializeCollectionProperty('lightsourceIds');
+        
+        //delete attached objects:
+        var attachedObjectIdCount = this.getProperty('attachedObjectIds').length;
+        for(var i = 0; i < attachedObjectIdCount; i++) {
+            this.undrawAttachedObject(i);
+        }
+        this.initializeCollectionProperty('attachedObjectIds');
         
         //delete blueprint doors:
         this.getProperty('blueprintDoorIds').forEach(function(wId) {
@@ -4166,6 +4462,11 @@ var APIAreaMapper = APIAreaMapper || (function() {
         //draw lightsources:
         for(var i = 0; i < a.getProperty('lightsources').length; i++) {
             this.drawInteractiveObject('lightsources', i);
+        }
+        
+        //draw attached objects:
+        for(var i = 0; i < a.getProperty('attachedObjects').length; i++) {
+            this.drawAttachedObject(i, false);
         }
        
         this.save();
@@ -4927,6 +5228,18 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return returnObj;
     };
     
+    areaInstance.prototype.hasAttachedObject = function(objectId) {
+        var attachedObjectIds = this.getProperty('attachedObjectIds');
+        
+        for(var i = 0; i < attachedObjectIds.length; i++) {
+            if(attachedObjectIds[i][0] === objectId) {
+                return true;
+            }
+        }
+        
+        return false;
+    };
+    
     areaInstance.prototype.handleInteractiveObjectInteraction = function(objectType, masterIndex, selectedObject) {
         var a = new area(this.getProperty('areaId'));
         var g = new graph();
@@ -5378,6 +5691,92 @@ var APIAreaMapper = APIAreaMapper || (function() {
         this.save();
         
         return followUpAction;
+    };
+    
+    areaInstance.prototype.getAttachedObjectIndex = function(attachedObjectId) {
+        var attachedObjectIds = this.getProperty('attachedObjectIds');
+        
+        for(var i = 0; i < attachedObjectIds.length; i++) {
+            if(attachedObjectIds[i][0] === attachedObjectId) {
+                return i;
+            }
+        }
+        
+        return null;
+    };
+    
+    areaInstance.prototype.attachObject = function(attachedObjectIndex, attachedObjectToken) {
+        this.drawAttachedObject(attachedObjectIndex, true, attachedObjectToken);
+    };
+    
+    areaInstance.prototype.undrawAttachedObject = function(attachedObjectIndex) {
+        //note: this optimistically leaves instance state alone
+        
+        var attachedObjectOldState = this.getProperty('attachedObjectIds')[attachedObjectIndex];
+        
+        //delete token:
+        deleteObject('graphic', attachedObjectOldState[0]);
+        
+        //delete feature tag paths:
+        attachedObjectOldState[1].forEach(function(ftId) {
+            deleteObject('path', ftId);
+        }, this);
+    };
+    
+    areaInstance.prototype.drawAttachedObject = function(attachedObjectIndex, isNewObject, attachedObjectToken) {
+        var a = new area(this.getProperty('areaId'));
+        
+        var attachedObjectState = new attachedObject(a.getProperty('attachedObjects')[attachedObjectIndex]);
+        
+        //TODO: account for instance rotation and scale:
+        //if there is no attachedObject, a new attached object needs to be drawn:
+        if(!attachedObjectToken) {
+            attachedObjectToken = createTokenObjectFromImage(
+                    attachedObjectState.getProperty('imgsrc'),
+                    this.getProperty('pageId'),
+                    attachedObjectState.getProperty('layer'),
+                    attachedObjectState.getProperty('top') + this.getProperty('top'),
+                    attachedObjectState.getProperty('left') + this.getProperty('left'),
+                    attachedObjectState.getProperty('height'),
+                    attachedObjectState.getProperty('width'),
+                    attachedObjectState.getProperty('rotation')
+                );
+            
+            //update the token's attributes to what is in state:
+            attachedObjectState.updateToken(attachedObjectToken);
+        }
+        
+        var attachedObjectIdSet = [];
+        attachedObjectIdSet.push(attachedObjectToken.id);
+        
+        var bandColors = [];
+        bandColors.push(attachedObjectTagColor);
+        attachedObjectIdSet.push(createBandsFromToken(attachedObjectToken, bandColors));
+        
+        if(isNewObject) {
+            this.getProperty('attachedObjectIds').splice(attachedObjectIndex, 0, attachedObjectIdSet);
+        } else {
+            this.getProperty('attachedObjectIds')[attachedObjectIndex] = attachedObjectIdSet;
+        }
+        
+        this.save();
+    };
+    
+    areaInstance.prototype.detachObject = function(attachedObjectIndex) {
+        
+        //note: during this process, instances are out of sync with the area's attached objects, so it's important not to reference areas in any way:
+        
+        var attachedObjectState = this.getProperty('attachedObjectIds')[attachedObjectIndex];
+        
+        //delete bands:
+        for(var i = 1; i < attachedObjectState.length; i++) {
+            deleteObject('path', attachedObjectState[i]);
+        }
+        
+        //orphan the attached object:
+        this.getProperty('attachedObjectIds').splice(attachedObjectIndex, 1);
+        
+        this.save();
     };
     
     /* area - end */
@@ -6893,6 +7292,33 @@ var APIAreaMapper = APIAreaMapper || (function() {
         return followUpAction;
     },
     
+    toggleObjectAttach = function(selected, who, pageId, attachedObjectId, areaId) {
+        var followUpAction = [];
+        followUpAction.refresh = true;
+        
+        var isAttached = ('undefined' !== typeof(areaId) && areaId != null);
+        
+        if(!areaId) {
+            areaId = state.APIAreaMapper.activeArea;
+        }
+        
+        if(!areaId) {
+            log('toggleObjectAttach called with no supplied areaId and no state.APIAreaMapper.activeArea.');
+            followUpAction.message = 'There was a problem; see the log for details.';
+            return followUpAction;
+        }
+        
+        var a = new area(areaId);
+        
+        var returnMessage = a.toggleObjectAttach(pageId, attachedObjectId, isAttached);
+        
+        if(returnMessage) {
+            followUpAction.message = returnMessage;
+        }
+        
+        return followUpAction;
+    },
+    
     toggleInteractiveProperty = function(selected, who, property) {
         var followUpAction = [];
         followUpAction.refresh = true;
@@ -7086,8 +7512,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
             if('undefined' === typeof(who)) {
                 who = state.APIAreaMapper.playerName;
             }
-            
-            sendChat('Area Mapper', '/w ' + who.split(' ')[0] + ' ' + text); 
+    
+            sendChat('Area Mapper', '/w ' + who.split(' ')[0] + ' ' + text);
         } else {
             var handout = findObjs({                              
                 _type: 'handout',
@@ -7243,6 +7669,37 @@ var APIAreaMapper = APIAreaMapper || (function() {
     /* user interface core - end */
     
     /* user interface windows - begin */
+    
+    interfaceAttachedObject = function(who, attachedObjectToken) {
+        var pageId = attachedObjectToken.get('_pageid');
+        var areaId = '';
+        
+        //the object could belong to any area that has a drawn instance on the page... all have to be searched, since an area shouldn't have to be active to detatch an object:
+        var areaInstances = state.APIAreaMapper.areas.areaInstances;
+        for(var i = areaInstances.length - 1; i >= 0; i--) {
+            
+            //note: expects areaId and pageId to be the first and second properties:
+            if(areaInstances[i][1][1] === pageId) {
+                var areaInstanceObj = new areaInstance(areaInstances[i][0][1], areaInstances[i][1][1]);
+                
+                if(areaInstanceObj.hasAttachedObject(attachedObjectToken.id)) {
+                    areaId = areaInstanceObj.getProperty('areaId');
+                }
+            }
+        }
+        
+        var text = (areaId
+            ? 'Detaching the object will detach it from all instances.'
+            : (state.APIAreaMapper.activeArea
+                ? 'Attaching the object will make it part of the active area.'
+                : 'An area must be active before an object can be attached.'));
+        
+        sendStandardInterface(who, 'Area Mapper',
+            uiSection('Graphic', text, [
+                    ['active', 'attach', 'toggleObjectAttach ' + pageId + ' ' + attachedObjectToken.id + ' ' + areaId, !areaId && !state.APIAreaMapper.activeArea, areaId] //note: areaId may be ''
+                ])
+        );
+    },
     
     interfaceDoor = function(who, managedGraphic) {
         state.APIAreaMapper.uiWindow = 'door';
@@ -8091,28 +8548,28 @@ var APIAreaMapper = APIAreaMapper || (function() {
         var a = new area(state.APIAreaMapper.activeArea);
         var managedGraphicProperties = a.getManagedGraphicProperties(graphic);
         
+        //if the object is not managed, it's probably eligible for attaching/detaching:
         if(!managedGraphicProperties) {
-            followUpAction.message = 'The selected graphic has no options to display.';
-            return followUpAction;
-        }
-        
-        switch(managedGraphicProperties.graphicType) {
-            case 'doors':
-                interfaceDoor(who, managedGraphicProperties);
-                break;
-            case 'chests':
-                interfaceChest(who, managedGraphicProperties);
-                break;
-            case 'trapdoors':
-                interfaceTrapdoor(who, managedGraphicProperties);
-                break;
-            case 'lightsources':
-                interfaceLightsource(who, managedGraphicProperties);
-                break;
-            default:
-                log('Unhandled graphicType of ' + managedGraphicProperties.graphicType + ' in intuit().');
-                followUpAction.message = 'There was a problem; see the log for details.';
-                return followUpAction;
+            interfaceAttachedObject(who, graphic);
+        } else {
+            switch(managedGraphicProperties.graphicType) {
+                case 'doors':
+                    interfaceDoor(who, managedGraphicProperties);
+                    break;
+                case 'chests':
+                    interfaceChest(who, managedGraphicProperties);
+                    break;
+                case 'trapdoors':
+                    interfaceTrapdoor(who, managedGraphicProperties);
+                    break;
+                case 'lightsources':
+                    interfaceLightsource(who, managedGraphicProperties);
+                    break;
+                default:
+                    log('Unhandled graphicType of ' + managedGraphicProperties.graphicType + ' in intuit().');
+                    followUpAction.message = 'There was a problem; see the log for details.';
+                    return followUpAction;
+            }
         }
         
         return followUpAction;
@@ -8296,6 +8753,9 @@ var APIAreaMapper = APIAreaMapper || (function() {
                     followUpAction = handleManageAssetTransparent(chatCommand[2]);
                     followUpAction.ignoreSelection = true;
                     break;
+                case 'toggleObjectAttach':
+                    followUpAction = toggleObjectAttach(msg.selected, msg.who, chatCommand[2], chatCommand[3], (chatCommand.length > 4 ? chatCommand[4] : null));
+                    break;
                 case 'interactiveObjectOpen':
                 case 'interactiveObjectLock':
                 case 'interactiveObjectTrap':
@@ -8428,19 +8888,44 @@ var APIAreaMapper = APIAreaMapper || (function() {
     },
     
     handleGraphicChange = function(graphic, prevState) {
-        if(state.APIAreaMapper.tempIgnoreDrawingEvents) {
+        
+        //note: ignore prevState - if the object was snapped to grid, prevState and graphic will both be changed; if not, prevState is old... I don't know a way to determine which case we're dealing with
+        
+        if(state.APIAreaMapper.tempIgnoreDrawingEvents || state.APIAreaMapper.tempIgnoreAttachedObjectEvents) {
             return;
         }
         
-        if(!state.APIAreaMapper.activeArea) {
-            return;
+        //check for attached object changes:
+        //the object could belong to any area that has a drawn instance on the page... all have to be searched, since an area shouldn't have to be active to detatch an object:
+        var areaId;
+        var pageId = graphic.get('_pageid');
+        var areaInstances = state.APIAreaMapper.areas.areaInstances;
+        for(var i = areaInstances.length - 1; i >= 0; i--) {
+            
+            //note: expects areaId and pageId to be the first and second properties:
+            if(areaInstances[i][1][1] === pageId) {
+                var areaInstanceObj = new areaInstance(areaInstances[i][0][1], areaInstances[i][1][1]);
+                
+                if(areaInstanceObj.hasAttachedObject(graphic.id)) {
+                    areaId = areaInstanceObj.getProperty('areaId');
+                }
+            }
         }
         
-        //ignore prevState: if the object was snapped to grid, prevState and graphic will both be changed; if not, prevState is old... I don't know a way to determine which case we're dealing with
-        
-        //let the area instance know about the graphic being changed; it should only care if it was a position change and if it's a managed object:
-        var a = new area(state.APIAreaMapper.activeArea);
-        a.handleGraphicChange(graphic);
+        if(areaId) {
+            var a = new area(areaId);
+            a.handleAttachedObjectChange(graphic);
+        } else {
+            
+            //TODO: is this requiring an active area to toggle objects?:
+            if(!state.APIAreaMapper.activeArea) {
+                return;
+            }
+            
+            //let the area instance know about the graphic being changed; it should only care if it was a position change and if it's a managed object:
+            var a = new area(state.APIAreaMapper.activeArea);
+            a.handleGraphicChange(graphic);
+        }
     },
     
     /* event handlers - end */
@@ -8472,8 +8957,8 @@ on('ready', function() {
         APIAreaMapper.registerEventHandlers();
     } else {
         log('--------------------------------------------------------------');
-        log('APIAreaMapper requires the VisualAlert script to work.');
-        log('VisualAlert git repo: https://github.com/RandallDavis/roll20-visualAlertScript');
+        log('Area Mapper requires the Visual Alert script to work.');
+        log('Visual Alert git repo: https://github.com/RandallDavis/roll20-visualAlertScript');
         log('--------------------------------------------------------------');
     }
 });
