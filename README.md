@@ -21,6 +21,7 @@ alt="AreaMapper demo" width="100%" height="100%" border="10" /></a>
 ##### Features not appearing in the demo video since they were implemented after it was made:
 - Toggleable trapdoors.
 - Toggleable light sources.
+- Attached objects.
 - UX improvements.
 
 ##### Tutorial videos:
