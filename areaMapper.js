@@ -6,7 +6,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 1.101,
+    var version = 1.102,
         areaSchemaVersion = 1.0,
         buttonBackgroundColor = '#CC1869',
         buttonGreyedColor = '#8D94A9',
@@ -8917,14 +8917,25 @@ var APIAreaMapper = APIAreaMapper || (function() {
             a.handleAttachedObjectChange(graphic);
         } else {
             
-            //TODO: is this requiring an active area to toggle objects?:
-            if(!state.APIAreaMapper.activeArea) {
-                return;
+            //if we failed to find an attached object, do another search for an interactive object:
+            for(var i = areaInstances.length - 1; i >= 0; i--) {
+            
+                //note: expects areaId and pageId to be the first and second properties:
+                if(areaInstances[i][1][1] === pageId) {
+                    var areaInstanceObj = new areaInstance(areaInstances[i][0][1], areaInstances[i][1][1]);
+                    
+                    if(areaInstanceObj.findManagedGraphic(graphic)) {
+                        areaId = areaInstanceObj.getProperty('areaId');
+                    }
+                }
             }
             
-            //let the area instance know about the graphic being changed; it should only care if it was a position change and if it's a managed object:
-            var a = new area(state.APIAreaMapper.activeArea);
-            a.handleGraphicChange(graphic);
+            if(areaId) {
+            
+                //let the area instance know about the graphic being changed; it should only care if it was a position change and if it's a managed object:
+                var a = new area(areaId);
+                a.handleGraphicChange(graphic);
+            }
         }
     },
     
