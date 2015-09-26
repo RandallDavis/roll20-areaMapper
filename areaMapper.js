@@ -6,7 +6,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 1.103,
+    var version = 1.104,
         areaSchemaVersion = 1.0,
         buttonBackgroundColor = '#CC1869',
         buttonGreyedColor = '#8D94A9',
@@ -7966,8 +7966,14 @@ var APIAreaMapper = APIAreaMapper || (function() {
     },
     
     interfaceMainMenu = function(who) {
+        var instructions = null;
+        
+        if(state.APIAreaMapper.recordAreaMode == 'areaCreate') {
+            instructions = 'Use a drawing tool to draw a floorplan for the new area.</p><p>Rectangle or polygon drawing tools are recommended. If a polygon drawing tool is used, at least three points must be drawn.';
+        }
+        
         sendStandardInterface(who, 'Area Mapper',
-            uiSection('Main Menu', null, [
+            uiSection('Main Menu', instructions, [
                     ['navigationActive', 'active area', 'activeArea', !state.APIAreaMapper.activeArea, false],
                     ['navigation', 'list areas', 'listAreas drawn', !state.APIAreaMapper.areas.areas.length, false],
                     ['active', 'create new area', 'areaCreate', false, (state.APIAreaMapper.recordAreaMode == 'areaCreate')]
