@@ -6,7 +6,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 1.100,
+    var version = 1.101,
         areaSchemaVersion = 1.0,
         buttonBackgroundColor = '#CC1869',
         buttonGreyedColor = '#8D94A9',
@@ -6454,7 +6454,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
         }
         
         //handle illegal assets:
-        if(!asset1.getProperty('imgsrc') || (asset2 && !asset2.getProperty('imgsrc'))) {
+        if(!asset1.getProperty('imagesrc') || (asset2 && !asset2.getProperty('imagesrc'))) {
             returnObject.message = 'At least one of the images that was selected is not in a Roll20 Art Library.</p><p>If the image was purchased off the Roll20 Marketplace, it must be downloaded and uploaded into your Art Library.';
         } 
         //handle successful case:
