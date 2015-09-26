@@ -6,7 +6,7 @@ var APIAreaMapper = APIAreaMapper || (function() {
    
     /* core - begin */
     
-    var version = 1.102,
+    var version = 1.103,
         areaSchemaVersion = 1.0,
         buttonBackgroundColor = '#CC1869',
         buttonGreyedColor = '#8D94A9',
@@ -8452,6 +8452,15 @@ var APIAreaMapper = APIAreaMapper || (function() {
                             +'To create an asset, select images on the screen and click the '+ch("'")+'create'+ch("'")+' or '+ch("'")+'create unique'+ch("'")+' command link. If you'+ch("'")+'re creating a type of asset that uses asset pairs, two images are expected.',
                         []);
                     break;
+                case 'attachedObjects':
+                    helpText = uiSection('Help - Attached Objects',
+                        'AreaMapper creates and manages a lot of images (floors, walls, doors, etc.), but it also allows you to "attach" objects that it didn'+ch("'")+'t create. From this point on, the object will be managed by AreaMapper.</p><p>'
+                            +'Attached objects are drawn and hidden along with any other image when an instance is drawn and hidden. Also, like any other object, it is kept in sync between all instances as it changes.</p><p>'
+                            +'This is particularly useful for anything that you want to place on an area that doesn'+ch("'")+'t need the complex features that AreaMapper provides. For instance, if you want to add furniture, decorations, non-toggling obstacles, etc., just put them on the area instance and attach them.</p><p>'
+                            +'Tokens representing characters, enemies, monsters, etc. can all be attached too. Even tokens linked to character sheets can be attached. There is an issue with Roll20'+ch("'")+'s API that causes token bars to become disconnected from character sheets, but everything else works.</p><p>'
+                            +'To attach (or detach) an object, select it and click "run script". Options will appear in the user interface to let you manage it.',
+                        []);
+                    break;
                 default:
                     break;
             }
@@ -8463,7 +8472,8 @@ var APIAreaMapper = APIAreaMapper || (function() {
                 : uiSection('Help Topics', null, [
                         ['navigation', 'command links', 'help commandLinks', false, false],
                         ['navigation', 'handout UI', 'help handoutUi', false, false],
-                        ['navigation', 'assets', 'help assets', false, false]
+                        ['navigation', 'assets', 'help assets', false, false],
+                        ['navigation', 'attached objects', 'help attachedObjects', false, false]
                     ])
         );
     },
